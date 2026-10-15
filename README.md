@@ -12,10 +12,10 @@ TopiaPause is a guard layer for AI agents that spend money for you. Before an ag
 > **No real money moves.** The agent in this demo is **"U-Bot (mock)"**, a scripted stand-in for U-topia's U-Bot, labelled as such until a real U-Bot API is available.
 
 <p align="center">
-  <img src="docs/screenshots/onboarding.png" width="200" alt="Onboarding: set 3 rules" />
-  <img src="docs/screenshots/guard-subscription.png" width="200" alt="Guard card: annual plan paused" />
-  <img src="docs/screenshots/guard-crypto.png" width="200" alt="Guard card: crypto swap paused with a_max counter-offer" />
-  <img src="docs/screenshots/activity.png" width="200" alt="Activity timeline" />
+  <img src="docs/screenshots/v2/m01-onboarding.png" width="200" alt="Onboarding: set 3 rules on one screen" />
+  <img src="docs/screenshots/v2/m03-subscription-guard.png" width="200" alt="Guard card: annual plan paused, monthly offer" />
+  <img src="docs/screenshots/v2/m05-crypto-guard.png" width="200" alt="Guard card: crypto swap paused with a_max counter-offer" />
+  <img src="docs/screenshots/v2/m07-activity.png" width="200" alt="Activity with protected total" />
 </p>
 
 ## Demo scenes
@@ -26,32 +26,35 @@ TopiaPause is a guard layer for AI agents that spend money for you. Before an ag
 | "Cheap hotel near Asok, plans may change" | book a **non-refundable** room (shown ฿1,200, real total ฿1,284) | Pauses, shows the total-price gap, offers the cheapest refundable room (+฿161, 12.5%) |
 | "Swap 500 USDT into TOKEN-X, just once" | request **unlimited approval** and push TOKEN-X to 45% (your cap is 30%) | Pauses and offers the max allowed swap (**$200**) with a one-time exact approval that expires in 15 minutes |
 
-Each scene runs end to end: proposal → guard card (decision, findings, counter-offer) → voice → "why?" follow-up → use safer option → animated re-check → mock execute → receipt → activity timeline.
+Each scene runs end to end: proposal → guard card (status + one-line reason, one counter-offer, voice autoplays) → "use this" → re-check → mock execute → receipt in the activity list.
 
 ### Screenshots
 
-Mobile (390×844, Thai, light) unless noted. All files are in [`docs/screenshots/`](docs/screenshots/).
+Mobile (390×844, Thai, light) unless noted. Current design (v2) is in [`docs/screenshots/v2/`](docs/screenshots/v2/); the first design is kept in [`docs/screenshots/`](docs/screenshots/) for comparison.
+
+**Before / after: subscription guard card** (the whole card now fits on one screen inside the chat)
+
+<img src="docs/screenshots/v2/before-after-subscription-guard.png" width="600" alt="Before and after: subscription guard card" />
 
 | Screen | Scene 1: subscription | Scene 2: stay | Scene 3: crypto |
 |---|---|---|---|
-| Chat | <img src="docs/screenshots/m03-scene1-subscription-chat.png" width="180" alt="Scene 1 chat" /> | <img src="docs/screenshots/m04-scene2-stay-chat.png" width="180" alt="Scene 2 chat" /> | <img src="docs/screenshots/m05-scene3-crypto-chat.png" width="180" alt="Scene 3 chat" /> |
-| Guardian card | <img src="docs/screenshots/m03-scene1-subscription-guard-card.png" width="180" alt="Scene 1 guard card" /> | <img src="docs/screenshots/m04-scene2-stay-guard-card.png" width="180" alt="Scene 2 guard card" /> | <img src="docs/screenshots/m05-scene3-crypto-guard-card.png" width="180" alt="Scene 3 guard card" /> |
-| Re-check | <img src="docs/screenshots/m03-scene1-subscription-recheck.png" width="180" alt="Scene 1 re-check" /> | <img src="docs/screenshots/m04-scene2-stay-recheck.png" width="180" alt="Scene 2 re-check" /> | <img src="docs/screenshots/m05-scene3-crypto-recheck.png" width="180" alt="Scene 3 re-check" /> |
-| Receipt | <img src="docs/screenshots/m03-scene1-subscription-receipt.png" width="180" alt="Scene 1 receipt" /> | <img src="docs/screenshots/m04-scene2-stay-receipt.png" width="180" alt="Scene 2 receipt" /> | <img src="docs/screenshots/m05-scene3-crypto-receipt.png" width="180" alt="Scene 3 receipt" /> |
+| Guard card in chat | <img src="docs/screenshots/v2/m03-subscription-guard.png" width="180" alt="Scene 1 guard card" /> | <img src="docs/screenshots/v2/m04-stay-guard.png" width="180" alt="Scene 2 guard card" /> | <img src="docs/screenshots/v2/m05-crypto-guard.png" width="180" alt="Scene 3 guard card" /> |
+| Re-check | <img src="docs/screenshots/v2/m03-subscription-recheck.png" width="180" alt="Scene 1 re-check" /> | <img src="docs/screenshots/v2/m04-stay-recheck.png" width="180" alt="Scene 2 re-check" /> | <img src="docs/screenshots/v2/m05-crypto-recheck.png" width="180" alt="Scene 3 re-check" /> |
+| Done | <img src="docs/screenshots/v2/m03-subscription-done.png" width="180" alt="Scene 1 done" /> | <img src="docs/screenshots/v2/m04-stay-done.png" width="180" alt="Scene 2 done" /> | <img src="docs/screenshots/v2/m05-crypto-done.png" width="180" alt="Scene 3 done" /> |
 
-| Onboarding | Empty chat | "Why?" follow-up | Activity | Receipt screen | Rules |
+| Onboarding | Empty chat | "See why" expanded | Activity | Receipt (expanded row) | Rules |
 |---|---|---|---|---|---|
-| <img src="docs/screenshots/m01-onboarding.png" width="140" alt="Onboarding" /> | <img src="docs/screenshots/m02-chat-empty.png" width="140" alt="Empty chat" /> | <img src="docs/screenshots/m05-scene3-crypto-why.png" width="140" alt="Why follow-up" /> | <img src="docs/screenshots/m06-activity.png" width="140" alt="Activity" /> | <img src="docs/screenshots/m06b-receipt-screen.png" width="140" alt="Receipt screen" /> | <img src="docs/screenshots/m07-rules.png" width="140" alt="Rules" /> |
+| <img src="docs/screenshots/v2/m01-onboarding.png" width="140" alt="Onboarding" /> | <img src="docs/screenshots/v2/m02-chat-empty.png" width="140" alt="Empty chat" /> | <img src="docs/screenshots/v2/m03-subscription-reasons.png" width="140" alt="Reasons expanded" /> | <img src="docs/screenshots/v2/m07-activity.png" width="140" alt="Activity" /> | <img src="docs/screenshots/v2/m06-activity-receipt.png" width="140" alt="Receipt row" /> | <img src="docs/screenshots/v2/m08-rules.png" width="140" alt="Rules" /> |
 
-| Dark / English chat | Dark / English guard card |
+| Dark / English guard card | Dark / English done |
 |---|---|
-| <img src="docs/screenshots/m08-dark-en-crypto-chat.png" width="180" alt="Dark English chat" /> | <img src="docs/screenshots/m08-dark-en-crypto-guard-card.png" width="180" alt="Dark English guard card" /> |
+| <img src="docs/screenshots/v2/m09-dark-en-crypto-guard.png" width="180" alt="Dark English guard card" /> | <img src="docs/screenshots/v2/m09-dark-en-crypto-done.png" width="180" alt="Dark English done" /> |
 
 Desktop (1440×900):
 
-<img src="docs/screenshots/d01-desktop-crypto-chat.png" width="720" alt="Desktop chat" />
-<img src="docs/screenshots/d01-desktop-crypto-guard-card.png" width="480" alt="Desktop guard card" />
-<img src="docs/screenshots/d02-desktop-receipt.png" width="720" alt="Desktop receipt" />
+<img src="docs/screenshots/v2/d02-desktop-subscription-guard.png" width="720" alt="Desktop guard card" />
+<img src="docs/screenshots/v2/d03-desktop-activity.png" width="720" alt="Desktop activity with receipt" />
+<img src="docs/screenshots/v2/d01-desktop-onboarding.png" width="360" alt="Desktop onboarding" /> <img src="docs/screenshots/v2/d04-desktop-rules.png" width="360" alt="Desktop rules" />
 
 ## How it works
 
@@ -74,12 +77,13 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for diagrams, data contracts an
 ## Stack
 
 - React 19 + TypeScript + Vite + Tailwind v4 (`apps/web`), Inter + IBM Plex Sans Thai, lucide icons
+  - Design tokens are the Tailwind v4 `@theme` config in `apps/web/src/index.css`: 1 brand colour + the wave gradient, 3 grays, 3 status colours, 2 radii, 1 shadow. Default palette, radii and shadows are cleared so nothing else can be used; dark mode swaps token values.
 - Cloudflare Worker with static assets and `/api/*`, keys kept server-side (`workers/api`)
 - Pure TS rules engine with Vitest (`packages/guard-engine`)
 - Shared contracts, TH/EN templates and the mock catalogs (`packages/shared`)
 
 ```
-apps/web/              chat UI, guard card, re-check, receipt, activity, onboarding (runs fully in-browser)
+apps/web/              chat UI, guard card, re-check, activity + receipts, onboarding (runs fully in-browser)
 workers/api/           Cloudflare Worker: serves apps/web/dist + /api/* (thin stubs, real guard check)
 packages/guard-engine/ deterministic rules + a_max + number lock (+ tests)
 packages/shared/       types (ARCHITECTURE §5), TH/EN templates, scene catalogs, scripted U-Bot
