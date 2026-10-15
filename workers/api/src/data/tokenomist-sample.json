@@ -1,0 +1,28 @@
+{
+  "_note": "SAMPLE DATA, NOT LIVE. Hand-made in the Tokenomist v5 /unlock/events/upcoming response shape for offline demos. Values are illustrative only.",
+  "metadata": { "queryDate": "2026-10-15T00:00:00Z", "credit": 0 },
+  "status": true,
+  "data": [
+    {
+      "tokenId": "arbitrum",
+      "tokenName": "Arbitrum",
+      "tokenSymbol": "ARB",
+      "marketCap": 2400000000,
+      "releasedPercentage": 62.1,
+      "upcomingEvent": {
+        "unlockDate": "2026-10-16T13:00:00Z",
+        "referencePrice": 0.42,
+        "cliffUnlocks": {
+          "cliffAmount": 92650000,
+          "cliffValue": 38913000,
+          "valueToMarketCap": 1.62,
+          "allocationBreakdown": [
+            { "allocationName": "Team, Future Team + Advisors", "cliffAmount": 56130000 },
+            { "allocationName": "Investors", "cliffAmount": 36520000 }
+          ]
+        },
+        "latestUpdateDate": "2026-10-14T00:00:00Z"
+      }
+    }
+  ]
+}

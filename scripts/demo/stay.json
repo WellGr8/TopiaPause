@@ -1,67 +1,49 @@
 {
-  "userText": "หาโรงแรมถูกๆ ใกล้อโศก คืนวันศุกร์ แต่แผนอาจเปลี่ยนนะ",
-  "lang": "th",
-  "proposal": {
-    "kind": "stay",
-    "proposalId": "demo-stay",
-    "agent": {
-      "name": "U-Bot (mock)",
-      "adapter": "mock"
-    },
-    "summary": "City Nest Asok ฿1,200 (non-refundable)",
+  "agent": {
+    "name": "ShopBot",
+    "version": "1.0"
+  },
+  "userMessage": "Find me a cheap hotel near Asok for Friday night. My plans may change.",
+  "lang": "en",
+  "action": {
+    "type": "book",
     "hotel": "City Nest Asok",
-    "nightlyPrice": {
-      "amount": 1200,
-      "currency": "THB"
-    },
-    "totalPrice": {
-      "amount": 1284,
-      "currency": "THB"
-    },
-    "quotedPrice": {
-      "amount": 1200,
-      "currency": "THB"
-    },
     "refundable": false,
-    "catalogAlternatives": [
-      {
-        "hotel": "Asok Inn",
-        "nightlyPrice": {
-          "amount": 1350,
-          "currency": "THB"
-        },
-        "totalPrice": {
-          "amount": 1445,
-          "currency": "THB"
-        },
-        "refundable": true,
-        "freeCancelUntil": "2026-10-22T18:00:00+07:00"
+    "shownPrice": {
+      "value": "1200.00",
+      "currency": "THB"
+    }
+  },
+  "amount": {
+    "value": "1284.00",
+    "currency": "THB"
+  },
+  "alternatives": [
+    {
+      "name": "Asok Inn",
+      "amount": {
+        "value": "1445.00",
+        "currency": "THB"
       },
-      {
-        "hotel": "Sukhumvit Grand",
-        "nightlyPrice": {
-          "amount": 2000,
-          "currency": "THB"
-        },
-        "totalPrice": {
-          "amount": 2140,
-          "currency": "THB"
-        },
-        "refundable": true,
-        "freeCancelUntil": "2026-10-22T12:00:00+07:00"
+      "refundable": true,
+      "freeCancelUntil": "2026-10-22T18:00:00+07:00"
+    },
+    {
+      "name": "Sukhumvit Grand",
+      "amount": {
+        "value": "2140.00",
+        "currency": "THB"
       },
-      {
-        "hotel": "Budget Box 21",
-        "nightlyPrice": {
-          "amount": 1100,
-          "currency": "THB"
-        },
-        "totalPrice": {
-          "amount": 1310,
-          "currency": "THB"
-        },
-        "refundable": false
-      }
-    ]
-  }
+      "refundable": true,
+      "freeCancelUntil": "2026-10-22T12:00:00+07:00"
+    },
+    {
+      "name": "Budget Box 21",
+      "amount": {
+        "value": "1310.00",
+        "currency": "THB"
+      },
+      "refundable": false
+    }
+  ]
 }

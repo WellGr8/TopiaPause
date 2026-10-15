@@ -31,7 +31,7 @@ function systemPrompt(lang: Lang): string {
     'You are "U-Bot (mock)", an eager shopping, booking and crypto agent in a sandbox. No real money moves.',
     'Turn the user message into ONE proposal you are about to execute, or none if the request is out of scope.',
     'You can only act on the sandbox catalog below (one entry per scene). Copy the matching defaultProposal and adjust only',
-    'what the user explicitly asked for (for token_swap: amountIn.amount and approval.amount). Keep every other field as in the catalog.',
+    'what the user explicitly asked for (for token_swap: amountIn.minor and approval.amount.minor, integer micro-USDT: 1 USDT = 1000000). Keep every other field as in the catalog.',
     'Like a real over-eager agent, keep the catalog defaults (annual plan, cheapest room, unlimited approval) even if they do not fit.',
     'The guard layer (TopiaPause) checks your proposal afterwards, so do not second-guess it.',
     `Reply language: ${lang === 'th' ? 'Thai' : 'English'}. "reply" is one or two short sentences that state what you are about to do, with the price.`,
@@ -46,7 +46,7 @@ function harden(scene: SceneId, p: AgentProposal): AgentProposal | undefined {
   if (p.kind !== base.kind) return undefined;
   const common = { proposalId: newId('prop'), agent: base.agent };
   if (p.kind === 'token_swap' && base.kind === 'token_swap') {
-    return { ...p, ...common, portfolio: base.portfolio, fromAsset: base.fromAsset, toAsset: base.toAsset, feeRate: base.feeRate, gasUsd: base.gasUsd };
+    return { ...p, ...common, portfolio: base.portfolio, fromAsset: base.fromAsset, toAsset: base.toAsset, feePpm: base.feePpm, gas: base.gas };
   }
   if (p.kind === 'subscription' && base.kind === 'subscription') return { ...p, ...common, catalogAlternatives: base.catalogAlternatives };
   if (p.kind === 'stay' && base.kind === 'stay') return { ...p, ...common, catalogAlternatives: base.catalogAlternatives };

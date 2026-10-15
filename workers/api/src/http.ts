@@ -6,6 +6,9 @@ import { issues } from './schemas';
 export interface Secrets {
   LLM_API_KEY?: string;
   ELEVENLABS_API_KEY?: string;
+  /** HMAC key for policy tokens and verdict tickets. Required in production. */
+  POLICY_SIGNING_KEY?: string;
+  TOKENOMIST_API_KEY?: string;
 }
 export type AppEnv = Env & Secrets;
 
@@ -57,7 +60,8 @@ export class HttpError extends Error {
   }
 }
 
-export async function readBody<S extends z.ZodType>(req: Request, schema: S): Promise<z.output<S>> {
+/** Size-checked JSON body, unvalidated. */
+export async function readJson(req: Request): Promise<unknown> {
   if (!(req.headers.get('Content-Type') ?? '').includes('application/json')) {
     throw new HttpError(415, 'unsupported_media_type', 'Send Content-Type: application/json');
   }
@@ -67,15 +71,21 @@ export async function readBody<S extends z.ZodType>(req: Request, schema: S): Pr
   if (new TextEncoder().encode(text).byteLength > MAX_BODY_BYTES) {
     throw new HttpError(413, 'payload_too_large', `Body must be at most ${MAX_BODY_BYTES} bytes`);
   }
-  let raw: unknown;
   try {
-    raw = JSON.parse(text);
+    return JSON.parse(text);
   } catch {
     throw new HttpError(400, 'invalid_json', 'Body is not valid JSON');
   }
+}
+
+export function parseJson<S extends z.ZodType>(raw: unknown, schema: S): z.output<S> {
   const parsed = schema.safeParse(raw);
   if (!parsed.success) throw new HttpError(400, 'invalid_input', issues(parsed.error));
   return parsed.data;
+}
+
+export async function readBody<S extends z.ZodType>(req: Request, schema: S): Promise<z.output<S>> {
+  return parseJson(await readJson(req), schema);
 }
 
 /** Per-client limit via the Workers Rate Limiting binding. A missing binding means no limit (tests). */

@@ -12,3 +12,12 @@ LLM_API_KEY=
 ELEVENLABS_API_KEY=
 # ELEVENLABS_VOICE_ID=
 # ELEVENLABS_MODEL_ID=eleven_v3
+
+# Signs user policy tokens and verdict tickets (HMAC-SHA256). Required in production;
+# without it each isolate makes a random key and tokens stop verifying after a restart.
+# Generate: openssl rand -base64 32
+POLICY_SIGNING_KEY=
+
+# Tokenomist Standard API (upcoming unlocks for the crypto risk note). Optional:
+# without it the bundled sample (labelled "sample data, not live") is used.
+TOKENOMIST_API_KEY=

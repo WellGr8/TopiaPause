@@ -22,7 +22,7 @@
     "logs": { "enabled": true, "head_sampling_rate": 1 },
     "traces": { "enabled": true, "head_sampling_rate": 0.1 }
   },
-  // Non-secret config only. Secrets (LLM_API_KEY, ELEVENLABS_API_KEY) go in .dev.vars
+  // Non-secret config only. Secrets (POLICY_SIGNING_KEY, LLM_API_KEY, ELEVENLABS_API_KEY, TOKENOMIST_API_KEY) go in .dev.vars
   // locally and `wrangler secret put <NAME>` (or the deploy workflow) in production.
   "vars": {
     "LLM_BASE_URL": "https://api.openai.com/v1",

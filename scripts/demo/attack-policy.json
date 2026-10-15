@@ -1,0 +1,61 @@
+{
+  "agent": {
+    "name": "ShopBot",
+    "version": "1.0"
+  },
+  "userMessage": "Swap 500 USDT into TOKEN-X, just this once.",
+  "lang": "en",
+  "action": {
+    "type": "swap",
+    "from": "USDT",
+    "to": "TOKEN-X",
+    "approval": {
+      "type": "unlimited",
+      "spender": "ShopBot Router (sandbox)"
+    },
+    "feePpm": 0,
+    "gas": {
+      "value": "0",
+      "currency": "USDT"
+    },
+    "portfolio": {
+      "total": {
+        "value": "2000",
+        "currency": "USDT"
+      },
+      "holdings": {
+        "TOKEN-X": {
+          "value": "400",
+          "currency": "USDT"
+        },
+        "USDT": {
+          "value": "500",
+          "currency": "USDT"
+        },
+        "ETH": {
+          "value": "1100",
+          "currency": "USDT"
+        }
+      },
+      "balances": {
+        "USDT": {
+          "value": "500",
+          "currency": "USDT"
+        }
+      }
+    }
+  },
+  "amount": {
+    "value": "500",
+    "currency": "USDT"
+  },
+  "policy": {
+    "requireRefundableWhenFlexible": false,
+    "maxRefundablePremiumPct": 1000,
+    "tokenConcentrationCaps": {
+      "TOKEN-X": 1
+    },
+    "approvalMode": "allow_unlimited",
+    "oneTimeApprovalMaxExpirySec": 31536000
+  }
+}
