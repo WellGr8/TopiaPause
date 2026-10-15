@@ -1,4 +1,4 @@
-import { SCENE_ORDER, SCENES } from '@topiapause/shared';
+import { SCENE_ORDER, SCENES, type SceneId } from '@topiapause/shared';
 import { ArrowUp, Globe } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { t } from '../copy';
@@ -7,6 +7,9 @@ import { useApp, type ChatItem } from '../state';
 import { GuardianCard } from './GuardianCard';
 import { SavedHero, useSavings } from './SavedHero';
 import { cx } from './ui';
+
+/** Tickets already handed to the chat, including across a StrictMode remount. */
+const openedTickets = new Set<string>();
 
 function Bubble({ from, children }: { from: 'user' | 'ubot'; children: ReactNode }) {
   return (
@@ -90,6 +93,14 @@ export function ChatScreen() {
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [state.chat, busy]);
+
+  useEffect(() => {
+    const ticket = state.openTicket;
+    const scene: SceneId | undefined = state.openScene;
+    if (!ticket || !scene || openedTickets.has(ticket)) return;
+    openedTickets.add(ticket);
+    void send(SCENES[scene].userText[lang], scene);
+  }, [state.openTicket, state.openScene, lang, send]);
 
   const sceneChip = (id: (typeof SCENE_ORDER)[number]) => ({ id, label: SCENES[id].chip[lang], run: () => send(SCENES[id].userText[lang], id) });
   const [first, ...rest] = SCENE_ORDER.map(sceneChip);

@@ -16,15 +16,16 @@ One Cloudflare Worker serves the web app and these JSON endpoints under `/api/*`
 | `POST /api/agent/chat` | U-Bot (mock): turns a message into an `AgentProposal` (LLM or scripted) | same origin + session | 20 / min (own budget) |
 | `POST /api/agent/execute` | Mock execution of a proposal a verdict ticket cleared | any origin | 120 / min |
 | `POST /api/voice/tts` | ElevenLabs speech for an engine voice line, streamed as `audio/mpeg` | same origin + session | 20 / min (own budget) |
+| `POST /api/voice/stt` | ElevenLabs Scribe transcript of a short reply | same origin + session | 10 / min (own budget) |
 
 **Request rules:**
 
-- Bodies must be `Content-Type: application/json` and at most **32 KB**.
+- JSON bodies must be `Content-Type: application/json` and at most **32 KB**. `POST /api/voice/stt` is the exception: a raw audio body, at most **300 KB**.
 - Money is integer **minor units**: satang (THB), cents (USD), micro-USDT (6 decimals). The generic agent schema also accepts an exact decimal string (`"3990.00"`); extra decimals are rejected (`THB has 2 decimals`).
 - An agent must not send `policy` or `intent`. Both are rejected before the engine runs.
 - Chat, TTS, policy, and confirm need a browser session. `POST /api/session` with `Origin` equal to this Worker (or `ALLOWED_ORIGIN`) and `Sec-Fetch-Site` of `same-origin` or `none` returns a token and sets `Set-Cookie: tp_session=...; HttpOnly; Secure; SameSite=Strict; Path=/api; Max-Age=600`. Later requests send that cookie, or the same token as `X-TopiaPause-Session` (the cookie is read first). The token is an HMAC bound to a SHA-256 hash of `User-Agent` only, not to `CF-Connecting-IP`, and lasts 10 minutes. An IP change (iCloud Private Relay, WARP, a mobile network, rotating egress) keeps the session. A different User-Agent, or a token issued before this binding (`v: 1`), is `403 invalid_session`. No cookie and no header is `403 session_required`. Rate limits stay per IP.
 - A missing `Origin`, a different `Origin`, or `Sec-Fetch-Site: cross-site` is `403 forbidden_origin` on those routes. `DEV=1` in local `.dev.vars` is the only way a missing Origin is accepted. Do not set `DEV` in production.
-- Chat and TTS each have their own 20/minute budget per IP (isolate counter keyed by path, and the paid rate-limit binding keyed `chat:<ip>` vs `tts:<ip>`). A shared daily cap (`PAID_DAILY_MAX`, default 300, per isolate) stops further LLM and ElevenLabs calls.
+- Chat and TTS each have their own 20/minute budget per IP (isolate counter keyed by path, and the paid rate-limit binding keyed `chat:<ip>` vs `tts:<ip>`). Speech-to-text has its own 10/minute budget (`RATE_LIMITER_STT`, isolate cap 10, key `stt:<ip>`). A shared daily cap (`PAID_DAILY_MAX`, default 300, per isolate) stops further LLM, TTS, and speech-to-text calls.
 - `guard/check` and `health` stay open to any origin. `guard/check` never calls an LLM (`llmCalls` is 0). Execute stays open so the agent can run an allow, or a counter-offer the user app confirmed. The paused original is never confirmed and never executed through the API.
 
 **Errors** always have this shape:
@@ -42,19 +43,21 @@ One Cloudflare Worker serves the web app and these JSON endpoints under `/api/*`
 | 400 | `policy_loosening_rejected` | Policy is looser than the default. The API is tighten-only; a body flag does not change that |
 | 400 | `original_not_confirmable` | `POST /api/confirm` was asked to confirm the paused original. Only `counter_offer` is confirmable |
 | 400 | `tts_text_rejected` | TTS text is not an engine voice line (or the clip id is unknown). Text is capped at 300 characters |
-| 403 | `forbidden_origin` | Chat, TTS, policy, confirm, or session with no Origin, a disallowed Origin, or `Sec-Fetch-Site: cross-site` |
+| 403 | `forbidden_origin` | Chat, TTS, speech-to-text, policy, confirm, or session with no Origin, a disallowed Origin, or `Sec-Fetch-Site: cross-site` |
 | 403 | `session_required`, `invalid_session` | Those routes (except session itself) with no `tp_session` cookie and no `X-TopiaPause-Session`, or a token that is expired, the wrong version, or bound to a different User-Agent |
 | 403 | `unknown_verdict`, `expired_verdict`, `proposal_not_cleared` | Execute: forged, expired (> 10 min), a proposal the check did not clear, or the paused original |
 | 403 | `confirmation_required` | The paused counter-offer executed without a confirmation token |
 | 404 / 405 | `not_found`, `method_not_allowed` | Unknown route or wrong method |
 | 409 | `verdict_used` | That verdict ticket was already executed (single use, per isolate) |
-| 413 | `payload_too_large` | Body over 32 KB |
-| 415 | `unsupported_media_type` | Missing `Content-Type: application/json` |
+| 413 | `payload_too_large` | JSON body over 32 KB, or speech-to-text audio over 300 KB |
+| 415 | `unsupported_media_type` | JSON route without `Content-Type: application/json`, or speech-to-text with a type outside the audio allowlist |
 | 422 | `unprocessable` | Valid shape, but the engine couldn't evaluate it |
 | 429 | `rate_limited` | Over the per-IP limit (`Retry-After: 60`) |
 | 502 | `tts_failed` | ElevenLabs returned an error |
+| 502 | `stt_failed` | Speech-to-text failed. Use the buttons |
 | 503 | `tts_unavailable` | ElevenLabs is not configured; use browser speech |
-| 503 | `spend_cap` | This isolate has used its daily LLM/TTS budget |
+| 503 | `stt_unavailable` | Speech-to-text is not configured. Use the buttons |
+| 503 | `spend_cap` | This isolate has used its daily LLM/TTS/speech-to-text budget |
 | 503 | `misconfigured` | `POLICY_SIGNING_KEY` is unset and `DEV` is not `1` |
 
 ---
@@ -107,11 +110,12 @@ Output from a local `wrangler dev` run (money in minor units; `check.estCostTHB_
 ## `GET /api/health`
 
 ```json
-{ "ok": true, "engineVersion": "0.2.0", "agent": "U-Bot (mock)", "llm": "scripted", "tts": "unavailable", "marketData": "sample" }
+{ "ok": true, "engineVersion": "0.2.0", "agent": "U-Bot (mock)", "llm": "scripted", "tts": "unavailable", "stt": "unavailable", "marketData": "sample" }
 ```
 
 - `llm` is `"llm"` when `LLM_API_KEY` and `LLM_MODEL` are set, otherwise `"scripted"`.
 - `tts` is `"elevenlabs"` when `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` are set.
+- `stt` is `"elevenlabs"` when `ELEVENLABS_API_KEY` is set. The key is not returned.
 - `marketData` is `"tokenomist"` when `TOKENOMIST_API_KEY` is set, otherwise `"sample"`.
 - Secret values are never returned.
 
@@ -236,6 +240,20 @@ The ticket is verified (signature, 10-minute TTL, proposal hash) and then spent.
 
 The Cache API does nothing on `*.workers.dev`. Edge caching of TTS and of Tokenomist needs a custom domain. The in-isolate cache still applies.
 
+## `POST /api/voice/stt`
+
+A short reply from the pause screen (at most 6 seconds, about 300 KB). The body is the audio bytes, not JSON. `Content-Type` must be one of `audio/webm`, `audio/mp4`, `audio/mpeg`, `audio/mp3`, `audio/wav`, `audio/wave`, `audio/x-wav`, `audio/ogg`, `audio/aac`, `audio/m4a`, `audio/x-m4a` (a `;codecs=` parameter is fine). Anything else is `415`. Over 300 KB is `413`.
+
+Needs `Origin` and a session, same as TTS. Its rate limit is separate: 10 requests per minute per IP. It shares the daily paid cap with chat and TTS.
+
+Upstream is ElevenLabs `POST https://api.elevenlabs.io/v1/speech-to-text` with `model_id` `scribe_v2` ([create transcript](https://elevenlabs.io/docs/api-reference/speech-to-text/convert)). The Worker does not store the audio or the transcript and does not write either to logs. The action is keyword matching (`mapVoiceIntent`), not a model. `confirm` in the transcript maps to `counter_offer` only.
+
+```json
+{ "transcript": "เอาอันที่แนะนำ", "action": "counter_offer" }
+```
+
+`action` is `counter_offer`, `cancel`, or `unclear`. The web app shows both fields and waits for one tap. Speech never executes a payment. Without `ELEVENLABS_API_KEY` the route is `503 stt_unavailable` and the mic steps aside.
+
 ---
 
 ## Configuration
@@ -247,11 +265,11 @@ The Cache API does nothing on `*.workers.dev`. Edge caching of TTS and of Tokeno
 | `LLM_API_KEY` | **secret** | – | `/api/agent/chat` |
 | `LLM_MODEL` | var | `openai/gpt-4o-mini` | `/api/agent/chat` |
 | `LLM_BASE_URL` | var | `https://openrouter.ai/api/v1` | `/api/agent/chat` |
-| `ELEVENLABS_API_KEY` | **secret** | – | `/api/voice/tts` |
+| `ELEVENLABS_API_KEY` | **secret** | – | `/api/voice/tts`, `/api/voice/stt` |
 | `ELEVENLABS_VOICE_ID` | var | `nPczCjzI2devNBz1zQrb` | `/api/voice/tts` |
 | `ELEVENLABS_MODEL_ID` | var | `eleven_v4` | `/api/voice/tts` |
 | `ALLOWED_ORIGIN` | var | `""` | Extra origin allowed to mint policy tokens and call the same-origin routes |
-| `RATE_LIMITER`, `RATE_LIMITER_PAID` | binding | 120/min, 20/min | Workers Rate Limiting |
+| `RATE_LIMITER`, `RATE_LIMITER_PAID`, `RATE_LIMITER_STT` | binding | 120/min, 20/min, 10/min | Workers Rate Limiting |
 
 Secrets go in `workers/api/.dev.vars` locally (copy `.dev.vars.example`) and `wrangler secret put <NAME>` in production. They are never returned by any endpoint.
 

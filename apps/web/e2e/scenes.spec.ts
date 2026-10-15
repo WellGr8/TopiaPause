@@ -18,7 +18,13 @@ test('three demo scenes pause and accept the counter-offer', async ({ page }) =>
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'เริ่มใช้งาน' }).click();
+  await page.getByRole('button', { name: 'ลองให้ AI จ่ายดู' }).click();
+
+  const opened = page.locator('[data-guard="verdict"]').last();
+  await expect(opened).toBeVisible();
+  await expect(opened).toContainText('฿299');
+  await opened.getByRole('button', { name: 'ใช้ทางเลือกนี้' }).click();
+  await expect(page.locator('[data-guard="done"]').last()).toBeVisible();
 
   for (const scene of SCENES) {
     await page.getByRole('button', { name: scene.chip }).click();

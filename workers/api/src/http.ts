@@ -11,8 +11,10 @@ export interface Secrets {
   TOKENOMIST_API_KEY?: string;
   /** Set to "1" only in local `.dev.vars`. Production must leave this unset. */
   DEV?: string;
-  /** Max LLM + TTS upstream calls per isolate per UTC day. Default 300. */
+  /** Max LLM + TTS + STT upstream calls per isolate per UTC day. Default 300. */
   PAID_DAILY_MAX?: string;
+  /** Scribe model id. Default scribe_v2. */
+  ELEVENLABS_STT_MODEL_ID?: string;
 }
 export type AppEnv = Env & Secrets;
 
@@ -131,8 +133,8 @@ export function resetIsolateRateLimit(): void {
 }
 
 /**
- * Counts LLM and TTS upstream calls for this isolate. Over the daily cap the caller
- * skips the paid provider. The counter is not shared across isolates.
+ * Counts LLM, TTS, and speech-to-text upstream calls for this isolate. Over the daily
+ * cap the caller skips the paid provider. The counter is not shared across isolates.
  */
 export function chargePaid(env: AppEnv): boolean {
   const raw = env.PAID_DAILY_MAX;
@@ -150,12 +152,12 @@ export function chargePaid(env: AppEnv): boolean {
  * Per-IP limit that lives in this isolate. Paid routes use it even when the Workers
  * Rate Limiting binding is absent (local dev, tests). Returns 429 once the window is full.
  */
-export function isolateRateLimit(req: Request, bucket: string): void {
+export function isolateRateLimit(req: Request, bucket: string, limit = ISOLATE_LIMIT): void {
   const ip = req.headers.get('CF-Connecting-IP') ?? 'local';
   const key = `${bucket}:${ip}`;
   const now = Date.now();
   const hits = (isolateHits.get(key) ?? []).filter((t) => now - t < ISOLATE_WINDOW_MS);
-  if (hits.length >= ISOLATE_LIMIT) {
+  if (hits.length >= limit) {
     throw new HttpError(429, 'rate_limited', 'Too many requests, slow down', { 'Retry-After': '60' });
   }
   hits.push(now);

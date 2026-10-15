@@ -15,7 +15,8 @@
   },
   "ratelimits": [
     { "name": "RATE_LIMITER", "namespace_id": "4101", "simple": { "limit": 120, "period": 60 } },
-    { "name": "RATE_LIMITER_PAID", "namespace_id": "4102", "simple": { "limit": 20, "period": 60 } }
+    { "name": "RATE_LIMITER_PAID", "namespace_id": "4102", "simple": { "limit": 20, "period": 60 } },
+    { "name": "RATE_LIMITER_STT", "namespace_id": "4103", "simple": { "limit": 10, "period": 60 } }
   ],
   "observability": {
     "enabled": true,

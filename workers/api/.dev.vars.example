@@ -19,7 +19,7 @@ LLM_API_KEY=
 # LLM_MODEL=openai/gpt-4o-mini
 # LLM_BASE_URL=https://openrouter.ai/api/v1
 
-# ElevenLabs text-to-speech.
+# ElevenLabs. The same key serves text-to-speech and Scribe speech-to-text.
 ELEVENLABS_API_KEY=
 # ELEVENLABS_VOICE_ID=nPczCjzI2devNBz1zQrb
 # ELEVENLABS_MODEL_ID=eleven_v4

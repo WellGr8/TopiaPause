@@ -3,6 +3,7 @@
 interface __BaseEnv_Env {
 	RATE_LIMITER: RateLimit;
 	RATE_LIMITER_PAID: RateLimit;
+	RATE_LIMITER_STT: RateLimit;
 	ASSETS: Fetcher;
 	LLM_BASE_URL: string;
 	LLM_MODEL: string;

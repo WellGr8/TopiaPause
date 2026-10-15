@@ -70,10 +70,14 @@ export interface AppState {
   chat: ChatItem[];
   activity: ActivityEntry[];
   openReceiptId?: string;
+  /** Scene the landing CTA asked the chat to open. Not persisted. */
+  openScene?: SceneId;
+  /** Unique per CTA tap so a refresh does not replay, and StrictMode does not double-send. */
+  openTicket?: string;
 }
 
 type Action =
-  | { type: 'onboard' }
+  | { type: 'onboard'; scene: SceneId }
   | { type: 'screen'; screen: Screen }
   | { type: 'lang'; lang: Lang }
   | { type: 'theme'; theme: Theme }
@@ -112,7 +116,7 @@ function initial(): AppState {
   };
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Partial<AppState> | null;
-    if (saved) return { ...base, ...saved, theme: base.theme, chat: [], screen: 'chat' };
+    if (saved) return { ...base, ...saved, theme: base.theme, chat: [], screen: 'chat', openScene: undefined, openTicket: undefined };
   } catch {
     // ignore corrupt storage
   }
@@ -122,7 +126,13 @@ function initial(): AppState {
 function reducer(s: AppState, a: Action): AppState {
   switch (a.type) {
     case 'onboard':
-      return { ...s, onboarded: true, screen: 'chat' };
+      return {
+        ...s,
+        onboarded: true,
+        screen: 'chat',
+        openScene: a.scene,
+        openTicket: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
+      };
     case 'screen':
       return { ...s, screen: a.screen };
     case 'lang':

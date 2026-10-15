@@ -8,7 +8,10 @@ import {
   type SceneId,
   type UntrustedSource,
   type UserPolicy,
+  type VoiceAction,
 } from '@topiapause/shared';
+import { GuardClientError } from '@topiapause/guard-client';
+import { ubotGuard } from './ubot';
 
 // Talks to the Worker API when it is reachable (feature-detected via /api/health).
 // Under plain `vite dev` there is no API, so callers fall back to the in-browser
@@ -34,31 +37,109 @@ export function apiHealth(): Promise<Health | null> {
   return healthPromise;
 }
 
-let sessionPromise: Promise<string | null> | undefined;
+const SESSION_SKEW_MS = 15_000;
+const SESSION_FALLBACK_TTL_MS = 10 * 60 * 1000;
+const REFRESH_CODES = new Set(['invalid_session', 'session_required']);
 
-/** One short-lived token for this tab. Chat, TTS, policy, and confirm send it back. */
-function appSession(): Promise<string | null> {
-  sessionPromise ??= post<{ session: string }>('/api/session', {}, 8000, false)
-    .then((r) => r?.session ?? null)
-    .catch(() => null);
-  return sessionPromise;
+interface HeldSession {
+  token: string;
+  expiresAt: number;
+}
+
+let held: HeldSession | undefined;
+let inflight: Promise<HeldSession | null> | undefined;
+let mintGen = 0;
+
+function sessionFresh(now = Date.now()): boolean {
+  return held !== undefined && held.expiresAt - SESSION_SKEW_MS > now;
+}
+
+async function fetchMint(gen: number): Promise<HeldSession | null> {
+  try {
+    const r = await fetch('/api/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) return null;
+    const data = (await r.json()) as { session?: unknown; expiresAt?: unknown };
+    if (typeof data.session !== 'string' || data.session.length === 0) return null;
+    const parsed = typeof data.expiresAt === 'string' ? Date.parse(data.expiresAt) : Number.NaN;
+    const next: HeldSession = {
+      token: data.session,
+      expiresAt: Number.isFinite(parsed) ? parsed : Date.now() + SESSION_FALLBACK_TTL_MS,
+    };
+    if (gen !== mintGen) return held ?? null;
+    held = next;
+    return next;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * One short-lived token for this tab. A failed mint is never cached.
+ * Refresh shortly before expiresAt, and again when the server rejects the token.
+ * A forced refresh that fails does not hand back the rejected token.
+ */
+function appSession(force = false): Promise<string | null> {
+  if (!force && sessionFresh()) return Promise.resolve(held!.token);
+  if (!force && inflight) return inflight.then((got) => got?.token ?? null);
+  const gen = ++mintGen;
+  const run = fetchMint(gen);
+  inflight = run;
+  return run
+    .then((got) => {
+      if (!got) {
+        if (gen === mintGen) held = undefined;
+        return null;
+      }
+      return got.token;
+    })
+    .finally(() => {
+      if (inflight === run) inflight = undefined;
+    });
+}
+
+async function errorCode(r: Response): Promise<string> {
+  try {
+    const data = (await r.clone().json()) as { error?: { code?: string } | string };
+    if (typeof data.error === 'string') return data.error;
+    return data.error?.code ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/** Sends with the current session. One 403 for a dead session mints a new token and retries once. */
+async function withSession(run: (token: string) => Promise<Response>, retried = false): Promise<Response | null> {
+  const token = await appSession(retried);
+  if (!token) return null;
+  const r = await run(token);
+  if (!retried && r.status === 403 && REFRESH_CODES.has(await errorCode(r))) return withSession(run, true);
+  return r;
+}
+
+/** Tests reset the cached health and session probes. */
+export function resetApiCaches(): void {
+  healthPromise = undefined;
+  held = undefined;
+  inflight = undefined;
+  mintGen += 1;
 }
 
 async function post<T>(path: string, body: unknown, timeoutMs = 8000, session = false): Promise<T | null> {
   try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (session) {
-      const token = await appSession();
-      if (!token) return null;
-      headers['X-TopiaPause-Session'] = token;
-    }
-    const r = await fetch(path, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    return r.ok ? ((await r.json()) as T) : null;
+    const send = (token?: string) =>
+      fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { 'X-TopiaPause-Session': token } : {}) },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    const r = session ? await withSession((token) => send(token)) : await send();
+    return r?.ok ? ((await r.json()) as T) : null;
   } catch {
     return null;
   }
@@ -99,8 +180,16 @@ export async function apiGuardCheck(input: {
   if (!(await apiHealth())) return null;
   const token = await policyToken(input.policy);
   if (!token) return null;
-  const { policy: _policy, ...rest } = input;
-  return post<GuardVerdict>('/api/guard/check', { ...rest, policyToken: token });
+  try {
+    return await ubotGuard({ policyToken: token }).check<GuardVerdict>({
+      userMessage: input.userMessage,
+      proposal: input.proposal,
+      lang: input.lang,
+      sources: input.sources,
+    });
+  } catch {
+    return null;
+  }
 }
 
 export async function apiExecute(proposal: AgentProposal, verdictId: string, choice: 'original' | 'counter_offer'): Promise<Execution | null> {
@@ -109,9 +198,19 @@ export async function apiExecute(proposal: AgentProposal, verdictId: string, cho
   // Choosing the paused original returns null here, and the app finishes it as a local mock.
   let confirmation: string | undefined;
   if (choice === 'counter_offer') {
-    const conf = await post<{ confirmation: string }>('/api/confirm', { verdictId, choice: 'counter_offer' }, 8000, true);
-    if (!conf?.confirmation) return null;
-    confirmation = conf.confirmation;
+    const confirmOnce = async (retried: boolean): Promise<string | null> => {
+      const sessionToken = await appSession(retried);
+      if (!sessionToken) return null;
+      try {
+        return (await ubotGuard({ sessionToken }).confirm({ verdictId, choice: 'counter_offer' })).confirmation;
+      } catch (err) {
+        if (!retried && err instanceof GuardClientError && err.status === 403 && REFRESH_CODES.has(err.code)) return confirmOnce(true);
+        return null;
+      }
+    };
+    const got = await confirmOnce(false);
+    if (!got) return null;
+    confirmation = got;
   }
   const r = await post<{ execution: Execution }>('/api/agent/execute', {
     proposal,
@@ -126,16 +225,38 @@ export async function apiExecute(proposal: AgentProposal, verdictId: string, cho
 export async function apiTts(text: string, lang: Lang, clipId?: string): Promise<Blob | null> {
   const h = await apiHealth();
   if (!h || h.tts !== 'elevenlabs') return null;
-  const token = await appSession();
-  if (!token) return null;
   try {
-    const r = await fetch('/api/voice/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-TopiaPause-Session': token },
-      body: JSON.stringify(clipId ? { clipId, lang } : { text, lang }),
-      signal: AbortSignal.timeout(15_000),
-    });
-    return r.ok && (r.headers.get('Content-Type') ?? '').startsWith('audio/') ? await r.blob() : null;
+    const r = await withSession((token) =>
+      fetch('/api/voice/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-TopiaPause-Session': token },
+        body: JSON.stringify(clipId ? { clipId, lang } : { text, lang }),
+        signal: AbortSignal.timeout(15_000),
+      }),
+    );
+    return r?.ok && (r.headers.get('Content-Type') ?? '').startsWith('audio/') ? await r.blob() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** ElevenLabs transcript for a short reply, or null when the mic should step aside. */
+export async function apiStt(blob: Blob): Promise<{ transcript: string; action: VoiceAction } | null> {
+  try {
+    const type = (blob.type || 'audio/webm').split(';')[0] || 'audio/webm';
+    const r = await withSession((token) =>
+      fetch('/api/voice/stt', {
+        method: 'POST',
+        headers: { 'Content-Type': type, 'X-TopiaPause-Session': token },
+        body: blob,
+        signal: AbortSignal.timeout(20_000),
+      }),
+    );
+    if (!r?.ok) return null;
+    const data = (await r.json()) as { transcript?: unknown; action?: unknown };
+    if (typeof data.transcript !== 'string') return null;
+    if (data.action !== 'counter_offer' && data.action !== 'cancel' && data.action !== 'unclear') return null;
+    return { transcript: data.transcript, action: data.action };
   } catch {
     return null;
   }
