@@ -148,9 +148,9 @@ Key `a_max` cases (V = $2,000, H = $400, B = 500 USDT, cap 30%):
 
 | Case | a_max |
 |---|---|
-| base (fee 0, gas 0) | $200.000000 |
-| fee 0.3% | $200.420883 (≈ $200.42; floored to 6 decimals per §5.2, the spec's 200.420884 is the rounded value) |
-| gas $2 | $199.40 |
+| base (fee 0, gas 0) | 200.000000 USDT |
+| fee 0.3% | 200.420883 USDT (floored to the micro-unit; half-up would be 200.420884 and would edge past the cap) |
+| gas 2 USDT | 199.400000 USDT |
 
 ## Deploy (one Cloudflare Worker: SPA + API)
 
@@ -173,17 +173,31 @@ You can also run it by hand from Actions → Deploy → Run workflow.
 
 ### Manual (from your machine)
 
+GitHub Actions deploys are blocked while the repository's GitHub billing lock is in place, so this is the path that actually publishes:
+
 ```bash
+# Node >= 22 (see .nvmrc). wrangler 4 does not run on 20.
 pnpm install
 npx wrangler login                 # or export CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID
 pnpm run deploy                    # = pnpm build && wrangler deploy (in workers/api)
+
 cd workers/api
-npx wrangler secret put LLM_API_KEY          # optional
-npx wrangler secret put ELEVENLABS_API_KEY   # optional
-cd ../.. && ./scripts/demo-curl.sh https://topiapause.<subdomain>.workers.dev
+npx wrangler secret put POLICY_SIGNING_KEY   # required: openssl rand -base64 32
+npx wrangler secret put LLM_API_KEY          # optional, LLM agent
+npx wrangler secret put ELEVENLABS_API_KEY   # optional, live TTS
+npx wrangler secret put TOKENOMIST_API_KEY   # optional, live unlock data
+cd ../..
+./scripts/demo-curl.sh https://topiapause.<subdomain>.workers.dev
 ```
 
 Use `pnpm run deploy`, not `pnpm deploy`: `pnpm deploy` is a built-in pnpm command with a different meaning.
+
+Before the first manual deploy, set `LLM_MODEL` (for example `gpt-4o-mini`) and `ELEVENLABS_VOICE_ID` in the `vars` block of `workers/api/wrangler.jsonc` if you want those integrations. Leave them empty and chat stays scripted and voice stays in the browser.
+
+Two limits of a `*.workers.dev` deploy:
+
+- **Cache API is a no-op** on `workers.dev`. Tokenomist and TTS are still cached in memory inside each isolate for their TTL, but nothing is shared across isolates until the Worker is on a custom domain.
+- **Verdict tickets are single-use per isolate.** A second isolate can still accept a ticket until it expires (10 minutes). Making that global needs a Durable Object; it is intentionally not in this build.
 
 ### Keys
 

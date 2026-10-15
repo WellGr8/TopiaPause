@@ -343,7 +343,7 @@ Set secrets with `wrangler secret put <NAME>`. Never commit `.dev.vars`.
 | # | Case | Expected |
 |---|---|---|
 | T1 | Crypto base: V=2000, H=400, B=500, c=0.30, f=0, g=0; swap 500 | `pause` (CONC_CAP 45%), a_max = **200.000000** |
-| T2 | Same, f=0.003 | a_max = **200.420884** |
+| T2 | Same, f=0.003 | a_max = **200.420883** USDT (exact 200.4208838…, floored to the micro-unit; half-up 200.420884 would pass the cap) |
 | T3 | Same, g=2 | a_max = **199.40** |
 | T4 | Swap 200 exact approval | `allow` (30.0%, inclusive) |
 | T5 | intent once + approval unlimited, amount 100 | `pause` APPROVAL_SCOPE, counter = exact 100 → `allow` |
@@ -356,7 +356,7 @@ Set secrets with `wrangler secret put <NAME>`. Never commit `.dev.vars`.
 | T12 | Counter-offer re-check always `allow` | property test across T1–T10 |
 | T13 | Number lock: explanation containing a number not in metrics | `source: 'template'` |
 
-> Implementation note (T2): the exact value is 200.4208838…, so it rounds to 200.420884 but floors to **200.420883**. The engine follows §5.2 and rounds DOWN, so the cap is never exceeded. The test asserts 200.420883 and checks it is within 0.000001 of the 200.420884 quoted above.
+> Rounding rule (T2): `a_max` is floored to the micro-USDT (`ROUNDING.limit` in `packages/shared`). The exact value 200.4208838… therefore becomes **200.420883**, and 200.420883 + 1 micro-unit fails `withinCap`. Half-up (200.420884) is not used, because it would exceed the cap.
 
 Also:
 - Worker smoke tests: each endpoint returns a typed error when the provider is down.
