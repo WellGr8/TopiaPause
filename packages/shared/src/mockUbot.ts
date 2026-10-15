@@ -2,9 +2,10 @@ import { parseMoney, toDecimal } from './money';
 import { SCENE_ORDER, SCENES, newId, sceneIntent } from './scenes';
 import type { ActionIntent, AgentProposal, Execution, Lang, Money, SceneId, UBotAdapter } from './types';
 
-// Scripted stand-in for U-Bot. It deliberately proposes the "trap" option for
-// each scene so the guard has something to catch. Intent extraction here is a
-// keyword heuristic — the production path replaces it with an LLM (JSON schema).
+// Scripted stand-in. u.bot has no public API, so this adapter proposes the fast
+// option for each scene and TopiaPause checks it with the person before anything
+// is paid. Intent extraction here is a keyword heuristic — the production path
+// replaces it with an LLM (JSON schema).
 
 /** Short English tokens match as words so "plan" does not fire inside "explain". */
 function has(t: string, ...words: string[]): boolean {
@@ -143,7 +144,7 @@ export function mockExecute(): Execution {
 }
 
 export class MockUBotAdapter implements UBotAdapter {
-  readonly label = 'U-Bot (mock)' as const;
+  readonly label = 'AI assistant (demo)' as const;
 
   async chat(input: { sessionId: string; message: string; scene?: SceneId; lang: Lang }) {
     const turn = scriptedChat(input);

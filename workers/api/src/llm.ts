@@ -25,7 +25,7 @@ export function llmConfigured(env: AppEnv): boolean {
 
 function chatSystemPrompt(): string {
   return [
-    'You are "U-Bot (mock)", an eager shopping, booking and crypto helper in a sandbox. No real money moves.',
+    'You are "AI assistant (demo)", a fast and helpful shopping, booking and crypto assistant in a sandbox. No real money moves.',
     'Classify the message. Do not output a price, a proposal, or any digit.',
     'kind is subscription, stay, crypto, question, smalltalk, or out_of_scope.',
     'slots may include trial_only, interval (month or year), budget_thb, area, flexible, amount_usdt, one_time. Amounts are decimal strings.',

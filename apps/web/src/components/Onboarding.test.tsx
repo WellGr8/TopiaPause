@@ -52,6 +52,7 @@ function rect(left: number): () => DOMRect {
 
 beforeEach(() => {
   localStorage.clear();
+  window.history.replaceState(null, '', '/');
   vi.mocked(speak).mockClear();
   document.documentElement.classList.remove('dark');
 });
@@ -67,7 +68,9 @@ describe('first screen', () => {
     renderLanding();
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('ก่อน AI จ่าย\nเราถามคุณก่อน');
     expect(screen.getByText('ลองแอปนี้ให้หน่อย')).toBeTruthy();
-    expect(screen.getByText('U-Bot (จำลอง)')).toBeTruthy();
+    expect(screen.getByText('ผู้ช่วย AI (จำลอง)')).toBeTruthy();
+    expect(screen.getByText('ใช้ได้กับ u.bot และผู้ช่วย AI อื่นผ่าน SDK')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'กลับหน้าแรก' })).toBeTruthy();
     expect(screen.getByText('สมัครรายปี ฿3,990.00 ให้นะครับ')).toBeTruthy();
     const plain = screen.getByTestId('pause-plain');
     expect(plain.textContent).toContain('เดี๋ยวครับ คุณแค่อยากลอง');
@@ -80,7 +83,7 @@ describe('first screen', () => {
     expect(listen.className).toContain('min-h-12');
     expect(listen.textContent).toContain('ฟัง');
     expect(speak).not.toHaveBeenCalled();
-    const cta = screen.getByRole('button', { name: 'ลองให้ AI จ่ายดู' });
+    const cta = screen.getByRole('link', { name: 'ลองให้ AI จ่ายดู' });
     expect(cta.className).toContain('btn-gradient');
     expect(cta.className).not.toContain('bg-ink');
   });
@@ -103,6 +106,9 @@ describe('first screen', () => {
     const app = screen.getByRole('tab', { name: /สมัครแอป/ });
     const stay = screen.getByRole('tab', { name: /จองที่พัก/ });
     const coin = screen.getByRole('tab', { name: /ลงทุนเหรียญ/ });
+    expect(app.getAttribute('href')).toBe('/app?scene=subscription');
+    expect(stay.getAttribute('href')).toBe('/app?scene=stay');
+    expect(coin.getAttribute('href')).toBe('/app?scene=crypto');
     expect(app.getAttribute('aria-selected')).toBe('true');
     expect(app.className).toContain('border-ink');
     expect(app.className).toContain('w-[85%]');
@@ -192,6 +198,52 @@ describe('first screen', () => {
     expect(input.text).toContain('เดี๋ยวก่อนครับ');
   });
 
+  it('stays light when the system is dark and an old theme value is stored', () => {
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('prefers-color-scheme') && query.includes('dark'),
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia;
+    localStorage.setItem('topiapause:theme', 'dark');
+    localStorage.setItem('topiapause:v3', JSON.stringify({ onboarded: false, lang: 'th', theme: 'dark' }));
+    render(
+      <AppProvider>
+        <App />
+      </AppProvider>,
+    );
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
+    expect(localStorage.getItem('topiapause:theme-choice')).toBe('light');
+  });
+
+  it('turns dark only when the explicit choice key says dark', () => {
+    matchMedia(true);
+    localStorage.setItem('topiapause:theme-choice', 'dark');
+    render(
+      <AppProvider>
+        <App />
+      </AppProvider>,
+    );
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+  });
+
+  it('deep-links /app/rules without using the saved screen', () => {
+    matchMedia(true);
+    window.history.replaceState(null, '', '/app/rules');
+    localStorage.setItem('topiapause:v3', JSON.stringify({ onboarded: false, lang: 'th', theme: 'dark', screen: 'chat' }));
+    render(
+      <AppProvider>
+        <App />
+      </AppProvider>,
+    );
+    expect(screen.getByRole('heading', { name: 'กฎของคุณ' })).toBeTruthy();
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
+  });
+
   it('opens the selected scenario from the primary button', async () => {
     matchMedia(true);
     render(
@@ -200,7 +252,26 @@ describe('first screen', () => {
       </AppProvider>,
     );
     fireEvent.click(screen.getByRole('tab', { name: /จองที่พัก/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'ลองให้ AI จ่ายดู' }));
+    fireEvent.click(screen.getByRole('link', { name: 'ลองให้ AI จ่ายดู' }));
     expect(await screen.findByText('หาโรงแรมถูกๆ ใกล้อโศก คืนวันศุกร์ แต่แผนอาจเปลี่ยนนะ')).toBeTruthy();
+    expect(window.location.pathname).toBe('/app');
+  });
+
+  it('opens the selected scenario card, and Back returns without dropping the chat', async () => {
+    matchMedia(true);
+    render(
+      <AppProvider>
+        <App />
+      </AppProvider>,
+    );
+    fireEvent.click(screen.getByRole('tab', { name: /สมัครแอป/ }));
+    expect(await screen.findByText('ช่วยสมัครแอปแต่งรูป PixelPro ให้หน่อย อยากลองดู')).toBeTruthy();
+    expect(window.location.pathname).toBe('/app');
+    fireEvent.click(screen.getAllByRole('link', { name: 'กลับหน้าแรก' })[0]!);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('ก่อน AI จ่าย');
+    expect(window.location.pathname).toBe('/');
+    window.history.back();
+    expect(await screen.findByText('ช่วยสมัครแอปแต่งรูป PixelPro ให้หน่อย อยากลองดู')).toBeTruthy();
+    expect(window.location.pathname).toBe('/app');
   });
 });

@@ -46,6 +46,6 @@ An LLM explanation draft is not wired up (`llmCalls` stays 0). If one were added
 
 ## What is not in the meter
 
-- The user's own agent (ShopBot, U-Bot) calling its model. TopiaPause only meters the check.
+- The caller's own assistant (u.bot or another agent) calling its model. TopiaPause only meters the check.
 - Verdict-ticket HMAC and policy-token HMAC. Both are local `crypto.subtle` calls. The single-use record is the Durable Object request in the table above.
 - Rate limiting. The Workers binding is included with the request.

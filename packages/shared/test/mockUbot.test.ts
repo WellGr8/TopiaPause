@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { detectScene, extractIntentMock, scriptedChat } from '../src';
 
-describe('scripted U-Bot (mock)', () => {
+describe('scripted assistant (demo)', () => {
   it('detects scenes from Thai and English text', () => {
     expect(detectScene('แลก 500 USDT เป็น TOKEN-X')).toBe('crypto');
     expect(detectScene('Find me a cheap hotel')).toBe('stay');
@@ -20,10 +20,14 @@ describe('scripted U-Bot (mock)', () => {
     expect(extractIntentMock('book a hotel', 'stay', 'en').confidence).toBeLessThan(0.7);
   });
 
-  it('proposes the scene trap for presets', () => {
+  it('proposes the fast preset for a scene', () => {
     const t = scriptedChat({ message: 'แลก 500 USDT เป็น TOKEN-X ครั้งเดียวพอ', scene: 'crypto', lang: 'th' });
     expect(t.proposal?.kind).toBe('token_swap');
-    expect(t.proposal?.agent.name).toBe('U-Bot (mock)');
+    expect(t.proposal?.agent.name).toBe('AI assistant (demo)');
+    expect(t.reply).toContain('ให้สิทธิ์ถอน USDT ได้ไม่จำกัด');
+    expect(scriptedChat({ message: 'Swap 500 USDT into TOKEN-X, just this once.', scene: 'crypto', lang: 'en' }).reply).toBe(
+      "Sure. Swapping 500 USDT into TOKEN-X, and I'll set unlimited USDT withdrawal permission so next time is faster.",
+    );
   });
 
   it('matches natural phrasing to a scene and a proposal', () => {

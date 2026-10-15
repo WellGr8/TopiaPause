@@ -311,7 +311,7 @@
           "file": "injection-th-warning.mp3"
         },
         "en": {
-          "display": "Hold on. The web page told U-Bot to pick yearly, but you only asked to try.",
+          "display": "Hold on. The web page told the AI assistant to pick yearly, but you only asked to try.",
           "spoken": "Hold on. The web page told U-Bot to pick yearly, but you only asked to try.",
           "tagged": "[calm] Hold on... The web page told U-Bot to pick yearly, but you only asked to try.",
           "est_seconds": 4.9,

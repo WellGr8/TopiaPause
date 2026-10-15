@@ -15,7 +15,7 @@ import { ubotGuard } from './ubot';
 
 // Talks to the Worker API when it is reachable (feature-detected via /api/health).
 // Under plain `vite dev` there is no API, so callers fall back to the in-browser
-// engine and scripted U-Bot. Either way, every number comes from guard-engine.
+// engine and the scripted assistant. Either way, every number comes from guard-engine.
 
 export interface Health {
   ok: true;

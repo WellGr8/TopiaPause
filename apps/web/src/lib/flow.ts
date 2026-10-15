@@ -132,7 +132,7 @@ function useChatFlowImpl() {
   );
 
   /**
-   * Scripted prompt-injection demo: U-Bot "reads" a pricing page that hides an
+   * Scripted prompt-injection demo: the assistant reads a pricing page that hides an
    * instruction, follows it, and proposes the annual plan. The user's intent is
    * still a trial, so the same engine subscription check pauses it.
    */

@@ -6,7 +6,7 @@ A guard for an AI that is about to pay, subscribe, book, or swap. The rules engi
 
 ## How it works
 
-You say what you meant. U-Bot proposes an action. TopiaPause compares the two.
+You say what you meant. The AI assistant proposes an action. TopiaPause checks with you before anything is paid.
 
 - The guard engine decides: allow, pause, or block. The LLM never picks the decision and never invents a price.
 - Money is integer minor units, exact to the satang (and to the micro-USDT). Crypto amounts stay in USDT, not baht.
@@ -27,7 +27,7 @@ Estimates, rounded up to the satang, at USD/THB 32.50. Sources and the arithmeti
 
 ## SDK
 
-`@topiapause/guard-client` has no dependencies. Call `guard.check()` before a payment, then `guard.confirm()` only for the safer option. The request, the response, and a short snippet are in [docs/UBOT-INTEGRATION.md](docs/UBOT-INTEGRATION.md).
+`@topiapause/guard-client` has no dependencies. Call `guard.check()` before a payment, then `guard.confirm()` only for the safer option. It works with u.bot and other AI assistants. The request, the response, and a short snippet are in [docs/UBOT-INTEGRATION.md](docs/UBOT-INTEGRATION.md).
 
 ## What is real, and what is a mock
 
@@ -35,7 +35,8 @@ Estimates, rounded up to the satang, at USD/THB 32.50. Sources and the arithmeti
 |---|---|
 | Guard engine, satang arithmetic, counter-offer, re-check | Real. The web app and the Worker run the same code. |
 | Verdict tickets | Real. HMAC plus one Durable Object per ticket. |
-| U-Bot / u.bot | Mock. u.bot has no public API, so the demo is labelled U-Bot (mock). |
+| On-screen assistant | Demo persona: ผู้ช่วย AI (จำลอง) / AI assistant (demo). |
+| u.bot | Partner. Works with u.bot and other assistants via the SDK. This demo uses a mock adapter because u.bot has no public API. |
 | Tokenomist | Sample data unless a key is set. The note never changes the decision. |
 | Payments | None. The demo never touches money. |
 
@@ -64,9 +65,9 @@ Node 22 and pnpm 10.
 ```bash
 pnpm install
 pnpm dev          # http://localhost:5173 — works with no keys
-pnpm test         # 285 tests
+pnpm test         # 293 tests
 pnpm typecheck
 pnpm build
 ```
 
-`pnpm dev:worker` serves the app and `/api/*` together. See [docs/API.md](docs/API.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+`pnpm dev:worker` serves the app and `/api/*` together. The landing page is `/`. The app is `/app`, `/app/activity`, and `/app/rules` (`/app?tab=rules` works too). See [docs/API.md](docs/API.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

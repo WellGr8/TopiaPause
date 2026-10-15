@@ -7,6 +7,15 @@
     <meta name="description" content="TopiaPause — Think before your AI spends. AI proposes, rules decide, you sign." />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <title>TopiaPause · Think before your AI spends</title>
+    <script>
+      (function () {
+        try {
+          var dark = localStorage.getItem('topiapause:theme-choice') === 'dark';
+          document.documentElement.classList.toggle('dark', dark);
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

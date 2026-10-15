@@ -10,7 +10,7 @@ Labels: **[ASSUMPTION]** = our design choice / not externally confirmed.
 
 ## 1. Goal & Principle
 
-TopiaPause is a **second-layer guard** for AI agents that spend money for a user. It catches **intent mismatch**: the gap between what the user *said* and what the agent is *about to do*.
+TopiaPause is a **second-layer guard** for AI assistants that spend money for a person. It checks the gap between what the person *said* and what is *about to be paid*.
 
 | User said | Agent about to do | Guard rule |
 |---|---|---|
@@ -21,10 +21,10 @@ TopiaPause is a **second-layer guard** for AI agents that spend money for a user
 
 **Principle: AI proposes, rules decide, you sign.**
 
-1. The LLM only does language work: understanding the request, planning as the mock U-Bot, and explaining in Thai and English.
+1. The LLM only does language work: understanding the request, planning as the demo assistant, and explaining in Thai and English.
 2. **Every number** (prices, gaps, %, `a_max`) comes from the deterministic `guard-engine`. If the LLM's explanation contains any number not in the engine's output, it is rejected and a template is used instead.
 3. Nothing executes without explicit user confirmation, and execution is **mock/sandbox** (no real money).
-4. U-Bot is shown as **"U-Bot (mock)"** until a real U-Bot API is confirmed (see §7).
+4. The demo assistant is shown as **"ผู้ช่วย AI (จำลอง)" / "AI assistant (demo)"**. u.bot is a partner: the SDK works with u.bot and other assistants. u.bot has no public API, so the connection in this demo is a mock adapter (see §7).
 
 ---
 
@@ -35,7 +35,7 @@ TopiaPause is a **second-layer guard** for AI agents that spend money for a user
 ```mermaid
 flowchart LR
   subgraph B["Browser (apps/web, static SPA)"]
-    UI["Chat UI<br/>'U-Bot (mock)' label"]
+    UI["Chat UI<br/>'AI assistant (demo)'"]
     GC["Guardian card<br/>(inline in chat)"]
     VO["Voice I/O<br/>mic + audio player"]
     GE1["guard-engine<br/>(same pure TS, for instant re-check)"]
@@ -82,7 +82,7 @@ Notes:
 sequenceDiagram
   autonumber
   actor U as User
-  participant W as Web chat (U-Bot mock UI)
+  participant W as Web chat (AI assistant demo)
   participant A as Worker /api/agent/chat
   participant L as LLM (JSON)
   participant G as Worker /api/guard/check
@@ -92,7 +92,7 @@ sequenceDiagram
   W->>A: message + scene + policy
   A->>L: plan action (UBotAdapter: MockUBot)
   L-->>A: AgentProposal (swap 500, approval UNLIMITED)
-  A-->>W: proposal shown as U-Bot message
+  A-->>W: proposal shown as the assistant's message
   W->>G: GuardCheckRequest (userText, proposal, policy)
   G->>L: extract ActionIntent (frequency = once)
   L-->>G: ActionIntent JSON (schema-validated)
@@ -177,7 +177,7 @@ export type AgentProposal =
 
 interface ProposalBase {
   proposalId: string;
-  agent: { name: 'U-Bot (mock)' | 'U-Bot'; adapter: 'mock' | 'real' };
+  agent: { name: 'AI assistant (demo)' | 'u.bot'; adapter: 'mock' | 'real' };
   summary: string;                          // agent's own wording (display only)
 }
 export interface SubscriptionProposal extends ProposalBase {
@@ -284,26 +284,26 @@ All endpoints:
 
 ---
 
-## 7. U-Bot Adapter (honest mock)
+## 7. Assistant adapter (mock until u.bot has a public API)
 
 ```ts
 export interface UBotAdapter {
-  readonly label: 'U-Bot (mock)' | 'U-Bot';
+  readonly label: 'AI assistant (demo)' | 'U-Bot';
   chat(input: { sessionId: string; message: string; scene?: string; lang: Lang }):
     Promise<{ reply: string; proposal?: AgentProposal }>;
   execute(input: { proposal: AgentProposal; verdictId: string; userConfirmed: true }):
     Promise<Receipt['execution']>;
 }
-// MockUBotAdapter: LLM + scene catalogs, execute() returns mode:'mock'.
-// RealUBotAdapter: implemented ONLY if mentors confirm a U-Bot API; must keep guard check before execute.
+// MockUBotAdapter: LLM + scene catalogs, execute() returns mode:'mock'. Label: "AI assistant (demo)".
+// A real u.bot adapter would keep the guard check before execute. u.bot has no public API yet.
 ```
 
 Rules:
-- The UI always shows the adapter label.
-- The pitch says "mock" until a real API exists.
+- The chat shows **ผู้ช่วย AI (จำลอง)** / **AI assistant (demo)**, not u.bot as the assistant that is about to pay.
+- u.bot is a partner. The SDK works with u.bot and other assistants.
 - The guard is called **before** `execute()`.
 - The guard never holds credentials.
-- The in-app mock calls `@topiapause/guard-client` (`guard.check` / `guard.confirm`). A real U-Bot would do the same. u.bot has no public API; the proposal is [docs/UBOT-INTEGRATION.md](UBOT-INTEGRATION.md).
+- The in-app mock calls `@topiapause/guard-client` (`guard.check` / `guard.confirm`). A real u.bot integration would do the same. There is no public API; the proposal is [docs/UBOT-INTEGRATION.md](UBOT-INTEGRATION.md).
 
 ---
 
@@ -311,7 +311,7 @@ Rules:
 
 | Name | Where | Required | Purpose |
 |---|---|---|---|
-| `LLM_API_KEY` | Worker secret | optional | OpenAI-compatible LLM (JSON output); scripted U-Bot without it |
+| `LLM_API_KEY` | Worker secret | optional | OpenAI-compatible LLM (JSON output); scripted assistant without it |
 | `LLM_MODEL` | Worker var | `openai/gpt-4o-mini` | OpenRouter model id |
 | `LLM_BASE_URL` | Worker var | `https://openrouter.ai/api/v1` | OpenRouter chat completions |
 | `ELEVENLABS_API_KEY` | Worker secret | optional | TTS and speech-to-text; buttons and browser speech without it |
@@ -368,7 +368,7 @@ Also:
 ## 11. MVP vs Stretch
 
 **MVP**
-- Chat UI with the "U-Bot (mock)" label, and preset buttons for 3 scenes
+- Chat UI labelled "AI assistant (demo)", and preset buttons for 3 scenes
 - `guard-engine` with all core rules + tests
 - `/api/agent/chat`, `/api/guard/check` (LLM + number lock)
 - Guardian card + counter-offer + re-check + receipt (TH/EN)

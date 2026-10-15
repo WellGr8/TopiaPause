@@ -94,7 +94,7 @@ function preview(scene: SceneId, lang: Lang): LandingPreview {
     scene,
     chip: t(lang, CHIP[scene]),
     hint: t(lang, HINT[scene]),
-    agentLabel: `U-Bot (${t(lang, 'mock')})`,
+    agentLabel: t(lang, 'agentName'),
     voiceText: verdict.voiceText[lang],
     clipId: verdict.voiceText.clipId ?? `${scene}-pause`,
     details: verdict.findings.map((f) => ({ ruleId: f.ruleId, text: findingDetail(f, lang) })),

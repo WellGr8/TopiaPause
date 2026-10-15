@@ -24,7 +24,7 @@ describe('landing preview uses the engine scenes', () => {
     expect(p.user).toBe('ลองแอปนี้ให้หน่อย');
     expect(p.chip).toBe('สมัครแอป');
     expect(p.hint).toBe('รายปีที่แพงกว่า');
-    expect(p.agentLabel).toBe('U-Bot (จำลอง)');
+    expect(p.agentLabel).toBe('ผู้ช่วย AI (จำลอง)');
     expect(p.lead).toBe('เดี๋ยวครับ คุณแค่อยากลอง');
     expect(p.agent).toBe('สมัครรายปี ฿3,990.00 ให้นะครับ');
     expect(p.offer.amount).toBe('฿299.00');
@@ -71,5 +71,15 @@ describe('light theme contrast', () => {
     expect(canvas).toBeTruthy();
     expect(contrast(ink!, canvas!)).toBeGreaterThanOrEqual(7);
     expect(contrast(canvas!, ink!)).toBeGreaterThanOrEqual(7);
+  });
+
+  it('lets the page scroll and keeps light as the default theme', () => {
+    const css = readFileSync(resolve(__dirname, '../index.css'), 'utf8');
+    expect(css).toMatch(/html\s*\{[^}]*color-scheme:\s*light/);
+    expect(css).not.toMatch(/#root\s*\{[^}]*overflow:\s*hidden/);
+    expect(css).not.toMatch(/prefers-color-scheme/);
+    const html = readFileSync(resolve(__dirname, '../../index.html'), 'utf8');
+    expect(html).toContain("localStorage.getItem('topiapause:theme-choice')");
+    expect(html).not.toMatch(/prefers-color-scheme|topiapause:theme'/);
   });
 });

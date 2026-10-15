@@ -1,21 +1,21 @@
-# U-Bot integration (proposal)
+# u.bot integration (proposal)
 
-**Proposal, not a live u.bot connection.** [u.bot](https://u.bot) has no public API, so TopiaPause cannot call it. The demo agent is a scripted mock, labelled **U-Bot (จำลอง)** on screen and `U-Bot (mock)` in the API. The mock uses the same client a real integration would use: `@topiapause/guard-client`.
+**Works with u.bot and other AI assistants via the SDK.** This is a proposal, not a live u.bot connection. [u.bot](https://u.bot) has no public API, so the demo uses a mock adapter. The on-screen persona is **ผู้ช่วย AI (จำลอง)** / **AI assistant (demo)**. The mock uses the same client a real integration would use: `@topiapause/guard-client`.
 
 ## Where TopiaPause sits
 
-U-Bot calls the guard **before** any payment. The merchant is only reached after the person confirms the safer option.
+The assistant calls the guard **before** any payment. The merchant is only reached after the person confirms.
 
 ```mermaid
 flowchart LR
-  User["คุณ"] --> UBot["U-Bot"]
-  UBot -->|"guard.check() before any payment"| TP["TopiaPause"]
+  User["คุณ"] --> Assistant["ผู้ช่วย AI"]
+  Assistant -->|"guard.check() before any payment"| TP["TopiaPause"]
   TP -->|"only after you confirm"| Shop["ร้านค้า"]
 ```
 
-## What U-Bot sends
+## What the assistant sends
 
-`POST /api/guard/check` with the user's words and the proposal U-Bot is about to pay. U-Bot does not send `policy` or `intent`. The user's app already minted `policyToken`. Full field list: [API.md](API.md).
+`POST /api/guard/check` with the person's words and the proposal that is about to be paid. The assistant does not send `policy` or `intent`. The person's app already minted `policyToken`. Full field list: [API.md](API.md).
 
 ```json
 {
@@ -25,7 +25,7 @@ flowchart LR
   "proposal": {
     "kind": "subscription",
     "proposalId": "sub-1",
-    "agent": { "name": "U-Bot", "adapter": "real" },
+    "agent": { "name": "u.bot", "adapter": "real" },
     "summary": "PixelPro Annual",
     "merchant": "PixelPro",
     "planId": "pixelpro-annual",
@@ -43,7 +43,7 @@ flowchart LR
 
 Money is integer minor units. 399000 satang is ฿3,990.00. Crypto stays in micro-USDT, never baht.
 
-## What U-Bot gets back
+## What the assistant gets back
 
 `decision` is `allow`, `pause`, or `block`. On a pause, `counterOffer` is present only when that safer option itself passes every rule. `check.llmCalls` is 0.
 
@@ -83,9 +83,9 @@ if (verdict.decision === 'pause' && verdict.counterOffer) {
 
 `packages/guard-client` has no runtime dependencies. In this repo the web app's mock calls `ubotGuard()` in `apps/web/src/lib/ubot.ts`, which is that client pointed at the same origin.
 
-## What U-Bot gets out of it
+## What u.bot gets out of it
 
-The person sees a pause in plain words, and can hear it, before money moves. That is the trust U-Bot borrows: fewer "I didn't mean the yearly plan" refunds, and fewer complaints about an unlimited token approval. The check itself is rules, so the cost stays on the meter at about **฿0.01** with **0 AI calls** ([COSTS.md](COSTS.md)).
+The person sees a pause in plain words, and can hear it, before money moves. u.bot and other assistants can check with the person first: fewer surprises about a yearly plan, and a withdrawal permission that matches what they asked. The check itself is rules, so the cost stays on the meter at about **฿0.01** with **0 AI calls** ([COSTS.md](COSTS.md)).
 
 ## What TopiaPause never does
 

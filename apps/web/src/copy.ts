@@ -4,7 +4,14 @@ const dict = {
   appTagline: { th: 'หยุดคิดก่อน AI จ่ายเงินแทนคุณ', en: 'Think before your AI spends.' },
   sandbox: { th: 'เดโม · ไม่มีเงินจริง', en: 'Demo · no real money' },
   mock: { th: 'จำลอง', en: 'mock' },
-  mockNote: { th: 'U-Bot ในเดโมนี้ตอบตามสคริปต์', en: 'U-Bot here is a scripted mock.' },
+  agentName: { th: 'ผู้ช่วย AI (จำลอง)', en: 'AI assistant (demo)' },
+  home: { th: 'หน้าแรก', en: 'Home' },
+  homeLabel: { th: 'กลับหน้าแรก', en: 'Home' },
+  partner: { th: 'ใช้ได้กับ u.bot และผู้ช่วย AI อื่นผ่าน SDK', en: 'Works with u.bot and other AI assistants via the SDK' },
+  mockNote: {
+    th: 'การเชื่อม u.bot ในเดโมนี้เป็นตัวจำลอง เพราะยังไม่มี API สาธารณะ',
+    en: 'The u.bot connection in this demo is a mock adapter. There is no public API.',
+  },
   switchLang: { th: 'EN', en: 'ไทย' },
   switchLangLabel: { th: 'Switch to English', en: 'เปลี่ยนเป็นภาษาไทย' },
 
@@ -16,7 +23,7 @@ const dict = {
   },
   onbCta: { th: 'ลองให้ AI จ่ายดู', en: 'Let the AI try to pay' },
   landYou: { th: 'คุณ', en: 'You' },
-  landAgent: { th: 'AI Agent', en: 'AI agent' },
+  landAgent: { th: 'ผู้ช่วย AI', en: 'AI assistant' },
   landShop: { th: 'ร้านค้า', en: 'Shop' },
   landChipApp: { th: 'สมัครแอป', en: 'App signup' },
   landChipStay: { th: 'จองที่พัก', en: 'Book a stay' },
@@ -80,7 +87,7 @@ const dict = {
   // prompt-injection scene (scripted mock)
   injChip: { th: 'สมัคร PixelPro แค่ลองดู (เว็บแอบใส่คำสั่ง)', en: 'Try PixelPro (page hides an instruction)' },
   injUser: { th: 'สมัคร PixelPro ให้หน่อย แค่ลองดูก่อน', en: 'Sign me up for PixelPro, just to try it.' },
-  injRead: { th: 'U-Bot อ่านหน้าเว็บ', en: 'U-Bot read a web page' },
+  injRead: { th: 'ผู้ช่วย AI อ่านหน้าเว็บ', en: 'The AI assistant read a web page' },
   injMockPage: { th: 'หน้าเว็บจำลอง', en: 'mock page' },
   injHidden: { th: 'ข้อความซ่อนในหน้า', en: 'Hidden on the page' },
   injReply: {
@@ -94,7 +101,7 @@ const dict = {
   },
   injVoiceNoCounter: {
     th: 'เดี๋ยวก่อนครับ หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง',
-    en: 'Hold on. The web page told U-Bot to pick yearly, but you only asked to try.',
+    en: 'Hold on. The web page told the AI assistant to pick yearly, but you only asked to try.',
   },
   injNote: { th: 'คำสั่งนี้มาจากหน้าเว็บ ไม่ใช่จากคุณ', en: 'Instruction came from a web page, not from you' },
 
@@ -111,7 +118,7 @@ const dict = {
   showReasons: { th: 'รายละเอียด', en: 'Details' },
   hideReasons: { th: 'ซ่อนรายละเอียด', en: 'Hide details' },
   youSaid: { th: 'คุณพูดว่า', en: 'You said' },
-  agentAbout: { th: 'Agent จะ', en: 'Agent will' },
+  agentAbout: { th: 'ผู้ช่วยจะ', en: 'The assistant will' },
   findings: { th: 'สิ่งที่ไม่ตรง', en: 'What doesn’t match' },
   assumptions: { th: 'สมมติฐาน', en: 'Assumptions' },
   engineNote: { th: 'ตัวเลขทั้งหมดจาก rules engine', en: 'All numbers from the rules engine' },
@@ -174,7 +181,7 @@ const dict = {
   emptyActivity: { th: 'ยังไม่มีรายการ', en: 'Nothing yet' },
   goChat: { th: 'ลองในแชท', en: 'Try it in chat' },
   asked: { th: 'คุณขอ', en: 'You asked' },
-  proposed: { th: 'Agent เสนอ', en: 'Agent proposed' },
+  proposed: { th: 'ผู้ช่วยเสนอ', en: 'The assistant proposed' },
   approved: { th: 'คุณอนุมัติ', en: 'You approved' },
   nothingApproved: { th: 'ไม่มี', en: 'Nothing' },
   execution: { th: 'รายการ', en: 'Execution' },
