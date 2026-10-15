@@ -14,7 +14,7 @@ const ITEMS: Array<{ screen: Screen; icon: LucideIcon; label: CopyKey }> = [
 export function BottomNav() {
   const { state, dispatch } = useApp();
   return (
-    <nav className="border-t border-line bg-canvas pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label="Primary">
+    <nav className="border-t border-line pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label="Primary">
       <ul className="mx-auto grid max-w-md grid-cols-3">
         {ITEMS.map(({ screen, icon: Icon, label }) => {
           const active = state.screen === screen;

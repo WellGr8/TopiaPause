@@ -40,7 +40,7 @@ export function Button({ variant = 'secondary', full, className, children, ...re
       type="button"
       className={cx(
         'inline-flex min-h-12 items-center justify-center gap-2 rounded-control px-4 text-[15px] font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40',
-        variant === 'primary' ? 'bg-brand text-on-brand hover:bg-brand/90' : 'border border-line bg-surface text-ink hover:bg-canvas',
+        variant === 'primary' ? 'btn-gradient text-on-brand' : 'border border-line bg-surface text-ink hover:bg-canvas',
         full && 'w-full',
         className,
       )}
@@ -124,9 +124,14 @@ export function Stepper({
   );
 }
 
-/** The signature: a thin flowing wave, shown only while TopiaPause is thinking. */
-export function WaveStrip({ className }: { className?: string }) {
-  return <div className={cx('bg-wave animate-wave-flow h-0.5 rounded-full', className)} aria-hidden="true" />;
+/** The signature: a thin wave that flows while TopiaPause is thinking/speaking; `still` rests it faintly. */
+export function WaveStrip({ className, still }: { className?: string; still?: boolean }) {
+  return (
+    <div
+      className={cx('bg-wave h-0.5 rounded-full transition-opacity duration-700', still ? 'opacity-35' : 'animate-wave-flow', className)}
+      aria-hidden="true"
+    />
+  );
 }
 
 /** Small voice waveform; gradient + moving while speaking, muted bars otherwise. */
@@ -137,7 +142,13 @@ export function Waveform({ active }: { active: boolean }) {
         <span
           key={i}
           className={cx('w-[3px] rounded-full', active ? 'bg-wave animate-wave-bar' : 'bg-muted/50')}
-          style={{ height: `${h * 100}%`, animationDelay: `${i * 0.11}s`, transform: active ? undefined : 'scaleY(0.5)' }}
+          style={{
+            height: `${h * 100}%`,
+            animationDelay: `${i * 0.11}s`,
+            transform: active ? undefined : 'scaleY(0.5)',
+            // One gradient spread across the five bars: blue -> purple -> rose.
+            ...(active && { backgroundSize: '500% 100%', backgroundPosition: `${i * 12.5}% 50%` }),
+          }}
         />
       ))}
     </span>

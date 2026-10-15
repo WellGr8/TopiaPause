@@ -61,7 +61,7 @@ export function GuardianCard({
 
   if (run.stage === 'checking') {
     return (
-      <Card as="article" className="animate-enter overflow-hidden" aria-busy="true" aria-label={t(lang, 'guard')}>
+      <Card as="article" className="animate-enter overflow-hidden" aria-busy="true" aria-label={t(lang, 'guard')} data-guard={run.stage}>
         <WaveStrip className="rounded-none" />
         <p className="px-5 py-4 text-[15px] text-muted">{t(lang, 'checking')}</p>
       </Card>
@@ -79,7 +79,7 @@ export function GuardianCard({
             ? t(lang, 'doneOriginal')
             : t(lang, 'doneCancel');
     return (
-      <Card as="article" className="animate-enter overflow-hidden" aria-label={t(lang, 'guard')} role="status">
+      <Card as="article" className="animate-enter overflow-hidden" aria-label={t(lang, 'guard')} role="status" data-guard={run.stage}>
         {run.stage === 'rechecking' ? <WaveStrip className="rounded-none" /> : <div className="h-0.5" />}
         <div className="px-5 pb-2 pt-4">
           <p className={cx('flex items-center gap-2 text-sm font-semibold', run.stage === 'done' && run.choice === 'counter_offer' ? 'text-allow' : 'text-muted')}>
@@ -113,8 +113,8 @@ export function GuardianCard({
   const findings = sortedFindings(verdict);
 
   return (
-    <Card as="article" className="animate-enter overflow-hidden" aria-label={t(lang, 'guard')}>
-      {thinking ? <WaveStrip className="rounded-none" /> : <div className="h-0.5" />}
+    <Card as="article" className="animate-enter overflow-hidden" aria-label={t(lang, 'guard')} data-guard={run.stage} data-decision={decision} data-voice={voice.state}>
+      <WaveStrip className="rounded-none" still={!thinking} />
       <div className="px-5 pb-2 pt-4">
         <div className="flex items-start gap-3">
           <h3 className="flex-1 text-[19px] font-semibold leading-snug">

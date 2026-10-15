@@ -23,7 +23,7 @@ export function Header() {
   const { lang, screen } = state;
   const title = screen === 'activity' ? t(lang, 'activity') : screen === 'rules' ? t(lang, 'rulesTitle') : null;
   return (
-    <header className="border-b border-line bg-canvas px-4 pt-[env(safe-area-inset-top)]">
+    <header className="border-b border-line px-4 pt-[env(safe-area-inset-top)]">
       <div className="mx-auto flex h-14 max-w-xl items-center gap-2">
         <span className="lg:hidden">
           <Logo size={26} />

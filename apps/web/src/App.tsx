@@ -1,4 +1,5 @@
 import { ActivityScreen } from './components/ActivityScreen';
+import { Ambient } from './components/Ambient';
 import { ChatScreen } from './components/ChatScreen';
 import { Header } from './components/Header';
 import { BottomNav, Sidebar } from './components/Nav';
@@ -14,7 +15,8 @@ export function App() {
 
   return (
     <FlowProvider>
-      <div className="flex h-full">
+      <Ambient />
+      <div className="relative z-10 flex h-full">
         <Sidebar />
         <div className="flex h-full min-w-0 flex-1 flex-col">
           <Header />
