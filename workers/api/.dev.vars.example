@@ -1,5 +1,14 @@
 # Copy to .dev.vars (git-ignored) for `pnpm dev:worker`. Never commit real values.
-# All keys are optional: without them the API answers with deterministic scripted mocks.
+# Everything is optional: without keys /api/agent/chat uses the scripted mock and
+# /api/voice/tts answers 503 so the web app falls back to browser speech.
+
+# Any OpenAI-compatible chat completions provider (OpenAI, OpenRouter, Groq, ...).
 LLM_API_KEY=
+# Overrides the non-secret vars in wrangler.jsonc for local runs:
+# LLM_MODEL=gpt-4o-mini
+# LLM_BASE_URL=https://api.openai.com/v1
+
+# ElevenLabs text-to-speech.
 ELEVENLABS_API_KEY=
-TOKENOMIST_API_KEY=
+# ELEVENLABS_VOICE_ID=
+# ELEVENLABS_MODEL_ID=eleven_v3
