@@ -1,4 +1,0 @@
-{
-  "$comment": "Pre-generated ElevenLabs clips. Key = <scene>-<lang>-<decision>, e.g. crypto-th-pause. 'text' must equal the engine's voiceText for that scene, otherwise the player falls back to browser speech.",
-  "clips": {}
-}
