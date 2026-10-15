@@ -64,7 +64,7 @@ Node 22 and pnpm 10.
 ```bash
 pnpm install
 pnpm dev          # http://localhost:5173 — works with no keys
-pnpm test         # 281 tests
+pnpm test         # 285 tests
 pnpm typecheck
 pnpm build
 ```

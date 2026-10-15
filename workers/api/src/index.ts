@@ -5,6 +5,7 @@ import {
   estimateCostThb,
   extractIntentMock,
   policyLoosens,
+  isWhyQuestion,
   scriptedChat,
   type AgentChatResponse,
   type AgentProposal,
@@ -134,7 +135,7 @@ async function confirmChoice(req: Request, env: AppEnv): Promise<Response> {
 
 async function agentChat(req: Request, env: AppEnv): Promise<Response> {
   const body = await readBody(req, AgentChatRequest);
-  if (/ทำไม|why|แพง/i.test(body.message)) {
+  if (isWhyQuestion(body.message)) {
     return json({ reply: await whyFromTicket(env, body.verdictId, body.lang), source: 'scripted' });
   }
   const history = (body.history ?? []).slice(-4);

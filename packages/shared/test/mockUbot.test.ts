@@ -52,6 +52,30 @@ describe('scripted U-Bot (mock)', () => {
     expect(en.reply).toContain('USDT → TOKEN-X');
   });
 
+  it('treats a cheap hotel as a stay, not a why question', () => {
+    const turn = scriptedChat({ message: 'หาโรงแรมไม่แพงใกล้อโศก', lang: 'th' });
+    expect(turn.scene).toBe('stay');
+    expect(turn.proposal?.kind).toBe('stay');
+  });
+
+  it('does not book a restaurant as a hotel', () => {
+    for (const message of ['จองโต๊ะร้านอาหาร', 'กินข้าวใกล้อโศก']) {
+      const turn = scriptedChat({ message, lang: 'th' });
+      expect(turn.proposal).toBeUndefined();
+      expect(turn.scene).toBeUndefined();
+      expect(turn.reply).toContain('ลองแอป PixelPro');
+      expect(turn.reply).toContain('โรงแรมถูกๆ ใกล้อโศก');
+      expect(turn.reply).toContain('แลก 500 USDT ครั้งเดียว');
+    }
+  });
+
+  it('says the crypto swap in plain Thai', () => {
+    const turn = scriptedChat({ message: 'แลก 500 USDT เป็น TOKEN-X ครั้งเดียวพอ', scene: 'crypto', lang: 'th' });
+    expect(turn.reply).toContain('จะแลก 500 USDT เป็น TOKEN-X');
+    expect(turn.reply).toContain('ให้สิทธิ์ถอน USDT ได้ไม่จำกัด');
+    expect(turn.reply).not.toContain('ขออนุมัติสิทธิ์');
+  });
+
   it('names the three chips when nothing matches', () => {
     const en = scriptedChat({ message: 'what is the weather', lang: 'en' });
     expect(en.proposal).toBeUndefined();

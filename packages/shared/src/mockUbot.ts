@@ -16,6 +16,18 @@ function has(t: string, ...words: string[]): boolean {
 
 const FOREIGN_COIN = /eth|btc|bitcoin|บิตคอย|บิทคอย|อีเธ/i;
 const HAS_USDT = /usdt|ยูเอสดีที/i;
+const FOOD = /ร้านอาหาร|โต๊ะ|กินข้าว/;
+const WHY = /ทำไม|\bwhy\b|แพง/i;
+
+/** A restaurant or a table is not a hotel. */
+export function isFoodRequest(message: string): boolean {
+  return FOOD.test(message);
+}
+
+/** Why only when the message asks why and names no demo scene. "แพง" inside a hotel request is not why. */
+export function isWhyQuestion(message: string): boolean {
+  return WHY.test(message) && !isFoodRequest(message) && detectScene(message) === undefined;
+}
 
 /** ETH, BTC, and the like are not in this demo. Only a message that names USDT can become a swap. */
 export function unsupportedCoin(message: string): boolean {
@@ -30,6 +42,7 @@ export function usdtOnlyReply(lang: Lang): string {
 }
 
 export function detectScene(text: string): SceneId | undefined {
+  if (isFoodRequest(text)) return undefined;
   const t = text.toLowerCase();
   if (has(t, 'swap', 'usdt', 'token', 'token-x', 'แลก', 'โทเคน', 'คริปโต')) return 'crypto';
   if (has(t, 'hotel', 'room', 'stay', 'sleep', 'asok', 'book', 'โรงแรม', 'ที่พัก', 'ห้อง', 'อโศก', 'นอน', 'จอง')) return 'stay';
@@ -37,7 +50,7 @@ export function detectScene(text: string): SceneId | undefined {
   return undefined;
 }
 
-function unmatchedReply(lang: Lang): string {
+export function unmatchedReply(lang: Lang): string {
   const chips = SCENE_ORDER.map((id) => SCENES[id].chip[lang]);
   if (lang === 'th') {
     return `ยังจับไม่ออกว่าจะให้ตรวจรายการไหน เพราะเดโมนี้กันเงินได้แค่ 3 แบบ: ${chips.join(' · ')} ลองกดปุ่มด้านล่าง หรือพิมพ์ให้ใกล้เคียงแบบนั้นได้เลยครับ`;
