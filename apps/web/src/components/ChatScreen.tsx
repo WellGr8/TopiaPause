@@ -1,10 +1,11 @@
 import { SCENE_ORDER, SCENES } from '@topiapause/shared';
-import { ArrowUp } from 'lucide-react';
+import { ArrowUp, Globe, ShieldAlert } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { t } from '../copy';
 import { useChatFlow } from '../lib/flow';
 import { useApp, type ChatItem } from '../state';
 import { GuardianCard } from './GuardianCard';
+import { SavedHero, useSavings } from './SavedHero';
 import { cx } from './ui';
 
 function Bubble({ from, children }: { from: 'user' | 'ubot'; children: ReactNode }) {
@@ -40,21 +41,48 @@ function Item({ item }: { item: ChatItem }) {
           </span>
         </Bubble>
       );
+    case 'webpage':
+      return (
+        <figure className="animate-enter max-w-[85%] text-sm">
+          <figcaption className="flex items-center gap-1.5 px-1 text-muted">
+            <Globe size={14} aria-hidden="true" />
+            {t(state.lang, 'injRead')} · {t(state.lang, 'injMockPage')}
+          </figcaption>
+          <div className="mt-1.5 rounded-card border border-line bg-surface px-4 py-3">
+            <p className="font-mono text-xs text-muted">{item.url}</p>
+            <p className="mt-1">{item.visible}</p>
+            <p className="mt-2 rounded-control border border-dashed border-block/60 px-3 py-2">
+              <span className="block text-xs font-medium text-block">{t(state.lang, 'injHidden')}</span>
+              <span className="font-mono text-xs">{item.hidden}</span>
+            </p>
+          </div>
+        </figure>
+      );
     case 'guard':
       return (
-        <GuardianCard
-          run={item.run}
-          lang={state.lang}
-          onChoose={(c) => choose(item.run, c)}
-          onReceipt={(receiptId) => dispatch({ type: 'openReceipt', receiptId })}
-        />
+        <div>
+          {item.run.injectedFrom && item.run.stage !== 'checking' && (
+            <p className="animate-enter mb-1.5 flex items-center gap-1.5 px-1 text-sm font-medium">
+              <ShieldAlert size={15} className="shrink-0 text-block" aria-hidden="true" />
+              {t(state.lang, 'injNote')}
+              <span className="font-normal text-muted">· {item.run.injectedFrom}</span>
+            </p>
+          )}
+          <GuardianCard
+            run={item.run}
+            lang={state.lang}
+            onChoose={(c) => choose(item.run, c)}
+            onReceipt={(receiptId) => dispatch({ type: 'openReceipt', receiptId })}
+          />
+        </div>
       );
   }
 }
 
 export function ChatScreen() {
   const { state } = useApp();
-  const { send } = useChatFlow();
+  const { send, sendInjection } = useChatFlow();
+  const savings = useSavings();
   const { lang } = state;
   const [text, setText] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
@@ -76,6 +104,7 @@ export function ChatScreen() {
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-xl space-y-3 px-4 py-4" aria-live="polite">
+          {savings.lines.length > 0 && <SavedHero size="sm" className="px-1 pb-3 lg:hidden" />}
           <Bubble from="ubot">{t(lang, 'greet')}</Bubble>
           {state.chat.map((item) => (
             <Item key={item.id} item={item} />
@@ -97,6 +126,13 @@ export function ChatScreen() {
                 {SCENES[id].chip[lang]}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => void sendInjection()}
+              className="min-h-11 shrink-0 rounded-full border border-line bg-surface px-4 text-sm font-medium transition-colors hover:border-muted"
+            >
+              {t(lang, 'injChip')}
+            </button>
           </div>
         )}
         <form onSubmit={submit} className="flex items-center gap-2 rounded-card border border-line bg-surface p-1.5 pl-4">

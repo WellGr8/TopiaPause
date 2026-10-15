@@ -9,10 +9,10 @@ const dict = {
   switchLangLabel: { th: 'Switch to English', en: 'เปลี่ยนเป็นภาษาไทย' },
 
   // onboarding & rules
-  onbTitle: { th: 'ให้ AI ทำตามที่คุณตั้งใจ', en: 'Make your AI do what you meant' },
+  onbTitle: { th: 'AI จ่ายเงิน ต้องตรงกับที่คุณตั้งใจ', en: 'Your AI only pays for what you meant' },
   onbBody: {
-    th: 'TopiaPause หยุดรายการที่ไม่ตรงกับที่คุณพูด ก่อนเงินจะออกจากกระเป๋า',
-    en: 'TopiaPause stops anything that doesn’t match what you said, before money moves.',
+    th: 'ตรวจเจตนาก่อน AI จ่ายเงิน เราไม่แตะเงินของคุณ',
+    en: 'An intent check before your AI pays. We never touch your money.',
   },
   onbRules: { th: 'กฎ 3 ข้อของคุณ', en: 'Your 3 rules' },
   onbCta: { th: 'เริ่มใช้งาน', en: 'Get started' },
@@ -22,6 +22,24 @@ const dict = {
   rule2Hint: { th: 'ถ้าแพงกว่าไม่เกิน', en: 'if it costs at most' },
   rule3: { th: 'เพดาน TOKEN-X', en: 'TOKEN-X cap' },
   rule3Hint: { th: 'ของพอร์ต', en: 'of portfolio' },
+  ruleTell: { th: 'บอกกฎของคุณกับ TopiaPause', en: 'Tell TopiaPause your rule' },
+  rulePlaceholder: { th: 'เช่น ค่าสมาชิกห้ามเกินเดือนละ 300', en: 'e.g. crypto cap 30% of portfolio' },
+  ruleTry: { th: 'ลอง: “โรงแรมต้องคืนเงินได้ ถ้าแพงกว่าไม่เกิน 15%”', en: 'Try: “hotels must be refundable if ≤15% more”' },
+  ruleRead: { th: 'อ่านกฎ', en: 'Read' },
+  ruleConfirmQ: { th: '{rule} ยืนยันไหม?', en: '{rule}, confirm?' },
+  ruleSubCap: { th: 'งบสมัครสมาชิก {amount}/เดือน', en: 'Subscription budget {amount}/mo' },
+  ruleFromYearly: { th: '(คิดจากงบรายปี)', en: '(from a yearly amount)' },
+  ruleRefund: { th: 'ห้องต้องคืนเงินได้ ถ้าแพงกว่าไม่เกิน +{pct}%', en: 'Refundable rooms if at most +{pct}%' },
+  ruleToken: { th: 'เพดาน TOKEN-X {pct}% ของพอร์ต', en: 'TOKEN-X cap {pct}% of portfolio' },
+  ruleSaved: { th: 'บันทึกกฎแล้ว: {rule}', en: 'Rule saved: {rule}' },
+  ruleEdit: { th: 'แก้ไข', en: 'Edit' },
+  ruleErrEmpty: { th: 'พิมพ์กฎสั้นๆ ก่อนนะครับ', en: 'Type a short rule first.' },
+  ruleErrNoTopic: {
+    th: 'ขอโทษครับ ยังไม่แน่ใจว่าเป็นกฎเรื่องไหน ลองระบุว่าเป็นค่าสมาชิก โรงแรม หรือคริปโต',
+    en: 'Sorry, I couldn’t tell which rule that is. Try mentioning subscriptions, hotels or crypto.',
+  },
+  ruleErrNoNumber: { th: 'ขอโทษครับ ยังไม่เห็นตัวเลข ลองใส่จำนวนเงินหรือเปอร์เซ็นต์', en: 'Sorry, I couldn’t find a number. Add an amount or a percentage.' },
+  ruleErrRange: { th: 'ตัวเลขนี้ดูเกินขอบเขต ลองใหม่อีกครั้งนะครับ', en: 'That number looks out of range. Could you try again?' },
   exactOnly: { th: 'อนุมัติสิทธิ์แบบพอดีเท่านั้น', en: 'Exact approvals only' },
   rulesTitle: { th: 'กฎ', en: 'Rules' },
   display: { th: 'การแสดงผล', en: 'Display' },
@@ -44,6 +62,18 @@ const dict = {
   placeholder: { th: 'พิมพ์คำสั่ง…', en: 'Type a request…' },
   send: { th: 'ส่ง', en: 'Send' },
   newChat: { th: 'เริ่มใหม่', en: 'New chat' },
+
+  // prompt-injection scene (scripted mock)
+  injChip: { th: 'สมัคร PixelPro แค่ลองดู (เว็บแอบใส่คำสั่ง)', en: 'Try PixelPro (page hides an instruction)' },
+  injUser: { th: 'สมัคร PixelPro ให้หน่อย แค่ลองดูก่อน', en: 'Sign me up for PixelPro, just to try it.' },
+  injRead: { th: 'U-Bot อ่านหน้าเว็บ', en: 'U-Bot read a web page' },
+  injMockPage: { th: 'หน้าเว็บจำลอง', en: 'mock page' },
+  injHidden: { th: 'ข้อความซ่อนในหน้า', en: 'Hidden on the page' },
+  injReply: {
+    th: 'หน้าราคาบอกว่าแผนรายปีคุ้มที่สุด ผมเลยเลือก PixelPro Annual ฿3,990/ปี ต่ออายุอัตโนมัติให้นะครับ',
+    en: 'The pricing page says the annual plan is the best pick, so I’m going with PixelPro Annual at ฿3,990/year, auto-renew.',
+  },
+  injNote: { th: 'คำสั่งนี้มาจากหน้าเว็บ ไม่ใช่จากคุณ', en: 'Instruction came from a web page, not from you' },
 
   // guard card
   guard: { th: 'TopiaPause', en: 'TopiaPause' },
@@ -75,6 +105,14 @@ const dict = {
   // activity + receipt
   activity: { th: 'กิจกรรม', en: 'Activity' },
   protectedMonth: { th: 'ปกป้องไว้เดือนนี้', en: 'Protected this month' },
+  savedLead: { th: 'TopiaPause ช่วยคุณประหยัด', en: 'TopiaPause saved you' },
+  savedTail: { th: 'เดือนนี้', en: 'this month' },
+  savedFromOne: { th: 'จากทางเลือกที่ตรงกว่า 1 รายการ', en: 'from 1 better fit you accepted' },
+  savedFromMany: { th: 'จากทางเลือกที่ตรงกว่า {n} รายการ', en: 'from {n} better fits you accepted' },
+  savedEmpty: { th: 'กด “ใช้ทางเลือกนี้” แล้วยอดที่ประหยัดได้จะขึ้นที่นี่', en: 'Accept a better fit and your savings show up here.' },
+  savedItems: { th: 'ประหยัดได้ (ราคาเดิม → ราคาที่คุณเลือก)', en: 'Saved (original → what you accepted)' },
+  savedTotal: { th: 'รวมเดือนนี้', en: 'Total this month' },
+  allChecks: { th: 'ทุกการตรวจ', en: 'All checks' },
   inCrypto: { th: 'ในคริปโต', en: 'in crypto' },
   statLine: { th: 'ตรวจ {n} ครั้ง · หยุด {p} · เลือกทางที่ตรงกว่า {s}', en: '{n} checks · {p} paused · {s} better fits' },
   emptyActivity: { th: 'ยังไม่มีรายการ', en: 'Nothing yet' },

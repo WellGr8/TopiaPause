@@ -2,8 +2,10 @@ import { describeProposal, fmtMoney, type Lang, type Receipt } from '@topiapause
 import { ChevronDown } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { CHOICE_LABEL, SCENE_TITLE, t } from '../copy';
+import { fmtExact, savedLine } from '../lib/savings';
 import { approvedLine } from '../lib/summary';
 import { useApp, type ActivityEntry } from '../state';
+import { SavedHero, useSavings } from './SavedHero';
 import { Card, Status, TextButton, cx } from './ui';
 
 function shortTime(iso: string, lang: Lang): string {
@@ -69,7 +71,10 @@ function ReceiptDetails({ r, lang }: { r: Receipt; lang: Lang }) {
   );
 }
 
+const signed = (minor: number, currency: 'THB' | 'USD') => (minor > 0 ? '+' : '') + fmtExact(minor, currency);
+
 function Row({ a, open, lang, onToggle }: { a: ActivityEntry; open: boolean; lang: Lang; onToggle: () => void }) {
+  const line = savedLine(a);
   return (
     <li className="border-t border-line first:border-t-0">
       <button type="button" aria-expanded={open} onClick={onToggle} className="flex min-h-16 w-full items-center gap-3 px-5 py-3 text-left">
@@ -79,9 +84,7 @@ function Row({ a, open, lang, onToggle }: { a: ActivityEntry; open: boolean; lan
             <Status decision={a.decision} lang={lang} className="font-medium" /> · {CHOICE_LABEL[a.choice][lang]} · {shortTime(a.at, lang)}
           </span>
         </span>
-        {a.protectedAmount > 0 && (
-          <span className="shrink-0 font-semibold tabular-nums">+{fmtMoney({ amount: a.protectedAmount, currency: a.currency })}</span>
-        )}
+        {line && <span className="shrink-0 font-semibold tabular-nums">{signed(line.savedMinor, line.currency)}</span>}
         <ChevronDown size={16} className={cx('shrink-0 text-muted transition-transform', open && 'rotate-180')} aria-hidden="true" />
       </button>
       {open && <ReceiptDetails r={a.receipt} lang={lang} />}
@@ -92,20 +95,43 @@ function Row({ a, open, lang, onToggle }: { a: ActivityEntry; open: boolean; lan
 export function ActivityScreen() {
   const { state, dispatch } = useApp();
   const { lang } = state;
-  const { primary, secondary, month } = useProtectedTotals();
+  const { month } = useProtectedTotals();
+  const { lines, thb, usd } = useSavings();
   const paused = month.filter((a) => a.decision !== 'allow').length;
   const better = month.filter((a) => a.choice === 'counter_offer').length;
 
   return (
     <div className="mx-auto w-full max-w-xl px-4 pb-8 pt-6">
-      <p className="text-sm text-muted">{t(lang, 'protectedMonth')}</p>
-      <p className="mt-1 text-[56px] font-semibold leading-none tracking-tight tabular-nums">{primary}</p>
-      {secondary && (
-        <p className="mt-2 text-[15px]">
-          + <span className="font-semibold tabular-nums">{secondary}</span> <span className="text-muted">{t(lang, 'inCrypto')}</span>
-        </p>
-      )}
+      <SavedHero size="lg" />
       <p className="mt-3 text-sm text-muted">{t(lang, 'statLine', { n: month.length, p: paused, s: better })}</p>
+
+      {lines.length > 0 && (
+        <section className="mt-8" aria-labelledby="saved-items">
+          <h2 id="saved-items" className="mb-2 px-1 text-sm text-muted">
+            {t(lang, 'savedItems')}
+          </h2>
+          <ul className="divide-y divide-line">
+            {lines.map((l) => (
+              <li key={l.entry.id} className="flex items-baseline gap-3 px-1 py-2.5">
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium">{SCENE_TITLE[l.entry.scene][lang]}</span>
+                  <span className="block text-sm text-muted tabular-nums">
+                    {fmtExact(l.originalMinor, l.currency)} → {fmtExact(l.acceptedMinor, l.currency)}
+                  </span>
+                </span>
+                <span className={cx('shrink-0 font-semibold tabular-nums', l.savedMinor > 0 && 'text-allow')}>{signed(l.savedMinor, l.currency)}</span>
+              </li>
+            ))}
+            <li className="flex items-baseline gap-3 px-1 py-2.5">
+              <span className="flex-1 text-sm text-muted">{t(lang, 'savedTotal')}</span>
+              <span className="shrink-0 text-right font-semibold tabular-nums">
+                {fmtExact(thb, 'THB')}
+                {usd !== 0 && <span className="block text-sm">{signed(usd, 'USD')}</span>}
+              </span>
+            </li>
+          </ul>
+        </section>
+      )}
 
       <div className="mt-8">
         {state.activity.length === 0 ? (
@@ -116,7 +142,9 @@ export function ActivityScreen() {
             </TextButton>
           </div>
         ) : (
-          <Card as="section" aria-label={t(lang, 'activity')}>
+          <>
+          <h2 className="mb-2 px-1 text-sm text-muted">{t(lang, 'allChecks')}</h2>
+          <Card as="section" aria-label={t(lang, 'allChecks')}>
             <ul>
               {state.activity.map((a) => (
                 <Row
@@ -129,6 +157,7 @@ export function ActivityScreen() {
               ))}
             </ul>
           </Card>
+          </>
         )}
       </div>
     </div>
