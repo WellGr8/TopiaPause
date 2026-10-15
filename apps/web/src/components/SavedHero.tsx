@@ -19,7 +19,7 @@ export function SavedHero({ size = 'md', className }: { size?: 'sm' | 'md' | 'lg
 
   return (
     <section className={className} aria-label={`${t(lang, 'savedLead')} ${amount} ${t(lang, 'savedTail')}`}>
-      <p className={cx('text-muted', size === 'lg' ? 'text-[15px]' : 'text-sm')}>{t(lang, 'savedLead')}</p>
+      <p className={cx('text-on-glow', size === 'lg' ? 'text-[15px]' : 'text-sm')}>{t(lang, 'savedLead')}</p>
       <p aria-hidden="true" className="mt-1 flex flex-wrap items-baseline gap-x-2">
         <span
           className={cx(

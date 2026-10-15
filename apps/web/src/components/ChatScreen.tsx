@@ -44,7 +44,7 @@ function Item({ item }: { item: ChatItem }) {
     case 'webpage':
       return (
         <figure className="animate-enter max-w-[85%] text-sm">
-          <figcaption className="flex items-center gap-1.5 px-1 text-muted">
+          <figcaption className="flex items-center gap-1.5 px-1 text-on-glow">
             <Globe size={14} aria-hidden="true" />
             {t(state.lang, 'injRead')} · {t(state.lang, 'injMockPage')}
           </figcaption>
@@ -65,7 +65,6 @@ function Item({ item }: { item: ChatItem }) {
             <p className="animate-enter mb-1.5 flex items-center gap-1.5 px-1 text-sm font-medium">
               <ShieldAlert size={15} className="shrink-0 text-block" aria-hidden="true" />
               {t(state.lang, 'injNote')}
-              <span className="font-normal text-muted">· {item.run.injectedFrom}</span>
             </p>
           )}
           <GuardianCard

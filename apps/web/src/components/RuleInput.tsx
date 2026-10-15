@@ -76,14 +76,12 @@ export function RuleInput({ policy, lang, onChange }: { policy: UserPolicy; lang
           </p>
         )}
         {status.kind === 'confirm' && (
-          <div className="animate-enter flex flex-wrap items-center gap-x-2 gap-y-1">
-            <p className="rounded-full border border-line bg-surface px-3.5 py-2 text-sm font-medium">
-              {t(lang, 'ruleConfirmQ', { rule: describeRule(status.rule, lang) })}
-            </p>
-            <Button type="button" variant="primary" className="min-h-10 px-4 text-sm" onClick={() => confirm(status.rule)}>
+          <div className="animate-enter flex items-center gap-2 rounded-card border border-line bg-surface py-1.5 pl-4 pr-1.5">
+            <p className="min-w-0 flex-1 text-sm font-medium">{t(lang, 'ruleConfirmQ', { rule: describeRule(status.rule, lang) })}</p>
+            <TextButton onClick={() => setStatus({ kind: 'idle' })}>{t(lang, 'ruleEdit')}</TextButton>
+            <Button type="button" variant="primary" className="min-h-10 shrink-0 px-4 text-sm" onClick={() => confirm(status.rule)}>
               {t(lang, 'confirm')}
             </Button>
-            <TextButton onClick={() => setStatus({ kind: 'idle' })}>{t(lang, 'ruleEdit')}</TextButton>
           </div>
         )}
       </div>
