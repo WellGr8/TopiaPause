@@ -24,6 +24,16 @@ describe('mapVoiceIntent', () => {
     ['confirm and cancel', 'unclear'],
     ['อะไรนะ', 'unclear'],
     ['', 'unclear'],
+    ['นี่นะนำ', 'counter_offer'],
+    ['คุณพี่แนะนำ', 'counter_offer'],
+    ['เอา อันที่ แนะนำ', 'counter_offer'],
+    ['โอเคครับ', 'counter_offer'],
+    ['ไม่เอาที่แนะนำ', 'cancel'],
+    ['ไม่ต้อง', 'cancel'],
+    ['तगलग', 'unclear'],
+    ['asdf qwerty', 'unclear'],
+    ['ตกลง ยกเลิก', 'unclear'],
+    ['ตกลอง', 'counter_offer'],
   ] as const)('%j → %s', (transcript, action) => {
     expect(mapVoiceIntent(transcript)).toBe(action);
   });

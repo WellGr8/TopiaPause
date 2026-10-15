@@ -55,7 +55,11 @@ function extOf(mime: string): string {
   return 'webm';
 }
 
-export async function transcribe(env: AppEnv, audio: { bytes: Uint8Array; mime: string }): Promise<{ transcript: string; action: VoiceAction }> {
+export async function transcribe(
+  env: AppEnv,
+  audio: { bytes: Uint8Array; mime: string },
+  lang: 'th' | 'en' = 'th',
+): Promise<{ transcript: string; action: VoiceAction }> {
   if (!sttConfigured(env)) {
     throw new HttpError(503, 'stt_unavailable', 'Speech-to-text is not configured (missing ELEVENLABS_API_KEY). Use the buttons.');
   }
@@ -66,6 +70,7 @@ export async function transcribe(env: AppEnv, audio: { bytes: Uint8Array; mime: 
   form.append('file', new Blob([audio.bytes], { type: audio.mime }), `reply.${extOf(audio.mime)}`);
   form.append('model_id', model);
   form.append('tag_audio_events', 'false');
+  form.append('language_code', lang === 'en' ? 'eng' : 'tha');
 
   const started = Date.now();
   const upstream = await fetch(STT_URL, {
@@ -84,15 +89,26 @@ export async function transcribe(env: AppEnv, audio: { bytes: Uint8Array; mime: 
   }
 
   let text = '';
+  let languageCode: string | undefined;
+  let languageProbability: number | undefined;
   try {
-    const data = (await upstream.json()) as { text?: unknown };
+    const data = (await upstream.json()) as { text?: unknown; language_code?: unknown; language_probability?: unknown };
     text = typeof data.text === 'string' ? data.text : '';
+    if (typeof data.language_code === 'string') languageCode = data.language_code;
+    if (typeof data.language_probability === 'number') languageProbability = data.language_probability;
   } catch {
     log({ message: 'stt bad response', ms: Date.now() - started });
     throw new HttpError(502, 'stt_failed', 'Speech-to-text failed. Use the buttons.');
   }
 
   const transcript = text.trim().slice(0, MAX_TRANSCRIPT);
-  log({ message: 'stt ok', model, ms: Date.now() - started, bytes: audio.bytes.byteLength });
+  log({
+    message: 'stt ok',
+    model,
+    ms: Date.now() - started,
+    bytes: audio.bytes.byteLength,
+    language_code: languageCode,
+    language_probability: languageProbability,
+  });
   return { transcript, action: mapVoiceIntent(transcript) };
 }

@@ -133,10 +133,21 @@ const dict = {
   voiceWillCancel: { th: 'จะยกเลิก ไม่มีการจ่าย', en: 'Will cancel. Nothing will be paid.' },
   voiceTap: { th: 'แตะเพื่อยืนยัน', en: 'Tap to confirm' },
   voiceUnclear: {
-    th: 'ยังไม่แน่ใจ ลองพูดอีกครั้งได้ครับ เช่น “เอาอันที่แนะนำ” หรือ “ยกเลิก”',
-    en: 'I didn’t catch that. Try again, for example “the recommended one” or “cancel”.',
+    th: 'ลองพูดสั้นๆ: “แนะนำ” หรือ “ยกเลิก” หรือแตะปุ่มด้านบน',
+    en: 'Try a short phrase: “recommended” or “cancel”, or tap a button above.',
   },
-  voiceFallback: { th: 'ใช้ปุ่มด้านล่างได้เลย', en: 'Use the buttons below.' },
+  voiceRetry: { th: 'พูดอีกครั้ง', en: 'Speak again' },
+  voiceUseRecommended: { th: 'ใช่ เอาอันที่แนะนำ', en: 'Yes, use the recommended one' },
+  voiceMicDenied: { th: 'ไม่ได้รับสิทธิ์ไมค์', en: 'Microphone permission was denied.' },
+  voiceHear: { th: 'ฟังไม่ชัด', en: 'I couldn’t hear that clearly.' },
+  voiceConnect: { th: 'เชื่อมต่อไม่ได้', en: 'Couldn’t connect.' },
+  voiceTryAgain: { th: 'ลองอีกครั้ง', en: 'Try again' },
+  voiceInApp: {
+    th: 'เปิดในเบราว์เซอร์ Chrome เพื่อพูดตอบ หรือแตะปุ่มด้านบน',
+    en: 'Open in the Chrome browser to speak, or tap a button above.',
+  },
+  voiceAbove: { th: 'แตะปุ่มด้านบนได้เลย', en: 'Tap a button above.' },
+  chipsExamples: { th: 'ตัวอย่าง', en: 'Examples' },
 
   // activity + receipt
   activity: { th: 'กิจกรรม', en: 'Activity' },

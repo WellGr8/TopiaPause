@@ -768,8 +768,9 @@ describe('POST /api/voice/stt', () => {
       const form = await new Request('https://stt.test', { method: 'POST', body: init.body }).formData();
       expect(form.get('model_id')).toBe('scribe_v2');
       expect(form.get('tag_audio_events')).toBe('false');
+      expect(form.get('language_code')).toBe('tha');
       expect(form.get('file')).toBeInstanceOf(Blob);
-      return Response.json({ text: 'เอาอันที่แนะนำ', words: [{ text: 'secret-word' }] });
+      return Response.json({ text: 'เอาอันที่แนะนำ', language_code: 'tha', language_probability: 0.98, words: [{ text: 'secret-word' }] });
     });
     vi.stubGlobal('fetch', fetchMock);
     const env = makeEnv({ ELEVENLABS_API_KEY: 'xi-test' });
@@ -784,6 +785,8 @@ describe('POST /api/voice/stt', () => {
     expect(logged).not.toContain('เอาอันที่แนะนำ');
     expect(logged).not.toContain('secret-word');
     expect(logged).not.toContain('xi-test');
+    expect(logged).toContain('"language_code":"tha"');
+    expect(logged).toContain('"language_probability":0.98');
   });
 
   it('counts a successful call in the shared daily cap', async () => {

@@ -240,24 +240,31 @@ export async function apiTts(text: string, lang: Lang, clipId?: string): Promise
   }
 }
 
-/** ElevenLabs transcript for a short reply, or null when the mic should step aside. */
-export async function apiStt(blob: Blob): Promise<{ transcript: string; action: VoiceAction } | null> {
+export type SttResult = { transcript: string; action: VoiceAction } | { error: 'session' | 'stt' };
+
+/** ElevenLabs transcript for a short reply. `error` tells the mic what to show. */
+export async function apiStt(blob: Blob, lang: Lang = 'th'): Promise<SttResult | null> {
   try {
     const type = (blob.type || 'audio/webm').split(';')[0] || 'audio/webm';
     const r = await withSession((token) =>
-      fetch('/api/voice/stt', {
+      fetch(`/api/voice/stt?lang=${lang}`, {
         method: 'POST',
-        headers: { 'Content-Type': type, 'X-TopiaPause-Session': token },
+        headers: { 'Content-Type': type, 'X-TopiaPause-Session': token, 'X-TopiaPause-Lang': lang },
         body: blob,
         signal: AbortSignal.timeout(20_000),
       }),
     );
-    if (!r?.ok) return null;
+    if (!r) return { error: 'session' };
+    if (!r.ok) {
+      const code = await errorCode(r);
+      if (r.status === 403 || code === 'session_required' || code === 'invalid_session') return { error: 'session' };
+      return { error: 'stt' };
+    }
     const data = (await r.json()) as { transcript?: unknown; action?: unknown };
-    if (typeof data.transcript !== 'string') return null;
-    if (data.action !== 'counter_offer' && data.action !== 'cancel' && data.action !== 'unclear') return null;
+    if (typeof data.transcript !== 'string') return { error: 'stt' };
+    if (data.action !== 'counter_offer' && data.action !== 'cancel' && data.action !== 'unclear') return { error: 'stt' };
     return { transcript: data.transcript, action: data.action };
   } catch {
-    return null;
+    return { error: 'stt' };
   }
 }
