@@ -28,6 +28,31 @@ TopiaPause is a guard layer for AI agents that spend money for you. Before an ag
 
 Each scene runs end to end: proposal → guard card (decision, findings, counter-offer) → voice → "why?" follow-up → use safer option → animated re-check → mock execute → receipt → activity timeline.
 
+### Screenshots
+
+Mobile (390×844, Thai, light) unless noted. All files are in [`docs/screenshots/`](docs/screenshots/).
+
+| Screen | Scene 1: subscription | Scene 2: stay | Scene 3: crypto |
+|---|---|---|---|
+| Chat | <img src="docs/screenshots/m03-scene1-subscription-chat.png" width="180" alt="Scene 1 chat" /> | <img src="docs/screenshots/m04-scene2-stay-chat.png" width="180" alt="Scene 2 chat" /> | <img src="docs/screenshots/m05-scene3-crypto-chat.png" width="180" alt="Scene 3 chat" /> |
+| Guardian card | <img src="docs/screenshots/m03-scene1-subscription-guard-card.png" width="180" alt="Scene 1 guard card" /> | <img src="docs/screenshots/m04-scene2-stay-guard-card.png" width="180" alt="Scene 2 guard card" /> | <img src="docs/screenshots/m05-scene3-crypto-guard-card.png" width="180" alt="Scene 3 guard card" /> |
+| Re-check | <img src="docs/screenshots/m03-scene1-subscription-recheck.png" width="180" alt="Scene 1 re-check" /> | <img src="docs/screenshots/m04-scene2-stay-recheck.png" width="180" alt="Scene 2 re-check" /> | <img src="docs/screenshots/m05-scene3-crypto-recheck.png" width="180" alt="Scene 3 re-check" /> |
+| Receipt | <img src="docs/screenshots/m03-scene1-subscription-receipt.png" width="180" alt="Scene 1 receipt" /> | <img src="docs/screenshots/m04-scene2-stay-receipt.png" width="180" alt="Scene 2 receipt" /> | <img src="docs/screenshots/m05-scene3-crypto-receipt.png" width="180" alt="Scene 3 receipt" /> |
+
+| Onboarding | Empty chat | "Why?" follow-up | Activity | Receipt screen | Rules |
+|---|---|---|---|---|---|
+| <img src="docs/screenshots/m01-onboarding.png" width="140" alt="Onboarding" /> | <img src="docs/screenshots/m02-chat-empty.png" width="140" alt="Empty chat" /> | <img src="docs/screenshots/m05-scene3-crypto-why.png" width="140" alt="Why follow-up" /> | <img src="docs/screenshots/m06-activity.png" width="140" alt="Activity" /> | <img src="docs/screenshots/m06b-receipt-screen.png" width="140" alt="Receipt screen" /> | <img src="docs/screenshots/m07-rules.png" width="140" alt="Rules" /> |
+
+| Dark / English chat | Dark / English guard card |
+|---|---|
+| <img src="docs/screenshots/m08-dark-en-crypto-chat.png" width="180" alt="Dark English chat" /> | <img src="docs/screenshots/m08-dark-en-crypto-guard-card.png" width="180" alt="Dark English guard card" /> |
+
+Desktop (1440×900):
+
+<img src="docs/screenshots/d01-desktop-crypto-chat.png" width="720" alt="Desktop chat" />
+<img src="docs/screenshots/d01-desktop-crypto-guard-card.png" width="480" alt="Desktop guard card" />
+<img src="docs/screenshots/d02-desktop-receipt.png" width="720" alt="Desktop receipt" />
+
 ## How it works
 
 User (chat) → **U-Bot (mock)** proposes → **TopiaPause Guard** (intent → deterministic rules → counter-offer → re-check) → voice warning → you confirm → mock execute → receipt.
