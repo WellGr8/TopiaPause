@@ -42,6 +42,16 @@ describe('scripted U-Bot (mock)', () => {
     expect(thai.intent?.commitment).toBe('trial');
   });
 
+  it('does not rewrite ETH or BTC into a USDT swap', () => {
+    const th = scriptedChat({ message: 'แลก eth เป็น btc', lang: 'th' });
+    expect(th.proposal).toBeUndefined();
+    expect(th.reply).toContain('USDT → TOKEN-X');
+    expect(th.reply).toContain('แลก 500 USDT ครั้งเดียว');
+    const en = scriptedChat({ message: 'swap all my ETH to BTC', lang: 'en' });
+    expect(en.proposal).toBeUndefined();
+    expect(en.reply).toContain('USDT → TOKEN-X');
+  });
+
   it('names the three chips when nothing matches', () => {
     const en = scriptedChat({ message: 'what is the weather', lang: 'en' });
     expect(en.proposal).toBeUndefined();

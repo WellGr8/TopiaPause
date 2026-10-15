@@ -440,12 +440,14 @@ describe('cross-cutting', () => {
     expect(v.explanation.th).toContain('ไม่มีอัตราแลกเปลี่ยน');
   });
 
-  it('LOW_CONFIDENCE pauses and suppresses the counter-offer', () => {
+  it('LOW_CONFIDENCE still pauses and still offers the safer exact swap', () => {
     const v = evaluate({ intent: { ...onceIntent(), confidence: 0.5 }, proposal: swap(), policy });
     expect(ids(v)).toContain('LOW_CONFIDENCE');
     expect(v.decision).toBe('pause');
-    expect(v.counterOffer).toBeUndefined();
-    expect(v.amounts.protected).toBeUndefined();
+    const cp = v.counterOffer!.proposal as TokenSwapProposal;
+    expect(v.counterOffer!.recheck).toBe('allow');
+    expect(cp.amountIn).toEqual(usdt(200));
+    expect(cp.approval.type).toBe('exact');
   });
 
   it('is deterministic', () => {

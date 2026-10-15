@@ -20,7 +20,7 @@ Prices are stored as integer nano-USD (`1 USD = 1e9`).
 
 ## What a check actually spends
 
-The decision is rules, not a model. `/api/guard/check` makes **0 LLM calls**.
+The decision is rules, not a model. `/api/guard/check` makes **0 LLM calls**. Each check also makes **1 Durable Object request** to record the single-use verdict ($0.15 per million requests, 150 nano-USD), which is inside the 1 satang ceiling below.
 
 | Check | Calls | nano-USD | satang (ceil at 32.50) | Meter |
 |---|---|---|---|---|

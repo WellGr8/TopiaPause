@@ -18,7 +18,7 @@ import { genericToProposal } from './generic';
 import { HttpError, assertSameOrigin, corsHeaders, isolateRateLimit, json, log, parseJson, rateLimit, readBody, readJson, type AppEnv } from './http';
 import { llmChat, llmConfigured } from './llm';
 import { AgentChatRequest, ConfirmRequest, ExecuteRequest, GenericCheck, PolicyRequest, ProposalCheck, TtsRequest } from './schemas';
-import { issueConfirmation, issueTicket, mintPolicyToken, mintSession, policyFrom, redeemTicket, sessionCookie, verifySession } from './signing';
+import { issueConfirmation, issueTicket, mintPolicyToken, mintSession, policyFrom, redeemTicket, sessionCookie, verifySession, whyFromTicket } from './signing';
 import { upcomingUnlocks, type MarketFetch } from './tokenomist';
 import { readAudio, sttConfigured, transcribe } from './stt';
 import { tts, ttsConfigured } from './tts';
@@ -134,6 +134,9 @@ async function confirmChoice(req: Request, env: AppEnv): Promise<Response> {
 
 async function agentChat(req: Request, env: AppEnv): Promise<Response> {
   const body = await readBody(req, AgentChatRequest);
+  if (/ทำไม|why|แพง/i.test(body.message)) {
+    return json({ reply: await whyFromTicket(env, body.verdictId, body.lang), source: 'scripted' });
+  }
   const history = (body.history ?? []).slice(-4);
   const llm = await llmChat(env, { ...body, history });
   if (llm) {

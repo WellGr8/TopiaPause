@@ -152,12 +152,12 @@ export async function apiChat(input: {
   scene?: SceneId;
   lang: Lang;
   history?: { role: 'user' | 'assistant'; text: string }[];
-  verdictSummary?: string;
+  verdictId?: string;
 }): Promise<ChatTurn | null> {
   if (!(await apiHealth())) return null;
   return post<ChatTurn>(
     '/api/agent/chat',
-    { sessionId: 'web', message: input.message, scene: input.scene, lang: input.lang, history: input.history?.slice(-4), verdictSummary: input.verdictSummary },
+    { sessionId: 'web', message: input.message, scene: input.scene, lang: input.lang, history: input.history?.slice(-4), verdictId: input.verdictId },
     15_000,
     true,
   );

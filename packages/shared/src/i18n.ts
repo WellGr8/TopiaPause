@@ -24,14 +24,14 @@ export const RULE_TITLES: Record<RuleId, { th: string; en: string }> = {
   SUB_OVER_CAP: { th: 'เกินงบรายเดือนที่ตั้งไว้', en: 'Over your monthly cap' },
   STAY_FLEXIBILITY: { th: 'คืนเงินไม่ได้ ทั้งที่แผนอาจเปลี่ยน', en: 'Non-refundable, but your plans may change' },
   STAY_HIDDEN_TOTAL: { th: 'ราคารวมค่าธรรมเนียมสูงกว่าที่แสดง', en: 'Total with fees is higher than shown' },
-  APPROVAL_SCOPE: { th: 'ขอสิทธิ์ใช้เงินแบบไม่จำกัด', en: 'Unlimited spending approval' },
-  APPROVAL_EXPIRY: { th: 'สิทธิ์ไม่มีวันหมดอายุ', en: 'Approval does not expire soon enough' },
-  CONC_CAP: { th: 'พอร์ตเกินเพดานที่ตั้งไว้', en: 'Portfolio over your cap' },
+  APPROVAL_SCOPE: { th: 'ขอใช้เงินได้ไม่จำกัด', en: 'Asks to spend with no limit' },
+  APPROVAL_EXPIRY: { th: 'สิทธิ์ไม่มีวันหมดอายุ', en: 'Permission does not end soon enough' },
+  CONC_CAP: { th: 'เงินส่วนใหญ่ของคุณไปกองที่เดียว', en: 'Most of your money would sit in one coin' },
   INSUFFICIENT_BALANCE: { th: 'ยอดเงินไม่พอ', en: 'Insufficient balance' },
   INVALID_INPUT: { th: 'ข้อมูลไม่ถูกต้อง', en: 'Invalid input' },
   LOW_CONFIDENCE: { th: 'ยังไม่แน่ใจว่าคุณหมายถึงอะไร', en: 'Not sure what you meant' },
   UNLOCK_SOON: { th: 'มีโทเคนปลดล็อกเร็วๆ นี้', en: 'Large token unlock soon' },
-  AGENT_FOLLOWED_UNTRUSTED: { th: 'agent ทำตามคำสั่งจากเนื้อหาภายนอก', en: 'Agent followed instructions from content it read' },
+  AGENT_FOLLOWED_UNTRUSTED: { th: 'ผู้ช่วย AI ทำตามคำสั่งจากที่อื่น', en: 'The assistant followed instructions from something it read' },
   FX_UNAVAILABLE: { th: 'ไม่มีอัตราแลกเปลี่ยน', en: 'No exchange rate' },
 };
 
@@ -96,8 +96,8 @@ export function findingDetail(f: Finding, lang: Lang): string {
         : e.hasRefundableOption
           ? pick(
               lang,
-              `ห้องคืนเงินได้ที่ถูกที่สุดแพงกว่า ${fmtPct(num(e, 'premiumPct'))} เกินเพดาน ${fmtPct(num(e, 'maxPremiumPct'))} ที่ตั้งไว้ ตัดสินใจเองนะครับ`,
-              `The cheapest refundable room costs ${fmtPct(num(e, 'premiumPct'))} more, above your ${fmtPct(num(e, 'maxPremiumPct'))} limit. Your call.`,
+              `ห้องคืนเงินได้ที่ถูกที่สุดแพงกว่า ${fmtPct(num(e, 'premiumPct'))} เกินวงเงินที่ตั้งไว้ ${fmtPct(num(e, 'maxPremiumPct'))} ตัดสินใจเองนะครับ`,
+              `The cheapest refundable room costs ${fmtPct(num(e, 'premiumPct'))} more, past the ${fmtPct(num(e, 'maxPremiumPct'))} limit you set. Your call.`,
             )
           : pick(lang, 'ไม่มีห้องแบบคืนเงินได้ในตัวเลือก', 'No refundable room in the catalog.');
     case 'STAY_HIDDEN_TOTAL':
@@ -109,20 +109,20 @@ export function findingDetail(f: Finding, lang: Lang): string {
     case 'APPROVAL_SCOPE':
       return pick(
         lang,
-        `คุณบอกว่า "ครั้งเดียว" แต่ agent ขอสิทธิ์ใช้ ${str(e, 'asset')} แบบไม่จำกัด`,
-        `You said "just once", but the agent asks for unlimited ${str(e, 'asset')} approval.`,
+        `คุณบอกว่า "ครั้งเดียว" แต่ผู้ช่วย AI ขอใช้ ${str(e, 'asset')} ได้ไม่จำกัด`,
+        `You said "just once", but the assistant asks to spend ${str(e, 'asset')} with no limit.`,
       );
     case 'APPROVAL_EXPIRY':
       return pick(
         lang,
         `สิทธิ์ครั้งเดียวควรหมดอายุภายใน ${fmtNumber(num(e, 'maxExpiryMin'))} นาที`,
-        `A one-time approval should expire within ${fmtNumber(num(e, 'maxExpiryMin'))} minutes.`,
+        `A one-time permission should end within ${fmtNumber(num(e, 'maxExpiryMin'))} minutes.`,
       );
     case 'CONC_CAP':
       return pick(
         lang,
-        `${str(e, 'asset')} จะเป็น ${fmtPct(num(e, 'postTradeSharePct'))} ของพอร์ต เกินเพดาน ${fmtPct(num(e, 'capPct'))}`,
-        `${str(e, 'asset')} would be ${fmtPct(num(e, 'postTradeSharePct'))} of your portfolio, above your ${fmtPct(num(e, 'capPct'))} cap.`,
+        `${str(e, 'asset')} จะเป็น ${fmtPct(num(e, 'postTradeSharePct'))} ของเงินคุณ เกินวงเงินที่ตั้งไว้ ${fmtPct(num(e, 'capPct'))}`,
+        `${str(e, 'asset')} would be ${fmtPct(num(e, 'postTradeSharePct'))} of your money, past the ${fmtPct(num(e, 'capPct'))} limit you set.`,
       );
     case 'INSUFFICIENT_BALANCE':
       return pick(
@@ -174,11 +174,11 @@ export function describeProposal(p: AgentProposal, lang: Lang): string {
     case 'token_swap': {
       const approval =
         p.approval.type === 'unlimited'
-          ? pick(lang, 'อนุมัติแบบไม่จำกัด', 'unlimited approval')
+          ? pick(lang, 'ใช้เงินได้ไม่จำกัด', 'can spend with no limit')
           : pick(
               lang,
-              `อนุมัติแค่ ${fmtMoney(p.approval.amount ?? p.amountIn)}${p.approval.expirySec ? ` · ${Math.round(p.approval.expirySec / 60)} นาที` : ''}`,
-              `exact approval ${fmtMoney(p.approval.amount ?? p.amountIn)}${p.approval.expirySec ? ` · ${Math.round(p.approval.expirySec / 60)} min` : ''}`,
+              `ใช้ได้แค่ ${fmtMoney(p.approval.amount ?? p.amountIn)}${p.approval.expirySec ? ` · ${Math.round(p.approval.expirySec / 60)} นาที` : ''}`,
+              `only ${fmtMoney(p.approval.amount ?? p.amountIn)}${p.approval.expirySec ? ` · ${Math.round(p.approval.expirySec / 60)} min` : ''}`,
             );
       return `Swap ${fmtMoney(p.amountIn)} → ${p.toAsset} · ${approval}`;
     }
@@ -205,8 +205,8 @@ export function describeCounter(p: AgentProposal, lang: Lang): string {
     case 'token_swap':
       return pick(
         lang,
-        `Swap ${fmtMoney(p.amountIn)} · อนุมัติแค่ครั้งเดียว`,
-        `Swap ${fmtMoney(p.amountIn)} · one-time exact approval`,
+        `Swap ${fmtMoney(p.amountIn)} · ใช้ได้แค่ครั้งเดียว`,
+        `Swap ${fmtMoney(p.amountIn)} · once only`,
       );
   }
 }
@@ -238,8 +238,8 @@ function counterSentence(input: TemplateInput, lang: Lang): string {
       const amt = fmtMoney(input.amounts.counterAmountIn ?? p.amountIn);
       return pick(
         lang,
-        `ทางเลือกที่ผ่านกฎคือ ${amt} โดยอนุมัติแค่ ${amt} ครั้งเดียว ใช้ได้ ${fmtNumber(m.counterExpiryMin ?? 0)} นาที`,
-        `The option that passes your rules is ${amt}, with a one-time exact approval of ${amt} for ${fmtNumber(m.counterExpiryMin ?? 0)} minutes.`,
+        `ทางเลือกที่ผ่านกฎคือ ${amt} ใช้ได้แค่ ${amt} ครั้งเดียว นาน ${fmtNumber(m.counterExpiryMin ?? 0)} นาที`,
+        `The option that passes your rules is ${amt}, once, for ${fmtNumber(m.counterExpiryMin ?? 0)} minutes.`,
       );
     }
   }
@@ -289,8 +289,8 @@ export function buildVoiceText(input: TemplateInput): { th: string; en: string; 
       const e = ev('CONC_CAP')!;
       return pick(
         lang,
-        `พอร์ตคุณจะมี ${str(e, 'asset')} ถึง ${fmtPct(num(e, 'postTradeSharePct'))} เกินเพดาน ${fmtPct(num(e, 'capPct'))} ที่ตั้งไว้ และ agent ขอสิทธิ์ใช้เงินแบบไม่จำกัด ${tail}`,
-        `Your ${str(e, 'asset')} share would hit ${fmtPct(num(e, 'postTradeSharePct'))}, above your ${fmtPct(num(e, 'capPct'))} cap, and the agent wants unlimited approval. ${tail}`,
+        `เงินส่วนใหญ่ของคุณจะกลายเป็น ${str(e, 'asset')} ถึง ${fmtPct(num(e, 'postTradeSharePct'))} เกินวงเงินที่ตั้งไว้ ${fmtPct(num(e, 'capPct'))} และผู้ช่วย AI ขอใช้เงินได้ไม่จำกัด ${tail}`,
+        `Most of your money would become ${str(e, 'asset')} at ${fmtPct(num(e, 'postTradeSharePct'))}, past the ${fmtPct(num(e, 'capPct'))} limit you set, and the assistant wants to spend with no limit. ${tail}`,
       );
     }
     return buildExplanation(input)[lang];
@@ -306,8 +306,8 @@ export function buildWhyAnswer(verdict: GuardVerdict, lang: Lang): string {
     const capPct = num(e, 'capPct');
     return pick(
       lang,
-      `เพดาน ${fmtPct(capPct)} ของพอร์ต ${money(e, 'portfolio')} คือ ${money(e, 'capValue')} ตอนนี้คุณถือ ${str(e, 'asset')} อยู่ ${money(e, 'holding')} จึงซื้อเพิ่มได้สูงสุด ${money(e, 'aMax')} (คำนวณรวมค่าธรรมเนียม ${fmtPct(num(e, 'feePct'))} และค่า gas ${money(e, 'gas')} แล้ว)`,
-      `Your ${fmtPct(capPct)} cap on a ${money(e, 'portfolio')} portfolio is ${money(e, 'capValue')}. You already hold ${money(e, 'holding')} of ${str(e, 'asset')}, so the most you can add is ${money(e, 'aMax')} (after a ${fmtPct(num(e, 'feePct'))} fee and ${money(e, 'gas')} gas).`,
+      `วงเงินที่ตั้งไว้ ${fmtPct(capPct)} ของเงินคุณ ${money(e, 'portfolio')} คือ ${money(e, 'capValue')} ตอนนี้คุณถือ ${str(e, 'asset')} อยู่ ${money(e, 'holding')} จึงซื้อเพิ่มได้สูงสุด ${money(e, 'aMax')}`,
+      `The ${fmtPct(capPct)} limit you set on ${money(e, 'portfolio')} is ${money(e, 'capValue')}. You already hold ${money(e, 'holding')} of ${str(e, 'asset')}, so the most you can add is ${money(e, 'aMax')}.`,
     );
   }
   const sub = verdict.findings.find((f) => f.ruleId === 'SUB_OVER_CAP');
@@ -324,8 +324,8 @@ export function buildWhyAnswer(verdict: GuardVerdict, lang: Lang): string {
     const e = stay.evidence;
     return pick(
       lang,
-      `ห้องคืนเงินได้แพงกว่า ${money(e, 'premium')} (${fmtPct(num(e, 'premiumPct'))}) ซึ่งไม่เกินเพดาน ${fmtPct(num(e, 'maxPremiumPct'))} ที่คุณตั้งไว้ ถ้าแผนเปลี่ยน คุณจะไม่เสีย ${money(e, 'total')}`,
-      `The refundable room costs ${money(e, 'premium')} more (${fmtPct(num(e, 'premiumPct'))}), within your ${fmtPct(num(e, 'maxPremiumPct'))} limit. If plans change, you don't lose ${money(e, 'total')}.`,
+      `ห้องที่ยกเลิกได้แพงกว่า ${money(e, 'premium')} (${fmtPct(num(e, 'premiumPct'))}) ซึ่งยังอยู่ในวงเงินที่ตั้งไว้ ${fmtPct(num(e, 'maxPremiumPct'))} ถ้าแผนเปลี่ยน คุณจะไม่เสีย ${money(e, 'total')}`,
+      `The room you can cancel costs ${money(e, 'premium')} more (${fmtPct(num(e, 'premiumPct'))}), inside the ${fmtPct(num(e, 'maxPremiumPct'))} limit you set. If plans change, you don't lose ${money(e, 'total')}.`,
     );
   }
   return verdict.explanation[lang];

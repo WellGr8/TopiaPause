@@ -1,5 +1,5 @@
 import { allowedNumbers } from '@topiapause/guard-engine';
-import { SCENES, parseMoney, scriptedChat, type AgentProposal, type GuardVerdict, type Lang, type SceneId } from '@topiapause/shared';
+import { SCENES, parseMoney, scriptedChat, unsupportedCoin, usdtOnlyReply, type AgentProposal, type GuardVerdict, type Lang, type SceneId } from '@topiapause/shared';
 import { chargePaid, log, type AppEnv } from './http';
 import { ExplainDraft, IntentDraft } from './schemas';
 
@@ -25,7 +25,7 @@ export function llmConfigured(env: AppEnv): boolean {
 
 function chatSystemPrompt(): string {
   return [
-    'You are "U-Bot (mock)", an eager shopping, booking and crypto agent in a sandbox. No real money moves.',
+    'You are "U-Bot (mock)", an eager shopping, booking and crypto helper in a sandbox. No real money moves.',
     'Classify the message. Do not output a price, a proposal, or any digit.',
     'kind is subscription, stay, crypto, question, smalltalk, or out_of_scope.',
     'slots may include trial_only, interval (month or year), budget_thb, area, flexible, amount_usdt, one_time. Amounts are decimal strings.',
@@ -51,30 +51,39 @@ function messageUsdt(message: string): number | undefined {
   return m ? usdtMinor(m[1]) : undefined;
 }
 
-/** A transfer or an all-in swap. Capped at the spendable balance so the guard pauses it. */
-function risky(message: string): boolean {
-  const transfer = /โอน|เพื่อน|transfer|send to/i.test(message) && !/แลก|swap/i.test(message);
-  const allIn = /แลก|swap|usdt|eth|btc|บิตคอย|bitcoin/i.test(message) && /\ball\b|ทั้งหมด|ทั้งก้อน|หมด/i.test(message);
-  return transfer || allIn;
+const ALL_IN = /\ball\b|ทั้งหมด|ทั้งก้อน|หมด/i;
+const BANNED_REPLY = /คนแก่|ผู้สูงอายุ|elderly|senior|พอร์ต|เพดาน|\bagent\b|approval|\bscope\b/i;
+
+function mentionsUsdt(message: string): boolean {
+  return /usdt|ยูเอสดีที/i.test(message);
 }
 
-function whyQuestion(message: string): boolean {
-  return /ทำไม|why|แพง/i.test(message);
+/** Hotel, then a USDT swap, then an app. Anything else points at the app chip. */
+function closestChip(message: string): SceneId {
+  if (/โรงแรม|hotel|จอง|ที่พัก|asok|อโศก/i.test(message)) return 'stay';
+  if (/usdt|ยูเอสดีที|แลก|swap|เหรียญ/i.test(message)) return 'crypto';
+  if (/app|แอป|สมัคร|pixel/i.test(message)) return 'subscription';
+  return 'subscription';
 }
 
-function whyReply(lang: Lang, summary?: string): string {
-  const line = summary?.trim();
-  if (line) return lang === 'th' && !line.endsWith('ครับ') ? `${line} ครับ` : line;
-  return lang === 'th' ? 'ยังไม่มีรายการที่ตรวจไว้ครับ' : 'Nothing has been checked yet.';
+function sentences(text: string): number {
+  return text.split(/ครับ|[.!?？]/).map((part) => part.trim()).filter(Boolean).length;
 }
 
-function chipReply(lang: Lang): LlmResult {
-  const chip = SCENES.crypto.chip[lang];
+/** Model prose is shown only when it has no digits, at most two sentences, and no banned words. */
+function acceptedReply(text: string | undefined): string | undefined {
+  const line = text?.trim() ?? '';
+  if (!line || /\d/.test(line) || sentences(line) === 0 || sentences(line) > 2 || BANNED_REPLY.test(line)) return undefined;
+  return line;
+}
+
+function chipReply(lang: Lang, chip: SceneId): LlmResult {
+  const label = SCENES[chip].chip[lang];
   const reply =
     lang === 'th'
-      ? `เดโมนี้ตรวจได้แค่สมัครแอป จองโรงแรม และแลกเหรียญครั้งเดียว ใกล้สุดคือ ${chip} ครับ`
-      : `This demo only checks an app plan, a hotel, or a one-time coin swap. Closest step: ${chip}.`;
-  return { reply, chip: 'crypto' };
+      ? `เดโมนี้ตรวจได้แค่สมัครแอป จองโรงแรม และแลกเหรียญครั้งเดียว ใกล้สุดคือ ${label} ครับ`
+      : `This demo only checks an app plan, a hotel, or a one-time coin swap. Closest step: ${label}.`;
+  return { reply, chip };
 }
 
 /** Catalog proposal and a reply whose numbers come from that catalog, not the model. */
@@ -88,21 +97,27 @@ function catalogTurn(kind: 'subscription' | 'stay' | 'crypto', message: string, 
   return { reply, scene, proposal };
 }
 
-function fromIntent(draft: { kind: string; slots: { amount_usdt?: string } }, message: string, lang: Lang, summary?: string): LlmResult {
-  if (whyQuestion(message) || draft.kind === 'question') return { reply: whyReply(lang, summary) };
-  if (risky(message) || draft.kind === 'crypto') {
+function fromIntent(
+  draft: { kind: string; slots: { amount_usdt?: string }; reply_th?: string; reply_en?: string },
+  message: string,
+  lang: Lang,
+): LlmResult {
+  if (unsupportedCoin(message)) return { reply: usdtOnlyReply(lang), chip: 'crypto' };
+  if (mentionsUsdt(message)) {
     const asked = usdtMinor(draft.slots.amount_usdt) ?? messageUsdt(message);
-    const amount = risky(message) || asked === undefined || asked > SPENDABLE_USDT ? SPENDABLE_USDT : asked;
+    const amount = ALL_IN.test(message) || asked === undefined || asked > SPENDABLE_USDT ? SPENDABLE_USDT : asked;
     return catalogTurn('crypto', message, lang, amount);
   }
   if (draft.kind === 'subscription' || draft.kind === 'stay') return catalogTurn(draft.kind, message, lang);
-  return chipReply(lang);
+  const chip = closestChip(message);
+  const prose = acceptedReply(lang === 'th' ? draft.reply_th : draft.reply_en);
+  return prose ? { reply: prose, chip } : chipReply(lang, chip);
 }
 
 /** Returns null on any failure so the caller can fall back to the scripted mock. */
 export async function llmChat(
   env: AppEnv,
-  input: { message: string; lang: Lang; scene?: SceneId; history?: { role: 'user' | 'assistant'; text: string }[]; verdictSummary?: string },
+  input: { message: string; lang: Lang; scene?: SceneId; history?: { role: 'user' | 'assistant'; text: string }[] },
 ): Promise<LlmResult | null> {
   if (!llmConfigured(env)) return null;
   if (!chargePaid(env)) {
@@ -123,7 +138,6 @@ export async function llmChat(
         response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: chatSystemPrompt() },
-          ...(input.verdictSummary ? [{ role: 'system', content: `Last guard result: ${input.verdictSummary}` }] : []),
           ...history,
           { role: 'user', content: input.message },
         ],
@@ -142,7 +156,7 @@ export async function llmChat(
       return null;
     }
     log({ message: 'llm ok', kind: parsed.data.kind, ms: Date.now() - started });
-    return fromIntent(parsed.data, input.message, input.lang, input.verdictSummary);
+    return fromIntent(parsed.data, input.message, input.lang);
   } catch (e) {
     log({ message: 'llm failed', error: e instanceof Error ? e.name : String(e), ms: Date.now() - started });
     return null;
