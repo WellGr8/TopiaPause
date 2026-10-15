@@ -1,5 +1,4 @@
 import {
-  buildWhyAnswer,
   mockExecute,
   newId,
   scriptedChat,
@@ -94,8 +93,7 @@ function useChatFlowImpl() {
           : choice === 'cancel' && verdict.decision !== 'allow'
             ? proposalAmount(run.proposal)
             : 0;
-      dispatch({ type: 'updateRun', runId: run.runId, patch: { stage: 'done', choice } });
-      dispatch({ type: 'push', item: { id: receipt.receiptId, type: 'receipt', receipt } });
+      dispatch({ type: 'updateRun', runId: run.runId, patch: { stage: 'done', choice, receiptId: receipt.receiptId, protectedAmount } });
       dispatch({
         type: 'activity',
         entry: {
@@ -106,7 +104,6 @@ function useChatFlowImpl() {
           choice,
           protectedAmount,
           currency: protectedCurrency(run),
-          receiptId: receipt.receiptId,
           receipt,
         },
       });
@@ -126,17 +123,5 @@ function useChatFlowImpl() {
     [dispatch, finalize],
   );
 
-  const why = useCallback(
-    (run: GuardRun, question: string) => {
-      const { lang } = ref.current;
-      dispatch({ type: 'push', item: { id: newId('u'), type: 'user', text: question } });
-      later(
-        () => dispatch({ type: 'push', item: { id: newId('note'), type: 'guardNote', text: buildWhyAnswer(verdictFor(run, lang), lang) } }),
-        500,
-      );
-    },
-    [dispatch],
-  );
-
-  return useMemo(() => ({ send, choose, why }), [send, choose, why]);
+  return useMemo(() => ({ send, choose }), [send, choose]);
 }

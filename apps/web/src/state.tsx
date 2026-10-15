@@ -10,11 +10,9 @@ import {
   type UserPolicy,
 } from '@topiapause/shared';
 import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react';
-import { verdictFor } from './lib/guard';
 
-export type Screen = 'chat' | 'activity' | 'rules' | 'receipt';
+export type Screen = 'chat' | 'activity' | 'rules';
 export type Theme = 'light' | 'dark';
-export type Mood = 'idle' | 'checking' | 'allow' | 'pause' | 'block';
 
 export type GuardStage = 'checking' | 'verdict' | 'rechecking' | 'done';
 
@@ -28,15 +26,15 @@ export interface GuardRun {
   policy: UserPolicy;
   stage: GuardStage;
   choice?: UserChoice;
+  receiptId?: string;
+  protectedAmount?: number;
 }
 
 export type ChatItem =
   | { id: string; type: 'user'; text: string }
   | { id: string; type: 'ubot'; text: string }
   | { id: string; type: 'typing' }
-  | { id: string; type: 'guard'; run: GuardRun }
-  | { id: string; type: 'guardNote'; text: string }
-  | { id: string; type: 'receipt'; receipt: Receipt };
+  | { id: string; type: 'guard'; run: GuardRun };
 
 export interface ActivityEntry {
   id: string;
@@ -46,8 +44,7 @@ export interface ActivityEntry {
   choice: UserChoice;
   protectedAmount: number;
   currency: 'THB' | 'USD';
-  receiptId: string;
-  receipt?: Receipt;
+  receipt: Receipt;
 }
 
 export interface AppState {
@@ -63,7 +60,6 @@ export interface AppState {
 
 type Action =
   | { type: 'onboard' }
-  | { type: 'showOnboarding' }
   | { type: 'screen'; screen: Screen }
   | { type: 'lang'; lang: Lang }
   | { type: 'theme'; theme: Theme }
@@ -73,10 +69,11 @@ type Action =
   | { type: 'updateRun'; runId: string; patch: Partial<GuardRun> }
   | { type: 'activity'; entry: ActivityEntry }
   | { type: 'openReceipt'; receiptId: string }
+  | { type: 'toggleReceipt'; receiptId: string }
   | { type: 'clearChat' }
   | { type: 'reset' };
 
-const STORAGE_KEY = 'topiapause:v1';
+const STORAGE_KEY = 'topiapause:v2';
 
 function initial(): AppState {
   const prefersDark = typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches;
@@ -102,8 +99,6 @@ function reducer(s: AppState, a: Action): AppState {
   switch (a.type) {
     case 'onboard':
       return { ...s, onboarded: true, screen: 'chat' };
-    case 'showOnboarding':
-      return { ...s, onboarded: false };
     case 'screen':
       return { ...s, screen: a.screen };
     case 'lang':
@@ -122,7 +117,9 @@ function reducer(s: AppState, a: Action): AppState {
         chat: s.chat.map((c) => (c.type === 'guard' && c.run.runId === a.runId ? { ...c, run: { ...c.run, ...a.patch } } : c)),
       };
     case 'openReceipt':
-      return { ...s, screen: 'receipt', openReceiptId: a.receiptId };
+      return { ...s, screen: 'activity', openReceiptId: a.receiptId };
+    case 'toggleReceipt':
+      return { ...s, openReceiptId: s.openReceiptId === a.receiptId ? undefined : a.receiptId };
     case 'activity':
       return { ...s, activity: [a.entry, ...s.activity] };
     case 'clearChat':
@@ -155,16 +152,4 @@ export function useApp() {
   const v = useContext(Ctx);
   if (!v) throw new Error('useApp outside AppProvider');
   return v;
-}
-
-/** Background mood follows the latest guard card in the chat. */
-export function moodOf(state: AppState): Mood {
-  if (state.screen !== 'chat') return 'idle';
-  const last = [...state.chat].reverse().find((c) => c.type === 'guard');
-  if (!last || last.type !== 'guard') return 'idle';
-  const run = last.run;
-  if (run.stage === 'checking') return 'checking';
-  if (run.stage === 'rechecking' || run.choice === 'counter_offer') return 'allow';
-  if (run.choice === 'cancel') return 'idle';
-  return verdictFor(run, state.lang).decision;
 }

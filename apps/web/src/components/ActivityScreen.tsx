@@ -1,17 +1,31 @@
-import { fmtMoney, type SceneId } from '@topiapause/shared';
-import { BedDouble, ChevronRight, Coins, ShieldCheck, Sparkles, type LucideIcon } from 'lucide-react';
+import { describeProposal, fmtMoney, type Lang, type Receipt } from '@topiapause/shared';
+import { ChevronDown } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { CHOICE_LABEL, SCENE_TITLE, t } from '../copy';
-import { useApp } from '../state';
-import { formatTime } from './ReceiptCard';
-import { Button, Glass, StatusPill, cx } from './ui';
+import { approvedLine } from '../lib/summary';
+import { useApp, type ActivityEntry } from '../state';
+import { Card, Status, TextButton, cx } from './ui';
 
-export const SCENE_ICON: Record<SceneId, LucideIcon> = { subscription: Sparkles, stay: BedDouble, crypto: Coins };
+function shortTime(iso: string, lang: Lang): string {
+  const d = new Date(iso);
+  const today = new Date().toDateString() === d.toDateString();
+  return d.toLocaleString(lang === 'th' ? 'th-TH' : 'en-GB', {
+    ...(today ? {} : { day: 'numeric', month: 'short' }),
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Bangkok',
+  });
+}
 
-const NODE: Record<string, string> = {
-  allow: 'bg-teal-500 ring-teal-200',
-  pause: 'bg-indigo-500 ring-indigo-200',
-  block: 'bg-amber-500 ring-amber-200',
-};
+export function formatTime(iso: string, lang: Lang): string {
+  return new Date(iso).toLocaleString(lang === 'th' ? 'th-TH' : 'en-GB', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Bangkok',
+  });
+}
 
 export function useProtectedTotals() {
   const { state } = useApp();
@@ -24,7 +38,55 @@ export function useProtectedTotals() {
   const usd = month.filter((a) => a.currency === 'USD').reduce((s, a) => s + a.protectedAmount, 0);
   const primary = thb === 0 && usd > 0 ? fmtMoney({ amount: usd, currency: 'USD' }) : fmtMoney({ amount: thb, currency: 'THB' });
   const secondary = thb > 0 && usd > 0 ? fmtMoney({ amount: usd, currency: 'USD' }) : undefined;
-  return { thb, usd, month, primary, secondary };
+  return { month, primary, secondary };
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-[6.5rem_1fr] gap-3 py-1.5">
+      <dt className="text-muted">{label}</dt>
+      <dd>{children}</dd>
+    </div>
+  );
+}
+
+function ReceiptDetails({ r, lang }: { r: Receipt; lang: Lang }) {
+  const chosen = r.userChoice === 'counter_offer' ? r.verdict.counterOffer?.proposal : r.userChoice === 'original' ? r.originalProposal : undefined;
+  return (
+    <dl className="animate-enter px-5 pb-4 text-sm">
+      <Field label={t(lang, 'asked')}>“{r.userText}”</Field>
+      <Field label={t(lang, 'proposed')}>{describeProposal(r.originalProposal, lang)}</Field>
+      <Field label={t(lang, 'approved')}>
+        <span className="font-medium">{chosen ? approvedLine(chosen, lang) : t(lang, 'nothingApproved')}</span>
+      </Field>
+      <Field label={t(lang, 'execution')}>
+        {r.execution.status === 'success' ? t(lang, 'execMock') : t(lang, 'execSkipped')}
+        {r.execution.ref && <span className="ml-1.5 font-mono text-xs text-muted">{r.execution.ref}</span>}
+      </Field>
+      <Field label={t(lang, 'time')}>{formatTime(r.createdAt, lang)}</Field>
+      <p className="pt-1 font-mono text-xs text-muted">{r.receiptId}</p>
+    </dl>
+  );
+}
+
+function Row({ a, open, lang, onToggle }: { a: ActivityEntry; open: boolean; lang: Lang; onToggle: () => void }) {
+  return (
+    <li className="border-t border-line first:border-t-0">
+      <button type="button" aria-expanded={open} onClick={onToggle} className="flex min-h-16 w-full items-center gap-3 px-5 py-3 text-left">
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium">{SCENE_TITLE[a.scene][lang]}</span>
+          <span className="block text-sm text-muted">
+            <Status decision={a.decision} lang={lang} className="font-medium" /> · {CHOICE_LABEL[a.choice][lang]} · {shortTime(a.at, lang)}
+          </span>
+        </span>
+        {a.protectedAmount > 0 && (
+          <span className="shrink-0 font-semibold tabular-nums">+{fmtMoney({ amount: a.protectedAmount, currency: a.currency })}</span>
+        )}
+        <ChevronDown size={16} className={cx('shrink-0 text-muted transition-transform', open && 'rotate-180')} aria-hidden="true" />
+      </button>
+      {open && <ReceiptDetails r={a.receipt} lang={lang} />}
+    </li>
+  );
 }
 
 export function ActivityScreen() {
@@ -32,94 +94,43 @@ export function ActivityScreen() {
   const { lang } = state;
   const { primary, secondary, month } = useProtectedTotals();
   const paused = month.filter((a) => a.decision !== 'allow').length;
-  const safer = month.filter((a) => a.choice === 'counter_offer').length;
+  const better = month.filter((a) => a.choice === 'counter_offer').length;
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-4 px-4 pb-6 pt-2">
-      <Glass className="mood-ring p-5">
-        <div className="flex items-center gap-2 text-sm font-semibold text-muted dark:text-slate-300">
-          <ShieldCheck size={18} className="text-azure dark:text-sky" aria-hidden="true" />
-          {t(lang, 'protectedMonth')}
-        </div>
-        <p className="text-gradient mt-1 text-5xl font-bold tracking-tight tabular-nums">{primary}</p>
-        {secondary && (
-          <p className="mt-1 text-sm font-medium">
-            + {secondary} <span className="text-muted dark:text-slate-400">{t(lang, 'keptUnderCap')}</span>
-          </p>
-        )}
-        <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
-          {[
-            [t(lang, 'checks'), month.length],
-            [t(lang, 'paused'), paused],
-            [t(lang, 'saferChosen'), safer],
-          ].map(([label, n]) => (
-            <div key={String(label)} className="rounded-2xl bg-white/60 px-2 py-2.5 dark:bg-white/5">
-              <dd className="text-2xl font-bold tabular-nums">{n}</dd>
-              <dt className="text-xs text-muted dark:text-slate-400">{label}</dt>
-            </div>
-          ))}
-        </dl>
-      </Glass>
+    <div className="mx-auto w-full max-w-xl px-4 pb-8 pt-6">
+      <p className="text-sm text-muted">{t(lang, 'protectedMonth')}</p>
+      <p className="mt-1 text-[56px] font-semibold leading-none tracking-tight tabular-nums">{primary}</p>
+      {secondary && (
+        <p className="mt-2 text-[15px]">
+          + <span className="font-semibold tabular-nums">{secondary}</span> <span className="text-muted">{t(lang, 'inCrypto')}</span>
+        </p>
+      )}
+      <p className="mt-3 text-sm text-muted">{t(lang, 'statLine', { n: month.length, p: paused, s: better })}</p>
 
-      <section aria-label={t(lang, 'activity')}>
-        <h2 className="px-1 pb-2 text-lg font-bold">{t(lang, 'activity')}</h2>
+      <div className="mt-8">
         {state.activity.length === 0 ? (
-          <Glass className="p-6 text-center">
-            <p className="text-muted dark:text-slate-300">{t(lang, 'emptyActivity')}</p>
-            <Button variant="primary" className="mt-3" onClick={() => dispatch({ type: 'screen', screen: 'chat' })}>
-              {t(lang, 'goChat')}
-            </Button>
-          </Glass>
+          <div className="py-8 text-center">
+            <p className="text-muted">{t(lang, 'emptyActivity')}</p>
+            <TextButton className="text-brand hover:text-brand" onClick={() => dispatch({ type: 'screen', screen: 'chat' })}>
+              {t(lang, 'goChat')} →
+            </TextButton>
+          </div>
         ) : (
-          <ol className="relative space-y-3 pl-6 before:absolute before:bottom-3 before:left-[9px] before:top-3 before:w-0.5 before:rounded-full before:bg-gradient-to-b before:from-sky before:via-peri before:to-aqua">
-            {state.activity.map((a) => {
-              const Icon = SCENE_ICON[a.scene];
-              return (
-                <li key={a.id} className="anim-fade relative">
-                  <span className={cx('absolute -left-6 top-5 h-[18px] w-[18px] rounded-full ring-4', NODE[a.decision])} aria-hidden="true" />
-                  {(() => {
-                    const receiptId = a.receipt?.receiptId;
-                    const body = (
-                      <>
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/80 text-azure dark:bg-white/10 dark:text-sky">
-                          <Icon size={20} aria-hidden="true" />
-                        </span>
-                        <span className="block min-w-0 flex-1">
-                          <span className="flex flex-wrap items-center gap-2">
-                            <span className="font-semibold">{SCENE_TITLE[a.scene][lang]}</span>
-                            <StatusPill decision={a.decision} lang={lang} size="sm" />
-                          </span>
-                          <span className="block text-sm text-muted dark:text-slate-400">
-                            {CHOICE_LABEL[a.choice][lang]} · {formatTime(a.at, lang)}
-                          </span>
-                        </span>
-                        {a.protectedAmount > 0 && (
-                          <span className="shrink-0 text-right text-sm font-bold text-teal-800 tabular-nums dark:text-teal-200">
-                            +{fmtMoney({ amount: a.protectedAmount, currency: a.currency })}
-                          </span>
-                        )}
-                        {receiptId && <ChevronRight size={18} className="shrink-0 text-muted dark:text-slate-400" aria-hidden="true" />}
-                      </>
-                    );
-                    return receiptId ? (
-                      <button
-                        type="button"
-                        title={t(lang, 'viewReceipt')}
-                        onClick={() => dispatch({ type: 'openReceipt', receiptId })}
-                        className="glass flex min-h-11 w-full items-center gap-3 rounded-3xl p-3.5 text-left transition duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-azure"
-                      >
-                        {body}
-                      </button>
-                    ) : (
-                      <Glass className="flex items-center gap-3 p-3.5">{body}</Glass>
-                    );
-                  })()}
-                </li>
-              );
-            })}
-          </ol>
+          <Card as="section" aria-label={t(lang, 'activity')}>
+            <ul>
+              {state.activity.map((a) => (
+                <Row
+                  key={a.id}
+                  a={a}
+                  lang={lang}
+                  open={state.openReceiptId === a.receipt.receiptId}
+                  onToggle={() => dispatch({ type: 'toggleReceipt', receiptId: a.receipt.receiptId })}
+                />
+              ))}
+            </ul>
+          </Card>
         )}
-      </section>
+      </div>
     </div>
   );
 }

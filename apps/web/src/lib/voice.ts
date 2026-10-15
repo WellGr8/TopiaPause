@@ -6,8 +6,6 @@ import type { Lang } from '@topiapause/shared';
 //   3. browser speechSynthesis
 //   4. text only
 
-export type VoiceSource = 'clip' | 'speech' | 'none';
-
 interface ClipEntry {
   file: string;
   text?: string;
@@ -25,58 +23,68 @@ function loadManifest(): Promise<Manifest | null> {
   return manifestPromise;
 }
 
-export interface Playback {
-  source: VoiceSource;
-  stop: () => void;
+export interface VoiceEvents {
+  onStart: () => void;
+  onEnd: () => void;
+  /** Autoplay was refused or no voice is available; the UI shows a play affordance. */
+  onBlocked: () => void;
 }
 
 const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
 
-export async function speak(
-  input: { text: string; lang: Lang; clipId?: string },
-  onEnd: () => void,
-): Promise<Playback> {
+let current: (() => void) | null = null;
+
+export function stopVoice(): void {
+  current?.();
+  current = null;
+}
+
+export async function speak(input: { text: string; lang: Lang; clipId?: string }, ev: VoiceEvents): Promise<void> {
+  stopVoice();
   const manifest = input.clipId ? await loadManifest() : null;
-  const clip = input.clipId ? manifest?.clips[`${input.clipId.replace('-', `-${input.lang}-`)}`] : undefined;
+  const clip = input.clipId ? manifest?.clips[input.clipId.replace('-', `-${input.lang}-`)] : undefined;
 
   if (clip && (!clip.text || normalize(clip.text) === normalize(input.text))) {
     const audio = new Audio(`/audio/${clip.file}`);
-    audio.onended = onEnd;
-    audio.onerror = onEnd;
+    audio.onended = ev.onEnd;
     try {
       await audio.play();
-      return {
-        source: 'clip',
-        stop: () => {
-          audio.pause();
-          onEnd();
-        },
+      ev.onStart();
+      current = () => {
+        audio.pause();
+        ev.onEnd();
       };
+      return;
     } catch {
-      // fall through to speech synthesis
+      // autoplay refused or file missing: fall through
     }
   }
 
-  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-    const synth = window.speechSynthesis;
-    synth.cancel();
-    const u = new SpeechSynthesisUtterance(input.text);
-    u.lang = input.lang === 'th' ? 'th-TH' : 'en-US';
-    const voice = synth.getVoices().find((v) => v.lang.toLowerCase().startsWith(input.lang));
-    if (voice) u.voice = voice;
-    u.rate = input.lang === 'th' ? 0.95 : 1;
-    u.onend = onEnd;
-    u.onerror = onEnd;
-    synth.speak(u);
-    return {
-      source: 'speech',
-      stop: () => {
-        synth.cancel();
-        onEnd();
-      },
-    };
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    ev.onBlocked();
+    return;
   }
-
-  onEnd();
-  return { source: 'none', stop: () => {} };
+  const synth = window.speechSynthesis;
+  synth.cancel();
+  const u = new SpeechSynthesisUtterance(input.text);
+  u.lang = input.lang === 'th' ? 'th-TH' : 'en-US';
+  const voice = synth.getVoices().find((v) => v.lang.toLowerCase().startsWith(input.lang));
+  if (voice) u.voice = voice;
+  u.rate = input.lang === 'th' ? 0.95 : 1;
+  let started = false;
+  u.onstart = () => {
+    started = true;
+    ev.onStart();
+  };
+  u.onend = ev.onEnd;
+  u.onerror = (e) => (started && e.error === 'interrupted' ? ev.onEnd() : ev.onBlocked());
+  current = () => {
+    synth.cancel();
+    ev.onEnd();
+  };
+  synth.speak(u);
+  // Some browsers silently drop speech without user activation and never fire onstart.
+  window.setTimeout(() => {
+    if (!started && !synth.speaking) ev.onBlocked();
+  }, 1200);
 }
