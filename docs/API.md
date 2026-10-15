@@ -20,6 +20,7 @@ One Cloudflare Worker serves the web app and these JSON endpoints under `/api/*`
 - Bodies must be `Content-Type: application/json` and at most **32 KB**.
 - Money is integer **minor units**: satang (THB), cents (USD), micro-USDT (6 decimals). The generic agent schema also accepts an exact decimal string (`"3990.00"`); extra decimals are rejected (`THB has 2 decimals`).
 - An agent must not send `policy` or `intent`. Both are rejected before the engine runs.
+- Chat and TTS are paid routes. A browser `Origin` must be this Worker's own origin or `ALLOWED_ORIGIN`, and `Sec-Fetch-Site: cross-site` is rejected. CORS is not the only check. A curl with no `Origin` is still accepted. `guard/check` and `health` stay open to any origin. `POST /api/policy` keeps its own same-origin check (`403 forbidden`).
 
 **Errors** always have this shape:
 
@@ -42,6 +43,7 @@ One Cloudflare Worker serves the web app and these JSON endpoints under `/api/*`
 | 422 | `unprocessable` | Valid shape, but the engine couldn't evaluate it |
 | 429 | `rate_limited` | Over the per-IP limit (`Retry-After: 60`) |
 | 502 | `tts_failed` | ElevenLabs returned an error |
+| 403 | `forbidden_origin` | `POST /api/agent/chat` or `POST /api/voice/tts` with a cross-site `Origin`, or `Sec-Fetch-Site: cross-site` |
 | 503 | `tts_unavailable` | ElevenLabs is not configured; use browser speech |
 
 ---

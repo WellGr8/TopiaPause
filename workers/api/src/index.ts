@@ -14,8 +14,8 @@ import {
   type SceneId,
 } from '@topiapause/shared';
 import { genericToProposal } from './generic';
-import { HttpError, corsHeaders, json, log, parseJson, rateLimit, readBody, readJson, type AppEnv } from './http';
-import { llmChat, llmConfigured } from './llm';
+import { HttpError, assertSameOrigin, corsHeaders, json, log, parseJson, rateLimit, readBody, readJson, type AppEnv } from './http';
+import { llmChat, llmConfigured, llmExplain } from './llm';
 import { AgentChatRequest, ExecuteRequest, GenericCheck, PolicyRequest, ProposalCheck, TtsRequest } from './schemas';
 import { issueTicket, mintPolicyToken, policyFrom, redeemTicket } from './signing';
 import { upcomingUnlocks, type MarketFetch } from './tokenomist';
@@ -79,8 +79,9 @@ async function guardCheck(req: Request, env: AppEnv, ctx?: ExecutionContext): Pr
     log({ message: 'guard evaluate failed', error: e instanceof Error ? e.message : String(e) });
     throw new HttpError(422, 'unprocessable', 'Proposal could not be evaluated');
   }
-  // TODO(LLM explanation): pass an LLM draft here; lockExplanation rejects numbers the engine didn't produce.
-  verdict = { ...verdict, explanation: lockExplanation(undefined, verdict) };
+  // The draft is optional. lockExplanation drops it when any number is not engine-owned.
+  const draft = await llmExplain(env, verdict);
+  verdict = { ...verdict, explanation: lockExplanation(draft, verdict) };
   verdict.verdictId = await issueTicket(env, cleared(verdict, proposal));
 
   const externalCalls = market?.externalCalls ?? 0;
@@ -172,6 +173,7 @@ export async function handleApi(req: Request, env: AppEnv, ctx?: ExecutionContex
       const known = Object.keys(ROUTES).some((k) => k.endsWith(` ${url.pathname}`));
       throw known ? new HttpError(405, 'method_not_allowed', 'Method not allowed') : new HttpError(404, 'not_found', 'Unknown API route');
     }
+    if (route.bucket === 'paid') assertSameOrigin(req, env);
     if (route.bucket) await rateLimit(route.bucket === 'paid' ? env.RATE_LIMITER_PAID : env.RATE_LIMITER, req, route.bucket);
     res = await route.handler(req, env, ctx);
   } catch (e) {

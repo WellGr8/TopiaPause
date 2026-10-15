@@ -25,4 +25,36 @@ describe('scripted U-Bot (mock)', () => {
     expect(t.proposal?.kind).toBe('token_swap');
     expect(t.proposal?.agent.name).toBe('U-Bot (mock)');
   });
+
+  it('matches natural phrasing to a scene and a proposal', () => {
+    const pixel = scriptedChat({ message: 'I want to try PixelPro', lang: 'en' });
+    expect(pixel.scene).toBe('subscription');
+    expect(pixel.proposal?.kind).toBe('subscription');
+    expect(pixel.intent?.commitment).toBe('trial');
+
+    const stay = scriptedChat({ message: 'Book me somewhere to sleep near Asok tonight', lang: 'en' });
+    expect(stay.scene).toBe('stay');
+    expect(stay.proposal?.kind).toBe('stay');
+
+    const thai = scriptedChat({ message: 'ลองใช้ PixelPro หน่อย', lang: 'th' });
+    expect(thai.scene).toBe('subscription');
+    expect(thai.proposal?.kind).toBe('subscription');
+    expect(thai.intent?.commitment).toBe('trial');
+  });
+
+  it('names the three chips when nothing matches', () => {
+    const en = scriptedChat({ message: 'what is the weather', lang: 'en' });
+    expect(en.proposal).toBeUndefined();
+    expect(en.scene).toBeUndefined();
+    expect(en.reply).toContain('Try PixelPro app');
+    expect(en.reply).toContain('Cheap hotel near Asok');
+    expect(en.reply).toContain('Swap 500 USDT once');
+    expect(en.reply.toLowerCase()).toContain('three');
+
+    const th = scriptedChat({ message: 'วันนี้อากาศเป็นไง', lang: 'th' });
+    expect(th.proposal).toBeUndefined();
+    expect(th.reply).toContain('ลองแอป PixelPro');
+    expect(th.reply).toContain('โรงแรมถูกๆ ใกล้อโศก');
+    expect(th.reply).toContain('แลก 500 USDT ครั้งเดียว');
+  });
 });

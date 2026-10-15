@@ -202,6 +202,12 @@ export const TtsRequest = z.object({
   lang: Lang.default('th'),
 });
 
+/** Bilingual paraphrase of a guard explanation. The number lock still has to accept it. */
+export const ExplainDraft = z.object({
+  th: z.string().trim().min(1).max(800),
+  en: z.string().trim().min(1).max(800),
+});
+
 /** What the LLM-backed U-Bot must return. */
 export const LlmTurn = z.object({
   reply: z.string().min(1).max(600),

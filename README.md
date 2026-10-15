@@ -70,7 +70,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for diagrams, data contracts an
 | Numbers on screen (prices, %, `a_max`, money protected) | **Real engine output.** Nothing is hard-coded in the UI. |
 | Worker API (`workers/api`) | **Real.** `POST /api/guard/check` runs the engine server-side with zod validation, CORS, per-IP rate limits and a 32 KB body cap. 24 Vitest handler tests. See [docs/API.md](docs/API.md). |
 | U-Bot | **Mock agent.** `POST /api/agent/chat` asks an OpenAI-compatible LLM to play the over-eager agent (JSON output) when `LLM_API_KEY` + `LLM_MODEL` are set; prices and portfolio are always restored from the fixed scene catalogs. Without a key: scripted replies. Intent extraction is a deterministic keyword heuristic either way. |
-| Explanations | Number-locked TH/EN templates. The LLM never writes a number the user sees. |
+| Explanations | Number-locked TH/EN templates. With an LLM key, a paraphrase is shown only when every number already came from the engine; otherwise the template stays. The LLM never writes a number the user sees. |
 | Voice | Pre-generated ElevenLabs clips from `pnpm voice:pregen` (none committed yet) → live `POST /api/voice/tts` (edge-cached, needs `ELEVENLABS_API_KEY` + `ELEVENLABS_VOICE_ID`) → browser `speechSynthesis`. |
 | Execution and receipts | **Mock** (`POST /api/agent/execute`, `mode: 'mock'`, sandbox ref). No wallet, no payment. |
 | Web ↔ API | The web app feature-detects `/api/health`. With the Worker it calls the API (Rules → "Backend" shows which path is live); on plain Vite or offline it runs the same engine in the browser. |
@@ -203,7 +203,7 @@ Two limits of a `*.workers.dev` deploy:
 
 - Secrets live only in Worker secrets (production) or `workers/api/.dev.vars` (local, gitignored; start from `.dev.vars.example`). They are never bundled into the web app, never put in `VITE_*`, and never returned by any endpoint. `/api/health` only reports `llm: "llm" | "scripted"` and `tts: "elevenlabs" | "unavailable"`.
 - Without any key, every route still works: scripted U-Bot, browser speech, real guard engine.
-- If the web app is served from another origin, set `ALLOWED_ORIGIN` for chat, TTS and execute. `guard/check` and `health` are open to any origin.
+- If the web app is served from another origin, set `ALLOWED_ORIGIN` for chat, TTS and execute. Chat and TTS also return 403 `forbidden_origin` when `Origin` is some other site or `Sec-Fetch-Site` is `cross-site`. `guard/check` and `health` are open to any origin.
 - After editing bindings, run `pnpm --filter @topiapause/api types`.
 
 ## Open questions (need a mentor or account check)

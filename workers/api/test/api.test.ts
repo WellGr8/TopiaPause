@@ -151,6 +151,44 @@ describe('POST /api/guard/check', () => {
     expect((await call('/api/guard/check', { json: big })).status).toBe(413);
   });
 
+  it('keeps the template when an LLM explanation invents a number', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ choices: [{ message: { content: JSON.stringify({ th: 'ราคา 99999 บาท', en: 'The price is 99999.' }) } }] })),
+    );
+    const env = makeEnv({ LLM_API_KEY: 'sk-test', LLM_MODEL: 'test-model' });
+    const res = await call('/api/guard/check', { json: { ...scene('crypto'), lang: 'en' } }, env);
+    const v = await res.json<Record<string, any>>();
+    expect(res.status).toBe(200);
+    expect(v.decision).toBe('pause');
+    expect(v.explanation.source).toBe('template');
+    expect(v.explanation.en).not.toContain('99999');
+    expect(JSON.stringify(v)).not.toContain('sk-test');
+  });
+
+  it('accepts an LLM explanation that only uses engine numbers', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ choices: [{ message: { content: JSON.stringify({ th: 'เกินเพดาน 30% ซื้อได้ 200', en: 'Over the 30% cap, max is 200.' }) } }] })),
+    );
+    const env = makeEnv({ LLM_API_KEY: 'sk-test', LLM_MODEL: 'test-model' });
+    const res = await call('/api/guard/check', { json: { ...scene('crypto'), lang: 'en' } }, env);
+    const v = await res.json<Record<string, any>>();
+    expect(v.explanation.source).toBe('llm');
+    expect(v.explanation.en).toBe('Over the 30% cap, max is 200.');
+    expect(v.amounts.aMax).toEqual({ minor: 200_000_000, currency: 'USDT' });
+  });
+
+  it('keeps the template when the explainer is down', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 500 })));
+    const env = makeEnv({ LLM_API_KEY: 'sk-test', LLM_MODEL: 'test-model' });
+    const res = await call('/api/guard/check', { json: { ...scene('stay'), lang: 'th' } }, env);
+    const v = await res.json<Record<string, any>>();
+    expect(res.status).toBe(200);
+    expect(v.decision).toBe('pause');
+    expect(v.explanation.source).toBe('template');
+  });
+
   it('rate-limits per client', async () => {
     const env = makeEnv({ RATE_LIMITER: { limit: async () => ({ success: false }) } });
     const res = await call('/api/guard/check', { json: scene('stay') }, env);
@@ -418,6 +456,31 @@ describe('POST /api/agent/chat', () => {
     const env = makeEnv({ RATE_LIMITER_PAID: { limit: async () => ({ success: false }) } });
     expect((await call('/api/agent/chat', { json: { message: 'hi', lang: 'en' } }, env)).status).toBe(429);
   });
+
+  it('matches natural phrasing without an LLM key', async () => {
+    const cases = [
+      ['I want to try PixelPro', 'en', 'subscription'],
+      ['Book me somewhere to sleep near Asok tonight', 'en', 'stay'],
+      ['ลองใช้ PixelPro หน่อย', 'th', 'subscription'],
+    ] as const;
+    for (const [message, lang, scene] of cases) {
+      const res = await call('/api/agent/chat', { json: { message, lang } });
+      expect(res.status).toBe(200);
+      const body = await res.json<Record<string, any>>();
+      expect(body.source).toBe('scripted');
+      expect(body.scene).toBe(scene);
+      expect(body.proposal).toBeTruthy();
+    }
+  });
+
+  it('names the three chips when free text matches nothing', async () => {
+    const res = await call('/api/agent/chat', { json: { message: 'what is the weather', lang: 'en' } });
+    const body = await res.json<Record<string, any>>();
+    expect(body.proposal).toBeUndefined();
+    expect(body.reply).toContain('Try PixelPro app');
+    expect(body.reply).toContain('Cheap hotel near Asok');
+    expect(body.reply).toContain('Swap 500 USDT once');
+  });
 });
 
 describe('POST /api/voice/tts', () => {
@@ -455,9 +518,34 @@ describe('routing', () => {
     expect((await call('/api/nope')).status).toBe(404);
     expect((await call('/api/guard/check')).status).toBe(405);
   });
-  it('keeps non-public routes same-origin', async () => {
+  it('rejects a cross-origin paid request instead of only hiding CORS', async () => {
     const res = await call('/api/agent/chat', { json: { message: 'hi', lang: 'en' }, headers: { Origin: 'https://evil.example' } });
+    expect(res.status).toBe(403);
+    expect((await res.json<Record<string, any>>()).error.code).toBe('forbidden_origin');
     expect(res.headers.get('Access-Control-Allow-Origin')).toBeNull();
+  });
+
+  it('rejects Sec-Fetch-Site cross-site on paid routes', async () => {
+    const res = await call('/api/voice/tts', {
+      json: { text: 'สวัสดี', lang: 'th' },
+      headers: { Origin: 'https://topiapause.test', 'Sec-Fetch-Site': 'cross-site' },
+    });
+    expect(res.status).toBe(403);
+    expect((await res.json<Record<string, any>>()).error.code).toBe('forbidden_origin');
+  });
+
+  it('allows a paid route from the worker origin and from ALLOWED_ORIGIN', async () => {
+    const same = await call('/api/agent/chat', { json: { message: 'hi', lang: 'en' }, headers: { Origin: 'https://topiapause.test' } });
+    expect(same.status).toBe(200);
+    const env = makeEnv({ ALLOWED_ORIGIN: 'https://app.example' });
+    const extra = await call('/api/agent/chat', { json: { message: 'hi', lang: 'en' }, headers: { Origin: 'https://app.example' } }, env);
+    expect(extra.status).toBe(200);
+  });
+
+  it('leaves the public guard API open to any origin', async () => {
+    const res = await call('/api/guard/check', { json: { ...scene('stay'), lang: 'th' }, headers: { Origin: 'https://evil.example' } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*');
   });
   it('serves the web app for non-API paths', async () => {
     const res = await call('/activity');

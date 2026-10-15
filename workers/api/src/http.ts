@@ -17,6 +17,23 @@ export const MAX_BODY_BYTES = 32 * 1024;
 /** Routes any origin may call (the public guard API). Everything else is same-origin only. */
 export const PUBLIC_ROUTES = new Set(['/api/guard/check', '/api/health']);
 
+/**
+ * Paid routes (LLM chat, TTS) reject a cross-site browser call.
+ * CORS headers alone do not stop a POST that ignores them.
+ * A missing Origin is allowed so local curl still works; browsers always send Origin.
+ */
+export function assertSameOrigin(req: Request, env: AppEnv): void {
+  const site = req.headers.get('Sec-Fetch-Site');
+  if (site === 'cross-site') {
+    throw new HttpError(403, 'forbidden_origin', 'This route only accepts same-origin requests');
+  }
+  const origin = req.headers.get('Origin');
+  if (!origin) return;
+  const self = new URL(req.url).origin;
+  const allowed = origin === self || (Boolean(env.ALLOWED_ORIGIN) && origin === env.ALLOWED_ORIGIN);
+  if (!allowed) throw new HttpError(403, 'forbidden_origin', 'This route only accepts same-origin requests');
+}
+
 export function corsHeaders(req: Request, env: AppEnv, path: string): Record<string, string> {
   const origin = req.headers.get('Origin');
   if (PUBLIC_ROUTES.has(path)) {
