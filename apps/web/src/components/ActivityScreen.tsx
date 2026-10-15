@@ -1,11 +1,11 @@
-import { describeProposal, fmtMoney, type Lang, type Receipt } from '@topiapause/shared';
+import { describeProposal, fmtMoney, fmtWeekday, type Lang, type Receipt } from '@topiapause/shared';
 import { ChevronDown } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { CHOICE_LABEL, SCENE_TITLE, t } from '../copy';
-import { fmtExact, savedLine } from '../lib/savings';
+import { fmtExact, type SavedLine } from '../lib/savings';
 import { approvedLine } from '../lib/summary';
 import { useApp, type ActivityEntry } from '../state';
-import { SavedHero, useSavings } from './SavedHero';
+import { SavedHero, rich, useSavings } from './SavedHero';
 import { Card, Status, TextButton, cx } from './ui';
 
 function shortTime(iso: string, lang: Lang): string {
@@ -71,10 +71,13 @@ function ReceiptDetails({ r, lang }: { r: Receipt; lang: Lang }) {
   );
 }
 
-const signed = (minor: number, currency: 'THB' | 'USD') => (minor > 0 ? '+' : '') + fmtExact(minor, currency);
+function priceChange(l: SavedLine, lang: Lang): string {
+  const per = (i: 'month' | 'year') => t(lang, i === 'year' ? 'perYear' : 'perMonth');
+  const to = l.accepted.interval === 'month' && l.original.interval === 'year' ? ` ${t(lang, 'firstMonth')}` : per(l.accepted.interval);
+  return `${fmtExact(l.originalMinor, 'THB')}${per(l.original.interval)} → ${fmtExact(l.acceptedMinor, 'THB')}${to}`;
+}
 
-function Row({ a, open, lang, onToggle }: { a: ActivityEntry; open: boolean; lang: Lang; onToggle: () => void }) {
-  const line = savedLine(a);
+function Row({ a, savedMinor, open, lang, onToggle }: { a: ActivityEntry; savedMinor?: number; open: boolean; lang: Lang; onToggle: () => void }) {
   return (
     <li className="border-t border-line first:border-t-0">
       <button type="button" aria-expanded={open} onClick={onToggle} className="flex min-h-16 w-full items-center gap-3 px-5 py-3 text-left">
@@ -84,7 +87,7 @@ function Row({ a, open, lang, onToggle }: { a: ActivityEntry; open: boolean; lan
             <Status decision={a.decision} lang={lang} className="font-medium" /> · {CHOICE_LABEL[a.choice][lang]} · {shortTime(a.at, lang)}
           </span>
         </span>
-        {line && <span className="shrink-0 font-semibold tabular-nums">{signed(line.savedMinor, line.currency)}</span>}
+        {savedMinor !== undefined && <span className="shrink-0 font-semibold tabular-nums">+{fmtExact(savedMinor, 'THB')}</span>}
         <ChevronDown size={16} className={cx('shrink-0 text-muted transition-transform', open && 'rotate-180')} aria-hidden="true" />
       </button>
       {open && <ReceiptDetails r={a.receipt} lang={lang} />}
@@ -96,7 +99,8 @@ export function ActivityScreen() {
   const { state, dispatch } = useApp();
   const { lang } = state;
   const { month } = useProtectedTotals();
-  const { lines, thb, usd } = useSavings();
+  const { saved, protected: protectedLines, thb } = useSavings();
+  const savedById = new Map(saved.map((l) => [l.entry.id, l.savedMinor]));
   const paused = month.filter((a) => a.decision !== 'allow').length;
   const better = month.filter((a) => a.choice === 'counter_offer').length;
 
@@ -105,30 +109,51 @@ export function ActivityScreen() {
       <SavedHero size="lg" />
       <p className="mt-3 text-sm text-muted">{t(lang, 'statLine', { n: month.length, p: paused, s: better })}</p>
 
-      {lines.length > 0 && (
+      {saved.length > 0 && (
         <section className="mt-8" aria-labelledby="saved-items">
           <h2 id="saved-items" className="mb-2 px-1 text-sm text-muted">
             {t(lang, 'savedItems')}
           </h2>
           <ul className="divide-y divide-line">
-            {lines.map((l) => (
+            {saved.map((l) => (
               <li key={l.entry.id} className="flex items-baseline gap-3 px-1 py-2.5">
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium">{SCENE_TITLE[l.entry.scene][lang]}</span>
-                  <span className="block text-sm text-muted tabular-nums">
-                    {fmtExact(l.originalMinor, l.currency)} → {fmtExact(l.acceptedMinor, l.currency)}
-                  </span>
+                  <span className="block text-sm text-muted tabular-nums">{priceChange(l, lang)}</span>
                 </span>
-                <span className={cx('shrink-0 font-semibold tabular-nums', l.savedMinor > 0 && 'text-allow')}>{signed(l.savedMinor, l.currency)}</span>
+                <span className="shrink-0 font-semibold tabular-nums text-allow">+{fmtExact(l.savedMinor, 'THB')}</span>
               </li>
             ))}
             <li className="flex items-baseline gap-3 px-1 py-2.5">
               <span className="flex-1 text-sm text-muted">{t(lang, 'savedTotal')}</span>
-              <span className="shrink-0 text-right font-semibold tabular-nums">
-                {fmtExact(thb, 'THB')}
-                {usd !== 0 && <span className="block text-sm">{signed(usd, 'USD')}</span>}
-              </span>
+              <span className="shrink-0 text-right font-semibold tabular-nums">{fmtExact(thb, 'THB')}</span>
             </li>
+          </ul>
+        </section>
+      )}
+
+      {protectedLines.length > 0 && (
+        <section className="mt-8" aria-labelledby="protected-items">
+          <h2 id="protected-items" className="mb-2 px-1 text-sm text-muted">
+            {t(lang, 'protectedHeader')}
+          </h2>
+          <ul className="divide-y divide-line">
+            {protectedLines.map((l) => (
+              <li key={l.entry.id} className="px-1 py-2.5">
+                <span className="block font-medium">{SCENE_TITLE[l.entry.scene][lang]}</span>
+                <span className="block text-sm text-muted tabular-nums">
+                  {l.scene === 'stay' ? (
+                    <>
+                      {rich(lang, 'stayCostLabel', { cost: fmtExact(l.costMinor, 'THB') }, ['cost'])}
+                      {t(lang, 'stayCostTail', { covered: fmtExact(l.coveredMinor, 'THB') })}
+                      {l.freeCancelUntil && t(lang, 'stayUntil', { day: fmtWeekday(l.freeCancelUntil, lang) })}
+                    </>
+                  ) : (
+                    rich(lang, 'cryptoLine', { amount: fmtExact(l.reducedMinor, 'USDT'), from: l.fromPct, to: l.toPct }, ['amount'])
+                  )}
+                </span>
+              </li>
+            ))}
           </ul>
         </section>
       )}
@@ -150,6 +175,7 @@ export function ActivityScreen() {
                 <Row
                   key={a.id}
                   a={a}
+                  savedMinor={savedById.get(a.id)}
                   lang={lang}
                   open={state.openReceiptId === a.receipt.receiptId}
                   onToggle={() => dispatch({ type: 'toggleReceipt', receiptId: a.receipt.receiptId })}

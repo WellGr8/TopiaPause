@@ -54,12 +54,20 @@ export async function apiChat(input: { message: string; scene?: SceneId; lang: L
   return post<ChatTurn>('/api/agent/chat', { sessionId: 'web', ...input }, 15_000);
 }
 
+export interface UntrustedSource {
+  kind: 'web_page';
+  url: string;
+  text: string;
+}
+
 export async function apiGuardCheck(input: {
   userText: string;
   proposal: AgentProposal;
   policy: UserPolicy;
   lang: Lang;
   intent: ActionIntent;
+  /** Untrusted context the agent read (e.g. a web page); the engine checks whether the proposal followed it. */
+  sources?: UntrustedSource[];
 }): Promise<GuardVerdict | null> {
   if (!(await apiHealth())) return null;
   return post<GuardVerdict>('/api/guard/check', input);

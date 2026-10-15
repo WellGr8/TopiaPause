@@ -1,5 +1,5 @@
 import { describeProposal, findingDetail, findingTitle, fmtMoney, type Lang } from '@topiapause/shared';
-import { Play } from 'lucide-react';
+import { Play, ShieldAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { t } from '../copy';
 import { protectedCurrency, verdictFor } from '../lib/guard';
@@ -71,8 +71,11 @@ export function GuardianCard({
 }) {
   const verdict = useMemo(() => verdictFor(run, lang), [run, lang]);
   const offer = offerOf(verdict, lang);
-  const voice = useVoice(run, verdict.voiceText[lang], lang, verdict.voiceText.clipId);
-  const confirming = useConfirmClip(run, verdict.voiceText[lang], lang, verdict.voiceText.clipId);
+  const injected = Boolean(run.injectedFrom);
+  const voiceText = injected ? t(lang, verdict.counterOffer ? 'injVoice' : 'injVoiceNoCounter') : verdict.voiceText[lang];
+  const clipId = injected ? (verdict.counterOffer ? 'injection-pause' : undefined) : verdict.voiceText.clipId;
+  const voice = useVoice(run, voiceText, lang, clipId);
+  const confirming = useConfirmClip(run, voiceText, lang, injected ? undefined : clipId);
   const [open, setOpen] = useState(false);
   const choose = (choice: 'counter_offer' | 'original' | 'cancel') => {
     stopVoice();
@@ -145,9 +148,16 @@ export function GuardianCard({
     <Card as="article" className="animate-enter overflow-hidden" aria-label={t(lang, 'guard')} data-guard={run.stage} data-decision={decision} data-voice={voice.state}>
       <WaveStrip className="rounded-none" still={!thinking} />
       <div className="px-5 pb-2 pt-4">
+        {injected && (
+          <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-block">
+            <ShieldAlert size={15} className="shrink-0" aria-hidden="true" />
+            {t(lang, 'injNote')}
+          </p>
+        )}
         <div className="flex items-start gap-3">
           <h3 className="flex-1 text-[19px] font-semibold leading-snug">
-            <Status decision={decision} lang={lang} /> <span className="text-muted">—</span> {reasonLine(verdict, run.proposal, lang)}
+            <Status decision={decision} lang={lang} /> <span className="text-muted">—</span>{' '}
+            {injected ? t(lang, 'injReason') : reasonLine(verdict, run.proposal, lang)}
           </h3>
           <button
             type="button"

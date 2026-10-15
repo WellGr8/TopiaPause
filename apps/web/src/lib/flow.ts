@@ -15,7 +15,7 @@ import {
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { t } from '../copy';
 import { useApp, type GuardRun } from '../state';
-import { apiChat, apiExecute, apiGuardCheck, type ChatTurn } from './api';
+import { apiChat, apiExecute, apiGuardCheck, type ChatTurn, type UntrustedSource } from './api';
 import { protectedCurrency, verdictFor } from './guard';
 
 const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -60,7 +60,7 @@ function useChatFlowImpl() {
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   const guard = useCallback(
-    async (input: { text: string; scene: SceneId; intent: ActionIntent; proposal: AgentProposal; agentSource?: GuardRun['agentSource']; injectedFrom?: string }) => {
+    async (input: { text: string; scene: SceneId; intent: ActionIntent; proposal: AgentProposal; agentSource?: GuardRun['agentSource']; injectedFrom?: string; sources?: UntrustedSource[] }) => {
       const { lang, policy } = ref.current;
       const run: GuardRun = {
         runId: newId('run'),
@@ -76,7 +76,7 @@ function useChatFlowImpl() {
       await wait(350);
       dispatch({ type: 'push', item: { id: run.runId, type: 'guard', run } });
       const checking = wait(1150);
-      const remote = await apiGuardCheck({ userText: input.text, proposal: run.proposal, policy, lang, intent: input.intent });
+      const remote = await apiGuardCheck({ userText: input.text, proposal: run.proposal, policy, lang, intent: input.intent, sources: input.sources });
       await checking;
       dispatch({
         type: 'updateRun',
@@ -130,6 +130,7 @@ function useChatFlowImpl() {
       proposal: subscriptionProposal(),
       agentSource: 'scripted',
       injectedFrom: INJECTION_PAGE.url,
+      sources: [{ kind: 'web_page', url: INJECTION_PAGE.url, text: `${INJECTION_PAGE.visible}\n${INJECTION_PAGE.hidden}` }],
     });
   }, [dispatch, guard]);
 
