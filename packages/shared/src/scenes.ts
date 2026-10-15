@@ -133,7 +133,7 @@ export const SCENES: Record<SceneId, ScenePreset> = {
       en: 'Swap 500 USDT into TOKEN-X, just this once.',
     },
     reply: {
-      th: 'ได้ครับ จะ swap 500 USDT เป็น TOKEN-X และขออนุมัติสิทธิ์ USDT แบบไม่จำกัด ครั้งหน้าจะได้เร็วขึ้นครับ',
+      th: 'ได้ครับ จะแลก 500 USDT เป็น TOKEN-X และให้สิทธิ์ถอน USDT ได้ไม่จำกัด ครั้งหน้าจะได้เร็วขึ้นครับ',
       en: "Sure. Swapping 500 USDT into TOKEN-X, and I'll request unlimited USDT approval so next time is faster.",
     },
     buildProposal: (opts) => swapProposal(opts?.amountMinor),

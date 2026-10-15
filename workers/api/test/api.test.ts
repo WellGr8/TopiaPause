@@ -723,6 +723,40 @@ describe('POST /api/agent/chat', () => {
     const missing = await call('/api/agent/chat', { json: { message: 'why', lang: 'en', verdictId: 'v-browser-only' }, headers }, env);
     expect(((await missing.json()) as V).reply).toBe('Nothing has been checked yet.');
     expect(fetchMock).not.toHaveBeenCalled();
+
+    const hotel = await call('/api/agent/chat', { json: { message: 'หาโรงแรมไม่แพงใกล้อโศก', lang: 'th' }, headers }, env);
+    const stay = (await hotel.json()) as V;
+    expect(stay.scene).toBe('stay');
+    expect(stay.proposal.kind).toBe('stay');
+    expect(stay.reply).not.toContain(lie);
+
+    fetchMock.mockClear();
+    const bare = await call('/api/agent/chat', { json: { message: 'แพง', lang: 'th', verdictId: verdict.verdictId }, headers }, env);
+    const why = (await bare.json()) as V;
+    expect(why.proposal).toBeUndefined();
+    expect(why.reply).toContain('฿');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('does not turn a restaurant into the hotel chip', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({
+          choices: [{ message: { content: JSON.stringify({ kind: 'stay', slots: {}, reply_th: 'จองให้ครับ', reply_en: 'Booked.' }) } }],
+        }),
+      ),
+    );
+    const env = makeEnv({ LLM_API_KEY: 'sk-test', LLM_MODEL: 'test-model' });
+    const headers = await appHeaders(env);
+    const res = await call('/api/agent/chat', { json: { message: 'จองโต๊ะร้านอาหารกินข้าว', lang: 'th' }, headers }, env);
+    const body = (await res.json()) as V;
+    expect(body.proposal).toBeUndefined();
+    expect(body.scene).toBeUndefined();
+    expect(body.chip).toBeUndefined();
+    expect(body.reply).toContain('ลองแอป PixelPro');
+    expect(body.reply).toContain('โรงแรมถูกๆ ใกล้อโศก');
+    expect(body.reply).toContain('แลก 500 USDT ครั้งเดียว');
   });
 
   it('refuses ETH and BTC and still pauses an all-in USDT swap', async () => {
@@ -782,9 +816,15 @@ describe('POST /api/agent/chat', () => {
     );
     const hotel = await call('/api/agent/chat', { json: { message: 'โรงแรมดีไหม', lang: 'th' }, headers }, env);
     const fell = (await hotel.json()) as V;
-    expect(fell.reply).toContain('โรงแรมถูกๆ ใกล้อโศก');
-    expect(fell.reply).not.toContain('1200');
-    expect(fell.chip).toBe('stay');
+    expect(fell.scene).toBe('stay');
+    expect(fell.proposal.kind).toBe('stay');
+    expect(fell.reply).not.toBe('ราคา 1200 ครับ');
+
+    const coin = await call('/api/agent/chat', { json: { message: 'เหรียญน่าสนไหม', lang: 'th' }, headers }, env);
+    const chip = (await coin.json()) as V;
+    expect(chip.reply).toContain('แลก 500 USDT ครั้งเดียว');
+    expect(chip.reply).not.toContain('1200');
+    expect(chip.chip).toBe('crypto');
   });
 });
 

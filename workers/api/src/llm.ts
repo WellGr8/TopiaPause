@@ -1,5 +1,5 @@
 import { allowedNumbers } from '@topiapause/guard-engine';
-import { SCENES, parseMoney, scriptedChat, unsupportedCoin, usdtOnlyReply, type AgentProposal, type GuardVerdict, type Lang, type SceneId } from '@topiapause/shared';
+import { SCENES, detectScene, isFoodRequest, parseMoney, scriptedChat, unmatchedReply, unsupportedCoin, usdtOnlyReply, type AgentProposal, type GuardVerdict, type Lang, type SceneId } from '@topiapause/shared';
 import { chargePaid, log, type AppEnv } from './http';
 import { ExplainDraft, IntentDraft } from './schemas';
 
@@ -58,8 +58,9 @@ function mentionsUsdt(message: string): boolean {
   return /usdt|ยูเอสดีที/i.test(message);
 }
 
-/** Hotel, then a USDT swap, then an app. Anything else points at the app chip. */
-function closestChip(message: string): SceneId {
+/** Hotel, then a USDT swap, then an app. A restaurant matches none of them. */
+function closestChip(message: string): SceneId | undefined {
+  if (isFoodRequest(message)) return undefined;
   if (/โรงแรม|hotel|จอง|ที่พัก|asok|อโศก/i.test(message)) return 'stay';
   if (/usdt|ยูเอสดีที|แลก|swap|เหรียญ/i.test(message)) return 'crypto';
   if (/app|แอป|สมัคร|pixel/i.test(message)) return 'subscription';
@@ -102,7 +103,10 @@ function fromIntent(
   message: string,
   lang: Lang,
 ): LlmResult {
+  if (isFoodRequest(message)) return { reply: unmatchedReply(lang) };
   if (unsupportedCoin(message)) return { reply: usdtOnlyReply(lang), chip: 'crypto' };
+  const detected = detectScene(message);
+  if (detected === 'stay' || detected === 'subscription') return catalogTurn(detected, message, lang);
   if (mentionsUsdt(message)) {
     const asked = usdtMinor(draft.slots.amount_usdt) ?? messageUsdt(message);
     const amount = ALL_IN.test(message) || asked === undefined || asked > SPENDABLE_USDT ? SPENDABLE_USDT : asked;
@@ -111,6 +115,7 @@ function fromIntent(
   if (draft.kind === 'subscription' || draft.kind === 'stay') return catalogTurn(draft.kind, message, lang);
   const chip = closestChip(message);
   const prose = acceptedReply(lang === 'th' ? draft.reply_th : draft.reply_en);
+  if (!chip) return { reply: prose ?? unmatchedReply(lang) };
   return prose ? { reply: prose, chip } : chipReply(lang, chip);
 }
 
