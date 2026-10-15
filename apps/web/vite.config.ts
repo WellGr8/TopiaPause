@@ -1,10 +1,12 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 
 // public/audio (pre-generated voice clips + manifest.json) is served at /audio and copied into dist as-is.
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // Playwright lives in e2e/ and runs via `pnpm test:e2e`, not `vitest run`.
+  test: { exclude: ['e2e/**', '**/node_modules/**', '**/dist/**'] },
   server: {
     host: '0.0.0.0',
     port: 5173,
