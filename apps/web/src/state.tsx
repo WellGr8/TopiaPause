@@ -1,0 +1,165 @@
+import {
+  DEFAULT_POLICY,
+  type ActionIntent,
+  type AgentProposal,
+  type Decision,
+  type Lang,
+  type Receipt,
+  type SceneId,
+  type UserChoice,
+  type UserPolicy,
+} from '@topiapause/shared';
+import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react';
+import { verdictFor } from './lib/guard';
+
+export type Screen = 'chat' | 'activity' | 'rules';
+export type Theme = 'light' | 'dark';
+export type Mood = 'idle' | 'checking' | 'allow' | 'pause' | 'block';
+
+export type GuardStage = 'checking' | 'verdict' | 'rechecking' | 'done';
+
+export interface GuardRun {
+  runId: string;
+  scene: SceneId;
+  userText: string;
+  intent: ActionIntent;
+  proposal: AgentProposal;
+  /** Snapshot so later rule edits don't rewrite history. */
+  policy: UserPolicy;
+  stage: GuardStage;
+  choice?: UserChoice;
+}
+
+export type ChatItem =
+  | { id: string; type: 'user'; text: string }
+  | { id: string; type: 'ubot'; text: string }
+  | { id: string; type: 'typing' }
+  | { id: string; type: 'guard'; run: GuardRun }
+  | { id: string; type: 'guardNote'; text: string }
+  | { id: string; type: 'receipt'; receipt: Receipt };
+
+export interface ActivityEntry {
+  id: string;
+  at: string;
+  scene: SceneId;
+  decision: Decision;
+  choice: UserChoice;
+  protectedAmount: number;
+  currency: 'THB' | 'USD';
+  receiptId: string;
+}
+
+export interface AppState {
+  onboarded: boolean;
+  screen: Screen;
+  lang: Lang;
+  theme: Theme;
+  policy: UserPolicy;
+  chat: ChatItem[];
+  activity: ActivityEntry[];
+}
+
+type Action =
+  | { type: 'onboard' }
+  | { type: 'showOnboarding' }
+  | { type: 'screen'; screen: Screen }
+  | { type: 'lang'; lang: Lang }
+  | { type: 'theme'; theme: Theme }
+  | { type: 'policy'; policy: UserPolicy }
+  | { type: 'push'; item: ChatItem }
+  | { type: 'replace'; id: string; item: ChatItem }
+  | { type: 'updateRun'; runId: string; patch: Partial<GuardRun> }
+  | { type: 'activity'; entry: ActivityEntry }
+  | { type: 'clearChat' }
+  | { type: 'reset' };
+
+const STORAGE_KEY = 'topiapause:v1';
+
+function initial(): AppState {
+  const prefersDark = typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+  const base: AppState = {
+    onboarded: false,
+    screen: 'chat',
+    lang: 'th',
+    theme: prefersDark ? 'dark' : 'light',
+    policy: DEFAULT_POLICY,
+    chat: [],
+    activity: [],
+  };
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Partial<AppState> | null;
+    if (saved) return { ...base, ...saved, chat: [], screen: 'chat' };
+  } catch {
+    // ignore corrupt storage
+  }
+  return base;
+}
+
+function reducer(s: AppState, a: Action): AppState {
+  switch (a.type) {
+    case 'onboard':
+      return { ...s, onboarded: true, screen: 'chat' };
+    case 'showOnboarding':
+      return { ...s, onboarded: false };
+    case 'screen':
+      return { ...s, screen: a.screen };
+    case 'lang':
+      return { ...s, lang: a.lang };
+    case 'theme':
+      return { ...s, theme: a.theme };
+    case 'policy':
+      return { ...s, policy: a.policy };
+    case 'push':
+      return { ...s, chat: [...s.chat, a.item] };
+    case 'replace':
+      return { ...s, chat: s.chat.map((c) => (c.id === a.id ? a.item : c)) };
+    case 'updateRun':
+      return {
+        ...s,
+        chat: s.chat.map((c) => (c.type === 'guard' && c.run.runId === a.runId ? { ...c, run: { ...c.run, ...a.patch } } : c)),
+      };
+    case 'activity':
+      return { ...s, activity: [a.entry, ...s.activity] };
+    case 'clearChat':
+      return { ...s, chat: [] };
+    case 'reset':
+      return { ...initial(), onboarded: false, policy: DEFAULT_POLICY, activity: [], lang: s.lang, theme: s.theme };
+  }
+}
+
+const Ctx = createContext<{ state: AppState; dispatch: React.Dispatch<Action> } | null>(null);
+
+export function AppProvider({ children }: { children: ReactNode }) {
+  const [state, dispatch] = useReducer(reducer, undefined, initial);
+
+  useEffect(() => {
+    const { onboarded, lang, theme, policy, activity } = state;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ onboarded, lang, theme, policy, activity }));
+  }, [state]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', state.theme === 'dark');
+    document.documentElement.lang = state.lang;
+  }, [state.theme, state.lang]);
+
+  const value = useMemo(() => ({ state, dispatch }), [state]);
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+export function useApp() {
+  const v = useContext(Ctx);
+  if (!v) throw new Error('useApp outside AppProvider');
+  return v;
+}
+
+/** Background mood follows the latest guard card in the chat. */
+export function moodOf(state: AppState): Mood {
+  if (state.screen !== 'chat') return 'idle';
+  const last = [...state.chat].reverse().find((c) => c.type === 'guard');
+  if (!last || last.type !== 'guard') return 'idle';
+  const run = last.run;
+  if (run.stage === 'checking') return 'checking';
+  if (run.stage === 'rechecking' || run.choice === 'counter_offer') return 'allow';
+  if (run.choice === 'cancel') return 'idle';
+  return verdictFor(run, state.lang).decision;
+}
