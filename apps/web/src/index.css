@@ -9,7 +9,7 @@
 
 @theme {
   --font-sans: 'Inter Variable', 'IBM Plex Sans Thai', ui-sans-serif, system-ui, sans-serif;
-  --color-base: #f7faff;
+  --color-canvas: #f7faff;
   --color-navy: #0a1630;
   --color-navy-2: #12224a;
   --color-ink: #0a1630;
@@ -36,7 +36,7 @@ body,
 }
 
 body {
-  @apply bg-base text-ink antialiased dark:bg-navy dark:text-slate-100;
+  @apply bg-canvas text-ink antialiased dark:bg-navy dark:text-slate-100;
   font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
   -webkit-tap-highlight-color: transparent;

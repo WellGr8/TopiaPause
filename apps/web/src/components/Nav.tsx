@@ -1,4 +1,3 @@
-import { fmtMoney } from '@topiapause/shared';
 import { Activity, MessageCircle, ShieldCheck, SlidersHorizontal, type LucideIcon } from 'lucide-react';
 import { t, type CopyKey } from '../copy';
 import { useApp, type Screen } from '../state';
@@ -44,7 +43,7 @@ export function BottomNav() {
 export function Sidebar() {
   const { state, dispatch } = useApp();
   const { lang } = state;
-  const { thb, usd } = useProtectedTotals();
+  const { primary, secondary } = useProtectedTotals();
   return (
     <aside className="sticky top-0 hidden h-screen w-[300px] shrink-0 flex-col gap-4 p-4 lg:flex">
       <div className="flex items-center gap-3 px-1 pt-1">
@@ -82,8 +81,8 @@ export function Sidebar() {
         <p className="flex items-center gap-1.5 text-xs font-semibold text-muted dark:text-slate-300">
           <ShieldCheck size={15} className="text-azure dark:text-sky" aria-hidden="true" /> {t(lang, 'protectedMonth')}
         </p>
-        <p className="text-gradient text-3xl font-bold tabular-nums">{fmtMoney({ amount: thb, currency: 'THB' })}</p>
-        {usd > 0 && <p className="text-xs text-muted dark:text-slate-400">+ {fmtMoney({ amount: usd, currency: 'USD' })} {t(lang, 'keptUnderCap')}</p>}
+        <p className="text-gradient text-3xl font-bold tabular-nums">{primary}</p>
+        {secondary && <p className="text-xs text-muted dark:text-slate-400">+ {secondary} {t(lang, 'keptUnderCap')}</p>}
       </div>
 
       <div className="glass rounded-3xl p-4">

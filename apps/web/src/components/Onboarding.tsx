@@ -27,7 +27,8 @@ export function Onboarding() {
           <RulesEditor policy={state.policy} lang={lang} onChange={(policy) => dispatch({ type: 'policy', policy })} />
         </div>
 
-        <div className="sticky bottom-0 mt-5 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2">
+        <div className="sticky bottom-0 -mx-4 mt-5 bg-gradient-to-t from-canvas via-canvas/90 to-transparent px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-6 dark:from-navy dark:via-navy/90">
+
           <Button variant="primary" full className="min-h-13 text-base" onClick={() => dispatch({ type: 'onboard' })}>
             {t(lang, 'onbCta')} <ArrowRight size={18} aria-hidden="true" />
           </Button>

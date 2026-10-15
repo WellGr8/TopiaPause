@@ -96,7 +96,7 @@ export function ChatScreen() {
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-3xl px-3 pb-2 sm:px-4">
+      <div className="relative mx-auto w-full max-w-3xl px-3 pb-2 pt-2 before:pointer-events-none before:absolute before:inset-x-0 before:-top-6 before:bottom-0 before:-z-10 before:bg-gradient-to-t before:from-canvas before:via-canvas/85 before:to-transparent sm:px-4 dark:before:from-navy dark:before:via-navy/85">
         <p className="px-1 pb-1.5 text-xs font-semibold text-muted dark:text-slate-400">{t(lang, 'tryScene')}</p>
         <div className="no-scrollbar -mx-3 flex gap-2 overflow-x-auto px-3 pb-2">
           {SCENE_ORDER.map((id) => {

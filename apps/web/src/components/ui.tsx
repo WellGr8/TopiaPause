@@ -1,6 +1,6 @@
 import type { Decision, Lang } from '@topiapause/shared';
 import { Minus, Plus } from 'lucide-react';
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { useId, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { DECISION_LABEL } from '../copy';
 
 export function cx(...c: Array<string | false | null | undefined>): string {
@@ -8,17 +8,18 @@ export function cx(...c: Array<string | false | null | undefined>): string {
 }
 
 export function Logo({ size = 36 }: { size?: number }) {
+  const id = useId();
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" className="shrink-0">
       <defs>
-        <linearGradient id="tp-logo" x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#4FA8FF" />
           <stop offset="0.4" stopColor="#3B82F6" />
           <stop offset="0.75" stopColor="#8B9CFF" />
           <stop offset="1" stopColor="#5EE6E0" />
         </linearGradient>
       </defs>
-      <rect width="64" height="64" rx="20" fill="url(#tp-logo)" />
+      <rect width="64" height="64" rx="20" fill={`url(#${id})`} />
       <rect x="22" y="18" width="7" height="28" rx="3.5" fill="#fff" />
       <rect x="35" y="18" width="7" height="28" rx="3.5" fill="#fff" />
     </svg>
@@ -104,7 +105,7 @@ export function Toggle({ checked, onChange, label }: { checked: boolean; onChang
       >
         <span
           className={cx(
-            'absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform duration-200 ease-out',
+            'absolute left-0 top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform duration-200 ease-out',
             checked ? 'translate-x-5.5' : 'translate-x-0.5',
           )}
         />
@@ -135,7 +136,7 @@ export function Stepper({
       <IconButton label={`- ${label}`} onClick={() => onChange(Math.max(min, value - step))} disabled={value <= min}>
         <Minus size={18} strokeWidth={2.2} />
       </IconButton>
-      <span className="min-w-16 text-center text-base font-semibold tabular-nums" aria-live="polite">
+      <span className="min-w-16 text-center text-base font-semibold text-ink dark:text-slate-100 tabular-nums" aria-live="polite">
         {format(value)}
       </span>
       <IconButton label={`+ ${label}`} onClick={() => onChange(Math.min(max, value + step))} disabled={value >= max}>

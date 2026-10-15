@@ -22,13 +22,15 @@ export function useProtectedTotals() {
   });
   const thb = month.filter((a) => a.currency === 'THB').reduce((s, a) => s + a.protectedAmount, 0);
   const usd = month.filter((a) => a.currency === 'USD').reduce((s, a) => s + a.protectedAmount, 0);
-  return { thb, usd, month };
+  const primary = thb === 0 && usd > 0 ? fmtMoney({ amount: usd, currency: 'USD' }) : fmtMoney({ amount: thb, currency: 'THB' });
+  const secondary = thb > 0 && usd > 0 ? fmtMoney({ amount: usd, currency: 'USD' }) : undefined;
+  return { thb, usd, month, primary, secondary };
 }
 
 export function ActivityScreen() {
   const { state, dispatch } = useApp();
   const { lang } = state;
-  const { thb, usd, month } = useProtectedTotals();
+  const { primary, secondary, month } = useProtectedTotals();
   const paused = month.filter((a) => a.decision !== 'allow').length;
   const safer = month.filter((a) => a.choice === 'counter_offer').length;
 
@@ -39,10 +41,10 @@ export function ActivityScreen() {
           <ShieldCheck size={18} className="text-azure dark:text-sky" aria-hidden="true" />
           {t(lang, 'protectedMonth')}
         </div>
-        <p className="text-gradient mt-1 text-5xl font-bold tracking-tight tabular-nums">{fmtMoney({ amount: thb, currency: 'THB' })}</p>
-        {usd > 0 && (
+        <p className="text-gradient mt-1 text-5xl font-bold tracking-tight tabular-nums">{primary}</p>
+        {secondary && (
           <p className="mt-1 text-sm font-medium">
-            + {fmtMoney({ amount: usd, currency: 'USD' })} <span className="text-muted dark:text-slate-400">{t(lang, 'keptUnderCap')}</span>
+            + {secondary} <span className="text-muted dark:text-slate-400">{t(lang, 'keptUnderCap')}</span>
           </p>
         )}
         <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
