@@ -224,17 +224,23 @@ function reducer(s: AppState, a: Action): AppState {
 
 const Ctx = createContext<{ state: AppState; dispatch: React.Dispatch<Action> } | null>(null);
 
-type NavKind = 'push' | 'replace' | 'pop' | 'none';
-
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, rawDispatch] = useReducer(reducer, undefined, initial);
-  const navKind = useRef<NavKind>('none');
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   const dispatch = useMemo(() => {
     return (action: Action) => {
-      if (action.type === 'onboard' || action.type === 'home' || action.type === 'reset') navKind.current = 'push';
-      else if (action.type === 'screen' || action.type === 'openReceipt' || action.type === 'consumeOpen') navKind.current = 'replace';
-      else if (action.type === 'syncRoute') navKind.current = 'pop';
+      const next = reducer(stateRef.current, action);
+      stateRef.current = next;
+      if (action.type !== 'syncRoute') {
+        const href = hrefFor(next.showLanding ? 'landing' : next.screen, next.showLanding ? undefined : next.openScene);
+        if (href !== currentHref()) {
+          const push = action.type === 'onboard' || action.type === 'home' || action.type === 'reset';
+          if (push) history.pushState(null, '', href);
+          else if (action.type === 'screen' || action.type === 'openReceipt' || action.type === 'consumeOpen') history.replaceState(null, '', href);
+        }
+      }
       rawDispatch(action);
     };
   }, []);
@@ -251,16 +257,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(THEME_KEY, state.theme);
     document.documentElement.lang = state.lang;
   }, [state.theme, state.lang]);
-
-  useEffect(() => {
-    const kind = navKind.current;
-    navKind.current = 'none';
-    if (kind === 'pop') return;
-    const href = hrefFor(state.showLanding ? 'landing' : state.screen, state.showLanding ? undefined : state.openScene);
-    if (href === currentHref()) return;
-    if (kind === 'push') history.pushState(null, '', href);
-    else history.replaceState(null, '', href);
-  }, [state.showLanding, state.screen, state.openScene]);
 
   useEffect(() => {
     const onPop = () => {

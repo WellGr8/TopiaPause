@@ -22,6 +22,7 @@ for (const viewport of VIEWPORTS) {
       await openLanding(page);
       await expect(page.locator('html')).not.toHaveClass(/dark/);
       await expect.poll(() => page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(247, 250, 255)');
+      await expect(page.getByText('เดี๋ยวครับ คุณแค่อยากลอง')).toBeVisible();
 
       const taller = await page.evaluate(() => document.documentElement.scrollHeight > window.innerHeight + 8);
       expect(taller).toBe(true);
