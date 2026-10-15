@@ -311,11 +311,11 @@ Rules:
 | Name | Where | Required | Purpose |
 |---|---|---|---|
 | `LLM_API_KEY` | Worker secret | optional | OpenAI-compatible LLM (JSON output); scripted U-Bot without it |
-| `LLM_MODEL` | Worker var | with key | Model id |
-| `LLM_BASE_URL` | Worker var | optional | Defaults to `https://api.openai.com/v1` |
+| `LLM_MODEL` | Worker var | `openai/gpt-4o-mini` | OpenRouter model id |
+| `LLM_BASE_URL` | Worker var | `https://openrouter.ai/api/v1` | OpenRouter chat completions |
 | `ELEVENLABS_API_KEY` | Worker secret | optional | TTS; browser speech without it |
-| `ELEVENLABS_VOICE_ID` | Worker var | with key | Voice id |
-| `ELEVENLABS_MODEL_ID` | Worker var | optional | Defaults to `eleven_v3` (verify) |
+| `ELEVENLABS_VOICE_ID` | Worker var | `nPczCjzI2devNBz1zQrb` | ElevenLabs voice id |
+| `ELEVENLABS_MODEL_ID` | Worker var | `eleven_v4` | ElevenLabs model id |
 | `ALLOWED_ORIGIN` | Worker var | optional | Extra origin for chat/TTS/execute; `guard/check` is open to all |
 
 The web app is served by the same Worker, so it needs no API URL and no build-time env. See [API.md](API.md) for the endpoints.

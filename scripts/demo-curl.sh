@@ -71,25 +71,38 @@ JSON
 printf '\n\033[1m▶ ShopBot sends its own permissive policy\033[0m  (expect 400 agent_policy_rejected)\n'
 post_check "$DIR/attack-policy.json"
 
-printf '\n\033[1m▶ verdict ticket\033[0m  execute the crypto counter-offer, then replay (409) and forge (403)\n'
+printf '\n\033[1m▶ verdict ticket\033[0m  userConfirmed alone is 403; the app session confirms, then replay (409) and forge (403)\n'
 python3 - "$BASE" "$DIR/crypto.json" <<'PY'
 import json, sys, urllib.error, urllib.request
 base, path = sys.argv[1], sys.argv[2]
-def post(route, body):
-    req = urllib.request.Request(base + route, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+def post(route, body, headers=None):
+    h = {"Content-Type": "application/json"}
+    if headers:
+        h.update(headers)
+    req = urllib.request.Request(base + route, data=json.dumps(body).encode(), headers=h)
     try:
         with urllib.request.urlopen(req) as res:
             return res.status, json.load(res)
     except urllib.error.HTTPError as e:
         return e.code, json.load(e)
+bare, bare_body = post("/api/agent/chat", {"message": "hi", "lang": "en"})
+print(f"chat without origin HTTP {bare} {bare_body.get('error', {}).get('code')}")
 status, verdict = post("/api/guard/check", json.load(open(path)))
 print(f"crypto check HTTP {status} {verdict.get('decision')} {[f['ruleId'] for f in verdict.get('findings', [])]}")
 proposal = verdict["counterOffer"]["proposal"]
 vid = verdict["verdictId"]
-ok, body = post("/api/agent/execute", {"proposal": proposal, "verdictId": vid, "userConfirmed": True})
+denied, denied_body = post("/api/agent/execute", {"proposal": proposal, "verdictId": vid, "userConfirmed": True})
+print(f"execute userConfirmed only HTTP {denied} {denied_body.get('error', {}).get('code')}")
+app = {"Origin": base, "Sec-Fetch-Site": "none"}
+sess_status, sess = post("/api/session", {}, app)
+print(f"session HTTP {sess_status}")
+app["X-TopiaPause-Session"] = sess["session"]
+conf_status, conf = post("/api/confirm", {"verdictId": vid, "choice": "counter_offer"}, app)
+print(f"confirm HTTP {conf_status}")
+ok, body = post("/api/agent/execute", {"proposal": proposal, "verdictId": vid, "userConfirmed": True, "confirmation": conf["confirmation"]})
 execution = body.get("execution") or {}
 print(f"execute HTTP {ok} {execution.get('status', body.get('error', {}).get('code'))} {execution.get('ref', '')}")
-replay, replay_body = post("/api/agent/execute", {"proposal": proposal, "verdictId": vid, "userConfirmed": True})
+replay, replay_body = post("/api/agent/execute", {"proposal": proposal, "verdictId": vid, "userConfirmed": True, "confirmation": conf["confirmation"]})
 print(f"replay HTTP {replay} {replay_body.get('error', {}).get('code')}")
 forged, forged_body = post("/api/agent/execute", {"proposal": proposal, "verdictId": "v-forged", "userConfirmed": True})
 print(f"forged HTTP {forged} {forged_body.get('error', {}).get('code')}")

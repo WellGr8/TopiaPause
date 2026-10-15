@@ -4,6 +4,7 @@ import {
   deriveIntent,
   estimateCostThb,
   extractIntentMock,
+  policyLoosens,
   scriptedChat,
   type AgentChatResponse,
   type AgentProposal,
@@ -15,11 +16,12 @@ import {
 } from '@topiapause/shared';
 import { genericToProposal } from './generic';
 import { HttpError, assertSameOrigin, corsHeaders, isolateRateLimit, json, log, parseJson, rateLimit, readBody, readJson, type AppEnv } from './http';
-import { llmChat, llmConfigured, llmExplain } from './llm';
-import { AgentChatRequest, ExecuteRequest, GenericCheck, PolicyRequest, ProposalCheck, TtsRequest } from './schemas';
-import { issueTicket, mintPolicyToken, policyFrom, redeemTicket } from './signing';
+import { llmChat, llmConfigured } from './llm';
+import { AgentChatRequest, ConfirmRequest, ExecuteRequest, GenericCheck, PolicyRequest, ProposalCheck, TtsRequest } from './schemas';
+import { issueConfirmation, issueTicket, mintPolicyToken, mintSession, policyFrom, redeemTicket, verifySession } from './signing';
 import { upcomingUnlocks, type MarketFetch } from './tokenomist';
 import { tts, ttsConfigured } from './tts';
+import { resolveTts } from './voiceAllow';
 
 // One Worker serves the built web app (static assets) and /api/*.
 // Guard check is the public API any agent can call; numbers only come from guard-engine.
@@ -38,12 +40,6 @@ function health(env: AppEnv): Response {
     tts: ttsConfigured(env) ? 'elevenlabs' : 'unavailable',
     marketData: env.TOKENOMIST_API_KEY ? 'tokenomist' : 'sample',
   });
-}
-
-/** Proposals an execute call may use with this verdict. A blocked verdict clears nothing. */
-function cleared(v: GuardVerdict, original: AgentProposal): AgentProposal[] {
-  if (v.decision === 'block') return [];
-  return v.counterOffer ? [original, v.counterOffer.proposal] : [original];
 }
 
 async function guardCheck(req: Request, env: AppEnv, ctx?: ExecutionContext): Promise<Response> {
@@ -79,16 +75,16 @@ async function guardCheck(req: Request, env: AppEnv, ctx?: ExecutionContext): Pr
     log({ message: 'guard evaluate failed', error: e instanceof Error ? e.message : String(e) });
     throw new HttpError(422, 'unprocessable', 'Proposal could not be evaluated');
   }
-  // The draft is optional. lockExplanation drops it when any number is not engine-owned.
-  const draft = await llmExplain(env, verdict);
-  verdict = { ...verdict, explanation: lockExplanation(draft, verdict) };
-  verdict.verdictId = await issueTicket(env, cleared(verdict, proposal));
+  // The public check never calls an LLM. The template is the explanation, so the meter stays at 0.
+  verdict = { ...verdict, explanation: lockExplanation(undefined, verdict) };
+  verdict.verdictId = await issueTicket(env, verdict, proposal);
 
   const externalCalls = market?.externalCalls ?? 0;
+  const llmCalls = 0;
   const check: CheckMeta = {
     where: 'worker',
     engine: 'rules',
-    llmCalls: 0,
+    llmCalls,
     externalCalls,
     cacheHit: market?.cacheHit ?? false,
     dataAge: market?.dataAge ?? null,
@@ -110,15 +106,26 @@ async function guardCheck(req: Request, env: AppEnv, ctx?: ExecutionContext): Pr
   return json(verdict);
 }
 
-async function policyToken(req: Request, env: AppEnv): Promise<Response> {
-  // Only the user's own TopiaPause app may mint (same origin). Production puts this behind user login.
-  const origin = req.headers.get('Origin');
-  const self = new URL(req.url).origin;
-  if (!origin || (origin !== self && origin !== env.ALLOWED_ORIGIN)) {
-    throw new HttpError(403, 'forbidden', 'Policy tokens are issued to the TopiaPause app only');
+async function issueSession(req: Request, env: AppEnv): Promise<Response> {
+  const site = req.headers.get('Sec-Fetch-Site');
+  if (site && site !== 'same-origin' && site !== 'none') {
+    throw new HttpError(403, 'forbidden_origin', 'Sessions are issued to the TopiaPause app only');
   }
+  assertSameOrigin(req, env);
+  return json(await mintSession(env, req));
+}
+
+async function policyToken(req: Request, env: AppEnv): Promise<Response> {
   const body = await readBody(req, PolicyRequest);
+  if (policyLoosens(body.policy) && body.userConfirmedLoosening !== true) {
+    throw new HttpError(400, 'policy_loosening_rejected', 'A policy that loosens the default rules needs an explicit confirmation from the user');
+  }
   return json(await mintPolicyToken(env, body.policy));
+}
+
+async function confirmChoice(req: Request, env: AppEnv): Promise<Response> {
+  const body = await readBody(req, ConfirmRequest);
+  return json({ confirmation: await issueConfirmation(env, body.verdictId, body.choice) });
 }
 
 async function agentChat(req: Request, env: AppEnv): Promise<Response> {
@@ -139,25 +146,27 @@ async function agentChat(req: Request, env: AppEnv): Promise<Response> {
 async function execute(req: Request, env: AppEnv): Promise<Response> {
   const body = await readBody(req, ExecuteRequest);
   const proposal = body.proposal as AgentProposal;
-  await redeemTicket(env, body.verdictId, proposal);
+  await redeemTicket(env, body.verdictId, proposal, body.confirmation);
   const res: ExecuteResponse = { execution: await ubot.execute({ ...body, proposal }) };
   return json(res);
 }
 
 async function voiceTts(req: Request, env: AppEnv, ctx?: ExecutionContext): Promise<Response> {
   const body = await readBody(req, TtsRequest);
-  return tts(env, body.text, ctx);
+  return tts(env, resolveTts(body), ctx);
 }
 
 type Handler = (req: Request, env: AppEnv, ctx?: ExecutionContext) => Promise<Response> | Response;
 
-const ROUTES: Record<string, { handler: Handler; bucket?: 'api' | 'paid' }> = {
+const ROUTES: Record<string, { handler: Handler; bucket?: 'api' | 'paid'; app?: boolean; session?: boolean; paidKey?: 'chat' | 'tts' }> = {
   'GET /api/health': { handler: (_r, env) => health(env) },
   'POST /api/guard/check': { handler: guardCheck, bucket: 'api' },
-  'POST /api/policy': { handler: policyToken, bucket: 'api' },
-  'POST /api/agent/chat': { handler: agentChat, bucket: 'paid' },
+  'POST /api/session': { handler: issueSession, bucket: 'api', app: true },
+  'POST /api/policy': { handler: policyToken, bucket: 'api', session: true },
+  'POST /api/confirm': { handler: confirmChoice, bucket: 'api', session: true },
+  'POST /api/agent/chat': { handler: agentChat, bucket: 'paid', session: true, paidKey: 'chat' },
   'POST /api/agent/execute': { handler: execute, bucket: 'api' },
-  'POST /api/voice/tts': { handler: voiceTts, bucket: 'paid' },
+  'POST /api/voice/tts': { handler: voiceTts, bucket: 'paid', session: true, paidKey: 'tts' },
 };
 
 export async function handleApi(req: Request, env: AppEnv, ctx?: ExecutionContext): Promise<Response> {
@@ -173,11 +182,11 @@ export async function handleApi(req: Request, env: AppEnv, ctx?: ExecutionContex
       const known = Object.keys(ROUTES).some((k) => k.endsWith(` ${url.pathname}`));
       throw known ? new HttpError(405, 'method_not_allowed', 'Method not allowed') : new HttpError(404, 'not_found', 'Unknown API route');
     }
-    if (route.bucket === 'paid') {
-      assertSameOrigin(req, env);
-      isolateRateLimit(req, url.pathname);
-    }
-    if (route.bucket) await rateLimit(route.bucket === 'paid' ? env.RATE_LIMITER_PAID : env.RATE_LIMITER, req, route.bucket);
+    if (route.session || route.app) assertSameOrigin(req, env);
+    if (route.session) await verifySession(env, req, req.headers.get('X-TopiaPause-Session'));
+    if (route.bucket === 'paid') isolateRateLimit(req, url.pathname);
+    if (route.paidKey) await rateLimit(env.RATE_LIMITER_PAID, req, route.paidKey);
+    else if (route.bucket) await rateLimit(env.RATE_LIMITER, req, route.bucket);
     res = await route.handler(req, env, ctx);
   } catch (e) {
     if (e instanceof HttpError) res = e.toResponse();

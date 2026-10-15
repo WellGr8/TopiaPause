@@ -1,4 +1,4 @@
-import { DEFAULT_POLICY, type AgentProposal, type UserPolicy } from '@topiapause/shared';
+import { DEFAULT_POLICY, policyLoosens, type AgentProposal, type GuardVerdict, type UserPolicy } from '@topiapause/shared';
 import { HttpError, log, type AppEnv } from './http';
 import { AgentProposal as AgentProposalSchema, UserPolicy as UserPolicySchema } from './schemas';
 
@@ -10,6 +10,7 @@ import { AgentProposal as AgentProposalSchema, UserPolicy as UserPolicySchema } 
 const enc = new TextEncoder();
 const POLICY_TTL_SEC = 30 * 24 * 3600;
 export const TICKET_TTL_SEC = 10 * 60;
+const SESSION_TTL_SEC = 10 * 60;
 
 let ephemeral: CryptoKey | undefined;
 const keys = new Map<string, Promise<CryptoKey>>();
@@ -27,8 +28,11 @@ function unb64url(s: string): Uint8Array {
 async function signingKey(env: AppEnv): Promise<CryptoKey> {
   const secret = env.POLICY_SIGNING_KEY;
   if (!secret) {
+    if (env.DEV !== '1') {
+      throw new HttpError(503, 'misconfigured', 'POLICY_SIGNING_KEY is not set');
+    }
     if (!ephemeral) {
-      log({ message: 'POLICY_SIGNING_KEY not set: using a per-isolate key (tokens stop verifying after a restart)' });
+      log({ message: 'DEV=1 and POLICY_SIGNING_KEY not set: using a per-isolate key (tokens stop verifying after a restart)' });
       ephemeral = (await crypto.subtle.generateKey({ name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify'])) as CryptoKey;
     }
     return ephemeral!;
@@ -53,7 +57,8 @@ async function verify(env: AppEnv, purpose: string, token: string): Promise<unkn
   try {
     const ok = await crypto.subtle.verify('HMAC', await signingKey(env), unb64url(mac), enc.encode(`${purpose}|${body}`));
     return ok ? JSON.parse(new TextDecoder().decode(unb64url(body))) : undefined;
-  } catch {
+  } catch (e) {
+    if (e instanceof HttpError) throw e;
     return undefined;
   }
 }
@@ -64,18 +69,48 @@ const nowSec = () => Math.floor(Date.now() / 1000);
 
 export async function mintPolicyToken(env: AppEnv, policy: UserPolicy): Promise<{ policyToken: string; expiresAt: string }> {
   const exp = nowSec() + POLICY_TTL_SEC;
-  return { policyToken: await sign(env, 'policy', { v: 1, policy, exp }), expiresAt: new Date(exp * 1000).toISOString() };
+  const loosening = policyLoosens(policy);
+  return { policyToken: await sign(env, 'policy', { v: 1, policy, exp, loosening }), expiresAt: new Date(exp * 1000).toISOString() };
 }
 
 /** The user's policy from a signed token; no token means the default demo policy. */
 export async function policyFrom(env: AppEnv, token: string | undefined): Promise<{ policy: UserPolicy; source: 'token' | 'default' }> {
   if (!token) return { policy: DEFAULT_POLICY, source: 'default' };
-  const payload = (await verify(env, 'policy', token)) as { v?: number; policy?: unknown; exp?: number } | undefined;
+  const payload = (await verify(env, 'policy', token)) as { v?: number; policy?: unknown; exp?: number; loosening?: boolean } | undefined;
   if (!payload || payload.v !== 1 || typeof payload.exp !== 'number') throw new HttpError(401, 'invalid_policy_token', 'Policy token is invalid or was not issued by TopiaPause');
   if (payload.exp < nowSec()) throw new HttpError(401, 'expired_policy_token', 'Policy token expired; ask the user app for a new one');
   const parsed = UserPolicySchema.safeParse(payload.policy);
   if (!parsed.success) throw new HttpError(401, 'invalid_policy_token', 'Policy token payload is invalid');
+  if (policyLoosens(parsed.data as UserPolicy) && payload.loosening !== true) {
+    throw new HttpError(401, 'invalid_policy_token', 'This policy token loosens the default rules without a user confirmation');
+  }
   return { policy: parsed.data as UserPolicy, source: 'token' };
+}
+
+// ---------------- Browser session ----------------
+
+/** Binds a session to the client IP and a hash of the User-Agent. */
+export async function clientBinding(req: Request): Promise<string> {
+  const ip = req.headers.get('CF-Connecting-IP') ?? 'local';
+  const ua = req.headers.get('User-Agent') ?? '';
+  const digest = await crypto.subtle.digest('SHA-256', enc.encode(ua));
+  return `${ip}|${b64url(new Uint8Array(digest)).slice(0, 16)}`;
+}
+
+export async function mintSession(env: AppEnv, req: Request): Promise<{ session: string; expiresAt: string }> {
+  const exp = nowSec() + SESSION_TTL_SEC;
+  const session = await sign(env, 'session', { v: 1, bind: await clientBinding(req), exp });
+  return { session, expiresAt: new Date(exp * 1000).toISOString() };
+}
+
+export async function verifySession(env: AppEnv, req: Request, token: string | null): Promise<void> {
+  if (!token) throw new HttpError(403, 'session_required', 'This route needs a TopiaPause session');
+  const payload = (await verify(env, 'session', token)) as { v?: number; bind?: string; exp?: number } | undefined;
+  if (!payload || payload.v !== 1 || typeof payload.bind !== 'string' || typeof payload.exp !== 'number') {
+    throw new HttpError(403, 'invalid_session', 'Session token is invalid');
+  }
+  if (payload.exp < nowSec()) throw new HttpError(403, 'invalid_session', 'Session token expired');
+  if (payload.bind !== (await clientBinding(req))) throw new HttpError(403, 'invalid_session', 'Session token does not match this client');
 }
 
 // ---------------- Verdict tickets ----------------
@@ -99,22 +134,62 @@ export async function proposalHash(p: AgentProposal): Promise<string> {
   return b64url(new Uint8Array(digest)).slice(0, 32);
 }
 
-export async function issueTicket(env: AppEnv, cleared: AgentProposal[]): Promise<string> {
-  const hashes = await Promise.all(cleared.map(proposalHash));
-  return sign(env, 'verdict', { v: 1, jti: crypto.randomUUID(), h: hashes, exp: nowSec() + TICKET_TTL_SEC });
+type Ticket = {
+  v?: number;
+  jti?: string;
+  exp?: number;
+  needsUser?: boolean;
+  choices?: { original?: string; counter_offer?: string };
+};
+
+async function readTicket(env: AppEnv, ticket: string): Promise<Ticket & { jti: string; exp: number; choices: NonNullable<Ticket['choices']> }> {
+  const payload = (await verify(env, 'verdict', ticket)) as Ticket | undefined;
+  if (!payload || payload.v !== 2 || !payload.jti || typeof payload.exp !== 'number' || !payload.choices) {
+    throw new HttpError(403, 'unknown_verdict', 'verdictId was not issued by TopiaPause');
+  }
+  return payload as Ticket & { jti: string; exp: number; choices: NonNullable<Ticket['choices']> };
+}
+
+/** Pause verdicts list both proposals and require a user confirmation before execute. */
+export async function issueTicket(env: AppEnv, verdict: GuardVerdict, original: AgentProposal): Promise<string> {
+  const choices: { original?: string; counter_offer?: string } = {};
+  if (verdict.decision !== 'block') {
+    choices.original = await proposalHash(original);
+    if (verdict.counterOffer) choices.counter_offer = await proposalHash(verdict.counterOffer.proposal);
+  }
+  return sign(env, 'verdict', {
+    v: 2,
+    jti: crypto.randomUUID(),
+    exp: nowSec() + TICKET_TTL_SEC,
+    needsUser: verdict.decision === 'pause',
+    choices,
+  });
+}
+
+export async function issueConfirmation(env: AppEnv, ticket: string, choice: 'original' | 'counter_offer'): Promise<string> {
+  const payload = await readTicket(env, ticket);
+  const now = nowSec();
+  if (payload.exp < now) throw new HttpError(403, 'expired_verdict', 'Verdict expired; run the guard check again');
+  const hash = payload.choices[choice];
+  if (!hash) throw new HttpError(400, 'invalid_input', 'This verdict has no such option');
+  return sign(env, 'confirm', { v: 1, jti: payload.jti, choice, h: hash, exp: payload.exp });
 }
 
 // Single use per isolate. A multi-isolate deployment would move this to a Durable Object.
 const used = new Map<string, number>();
 
-export async function redeemTicket(env: AppEnv, ticket: string, proposal: AgentProposal): Promise<void> {
-  const payload = (await verify(env, 'verdict', ticket)) as { v?: number; jti?: string; h?: string[]; exp?: number } | undefined;
-  if (!payload || payload.v !== 1 || !payload.jti || !Array.isArray(payload.h) || typeof payload.exp !== 'number') {
-    throw new HttpError(403, 'unknown_verdict', 'verdictId was not issued by TopiaPause');
-  }
+export async function redeemTicket(env: AppEnv, ticket: string, proposal: AgentProposal, confirmation?: string): Promise<void> {
+  const payload = await readTicket(env, ticket);
   const now = nowSec();
   if (payload.exp < now) throw new HttpError(403, 'expired_verdict', 'Verdict expired; run the guard check again');
-  if (!payload.h.includes(await proposalHash(proposal))) throw new HttpError(403, 'proposal_not_cleared', 'This proposal is not the one the guard checked');
+  const hash = await proposalHash(proposal);
+  if (!Object.values(payload.choices).includes(hash)) throw new HttpError(403, 'proposal_not_cleared', 'This proposal is not the one the guard checked');
+  if (payload.needsUser) {
+    const conf = confirmation ? ((await verify(env, 'confirm', confirmation)) as { v?: number; jti?: string; h?: string; exp?: number } | undefined) : undefined;
+    if (!conf || conf.v !== 1 || conf.jti !== payload.jti || conf.h !== hash || typeof conf.exp !== 'number' || conf.exp < now) {
+      throw new HttpError(403, 'confirmation_required', 'A paused action needs a confirmation token from the user');
+    }
+  }
   for (const [k, exp] of used) if (exp < now) used.delete(k);
   if (used.has(payload.jti)) throw new HttpError(409, 'verdict_used', 'This verdict was already executed');
   used.set(payload.jti, payload.exp);

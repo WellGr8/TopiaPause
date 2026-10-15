@@ -44,12 +44,28 @@ export function passesNumberLock(text: string, allowed: number[]): boolean {
   return extractNumbers(text).every((n) => ok.has(Number(n.toFixed(6))));
 }
 
-/** Accepts an LLM explanation only if every number in both languages is engine-derived. */
+const HEAD: Record<GuardVerdict['decision'], { th: RegExp; en: RegExp }> = {
+  pause: { th: /เดี๋ยวก่อน/, en: /Hold on/ },
+  block: { th: /หยุดรายการนี้/, en: /blocked/i },
+  allow: { th: /ตรงกับที่คุณตั้งใจ/, en: /Good to go/ },
+};
+
+/** Pause and block copy must not sound like an approval. */
+function toneOk(text: string, decision: GuardVerdict['decision'], lang: 'th' | 'en'): boolean {
+  if (!HEAD[decision][lang].test(text)) return false;
+  if (decision === 'allow') return true;
+  return !/ไปต่อได้|ปลอดภัย|\bsafe\b|good to go/i.test(text);
+}
+
+/**
+ * Accepts an LLM explanation only when both languages keep the decision's tone
+ * and every number is engine-derived. Otherwise the template stands.
+ */
 export function lockExplanation(candidate: { th: string; en: string } | undefined, verdict: GuardVerdict): Explanation {
   if (!candidate) return { ...verdict.explanation, source: 'template' };
   const allowed = allowedNumbers(verdict);
-  if (passesNumberLock(candidate.th, allowed) && passesNumberLock(candidate.en, allowed)) {
-    return { th: candidate.th, en: candidate.en, source: 'llm' };
-  }
+  const numbersOk = passesNumberLock(candidate.th, allowed) && passesNumberLock(candidate.en, allowed);
+  const tone = toneOk(candidate.th, verdict.decision, 'th') && toneOk(candidate.en, verdict.decision, 'en');
+  if (numbersOk && tone) return { th: candidate.th, en: candidate.en, source: 'llm' };
   return { ...verdict.explanation, source: 'template' };
 }

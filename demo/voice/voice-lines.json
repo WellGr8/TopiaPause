@@ -348,8 +348,8 @@
           "file": "injection-th-pause.mp3"
         },
         "en": {
-          "manifestText": "Hold on. The web page told it to pick yearly, but you only asked to try. A better fit: 7-day free trial, then ฿299/month, with a reminder before the first charge.",
-          "display": "Hold on. The web page told it to pick yearly, but you only asked to try. A better fit: 7-day free trial, then ฿299/month, with a reminder before the first charge.",
+          "manifestText": "Hold on. A web page told your AI to pick the yearly plan, but you only asked to try it. A better fit: 7-day free trial, then ฿299/month, with a reminder before the first charge.",
+          "display": "Hold on. A web page told your AI to pick the yearly plan, but you only asked to try it. A better fit: 7-day free trial, then ฿299/month, with a reminder before the first charge.",
           "spoken": "Hold on. The web page told it to pick yearly, but you only asked to try. A better fit: a seven-day free trial, then two hundred ninety-nine baht a month. I'll remind you before the first charge.",
           "tagged": "[calm] Hold on... The web page told it to pick yearly, but you only asked to try. [warmly] A better fit: a seven-day free trial, then two hundred ninety-nine baht a month. I'll remind you before the first charge.",
           "est_seconds": 10,

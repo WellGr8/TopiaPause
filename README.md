@@ -72,7 +72,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for diagrams, data contracts an
 | U-Bot / u.bot | **Simulated.** u.bot has no public API, so the agent role is a stand-in. The four demo chips use a deterministic script. Free-text `POST /api/agent/chat` calls an OpenAI-compatible LLM only when `LLM_API_KEY` + `LLM_MODEL` are set, and catalog prices and the portfolio are restored afterwards. Without a key, chat stays scripted. |
 | Tokenomist | **Sample data** in the demo. The unlock note is labelled "sample data, not live" unless `TOKENOMIST_API_KEY` is set. The note never changes the decision. |
 | Explanations | Number-locked TH/EN templates (`lockExplanation`). With an LLM key, a paraphrase is shown only when every number already came from the engine. |
-| Voice | Pregenerated ElevenLabs clips in `apps/web/public/audio/` (web-64k) play when their manifest text matches the engine line. Subscription and stay match. Crypto clips still say "$200" and the English injection clip says "U-Bot", so those fall back to live `POST /api/voice/tts` (needs `ELEVENLABS_API_KEY`) and then browser `speechSynthesis`. The Thai persona is male (ผม / ครับ) to match the Brian voice. |
+| Voice | Pregenerated ElevenLabs clips in `apps/web/public/audio/` (web-64k) play when their manifest text matches the engine line. Subscription and stay match. Crypto clips still say "$200" and the English injection clip still says "U-Bot", while the engine says "200 USDT" and "A web page told your AI to pick the yearly plan, but you only asked to try it". The player compares the text and, on a mismatch, falls back to live `POST /api/voice/tts` (an engine line only; needs `ELEVENLABS_API_KEY`) and then browser `speechSynthesis`. The Thai persona is male (ผม / ครับ) to match the Brian voice. |
 | Execution and receipts | **Mock** (`POST /api/agent/execute`, `mode: 'mock'`, sandbox ref). No wallet, no payment. The cost meter and the receipt arithmetic are real. |
 | Web ↔ API | The web app feature-detects `/api/health`. With the Worker it calls the API; on plain Vite or offline it runs the same engine in the browser. |
 | Persistence | `localStorage` only (rules, activity, language, theme). |
@@ -126,7 +126,7 @@ The voice lines for the 3 scenes are in [`demo/voice/voice-lines.md`](demo/voice
 ```bash
 export ELEVENLABS_API_KEY=...  ELEVENLABS_VOICE_ID=...   # or put them in workers/api/.dev.vars
 pnpm voice:pregen --dry-run      # list the 30 clips and character count (no key needed)
-pnpm voice:pregen                # writes apps/web/public/audio/*.mp3 + manifest.json (model eleven_v3)
+pnpm voice:pregen                # writes apps/web/public/audio/*.mp3 + manifest.json (script default eleven_v3; live Worker TTS uses eleven_v4)
 pnpm voice:pregen --tagged       # use the tagged text instead
 pnpm voice:pregen --only=crypto-th --force   # regenerate a subset
 ```
@@ -135,12 +135,12 @@ pnpm voice:pregen --only=crypto-th --force   # regenerate a subset
 - Existing clips are skipped unless the voice, model or text field changed, or you pass `--force`.
 - Without a key the script prints a note and exits 0.
 
-The stage clips (64 kbps) and `manifest.json` are already in `apps/web/public/audio/`. The app plays `warning` then `counter` when that manifest `text` equals the engine `voiceText`, otherwise the combined `pause` clip, otherwise live TTS, otherwise browser speech. Subscription and stay match and play. Crypto recordings still say "$200" and the English injection recording says "told U-Bot", while the engine says "200 USDT" and "told it", so those fall back to live TTS. `pnpm voice:pregen` can regenerate clips when you have an ElevenLabs key. A Vitest test checks that `voice-lines.json` pause text still matches the engine, and that the injection warning/counter keys exist in the manifest.
+The stage clips (64 kbps) and `manifest.json` are already in `apps/web/public/audio/`. The app plays `warning` then `counter` when that manifest `text` equals the engine `voiceText`, otherwise the combined `pause` clip, otherwise live TTS, otherwise browser speech. Subscription and stay match and play. Crypto recordings still say "$200" and the English injection recording says "told U-Bot". The engine says "200 USDT" and "A web page told your AI to pick the yearly plan, but you only asked to try it", so those clips do not match and the player falls back to live TTS of the engine line, then browser speech. The mp3s are left as recorded. `pnpm voice:pregen` can regenerate clips when you have an ElevenLabs key. A Vitest test checks that `voice-lines.json` pause text still matches the engine, and that the injection warning/counter keys exist in the manifest.
 
 ## Test and typecheck
 
 ```bash
-pnpm test           # Vitest: shared 16, guard-engine 60, web 45, worker API 56
+pnpm test           # Vitest: shared 16, guard-engine 61, web 46, worker API 63
 pnpm typecheck      # tsc across all workspaces
 pnpm --filter @topiapause/guard-engine test   # engine only
 ```
@@ -155,7 +155,16 @@ Key `a_max` cases (V = $2,000, H = $400, B = 500 USDT, cap 30%):
 
 ## Deploy (one Cloudflare Worker: SPA + API)
 
-`workers/api/wrangler.jsonc` deploys a single Worker named `topiapause` that serves `apps/web/dist` as static assets (SPA fallback) and runs the Worker only for `/api/*`. Rate limiting uses Workers Rate Limiting bindings, so no KV or D1 has to be created.
+`wrangler.jsonc` at the repo root deploys a single Worker named `topiapause`. It serves `apps/web/dist` as static assets (SPA fallback) and runs `workers/api/src/index.ts` only for `/api/*`. `workers/api/wrangler.jsonc` is the same Worker with paths relative to that directory, used by `pnpm dev:worker`. Rate limiting uses Workers Rate Limiting bindings, so no KV or D1 has to be created.
+
+Cloudflare Workers Builds, from `main`:
+
+```bash
+pnpm install && pnpm build
+wrangler deploy
+```
+
+`wrangler deploy` with no `-c` reads the root `wrangler.jsonc`, so the static assets are `apps/web/dist`. From this repo without a global wrangler binary, the same deploy is `pnpm --filter @topiapause/api exec wrangler deploy -c ../../wrangler.jsonc`. `pnpm run deploy` builds the web app and deploys with `workers/api/wrangler.jsonc`. Use `pnpm run deploy`, not `pnpm deploy`: `pnpm deploy` is a built-in pnpm command with a different meaning.
 
 ### Automatic (GitHub Actions, push to `main`)
 
@@ -166,7 +175,7 @@ Key `a_max` cases (V = $2,000, H = $400, B = 500 USDT, cap 30%):
    - `CLOUDFLARE_ACCOUNT_ID` (required)
    - `LLM_API_KEY` (optional, enables the LLM agent)
    - `ELEVENLABS_API_KEY` (optional, enables ElevenLabs voice)
-4. **Non-secret config:** set `LLM_MODEL` (e.g. `gpt-4o-mini`), `LLM_BASE_URL` (only if not OpenAI) and `ELEVENLABS_VOICE_ID` in the `vars` block of `workers/api/wrangler.jsonc`. `ELEVENLABS_MODEL_ID` defaults to `eleven_v3`.
+4. **Non-secret config** is already in the `vars` block of `wrangler.jsonc` and `workers/api/wrangler.jsonc`: `LLM_BASE_URL=https://openrouter.ai/api/v1`, `LLM_MODEL=openai/gpt-4o-mini`, `ELEVENLABS_VOICE_ID=nPczCjzI2devNBz1zQrb`, `ELEVENLABS_MODEL_ID=eleven_v4`. A deploy replaces the live Worker's vars with this block, so leave the values filled in. API keys and `POLICY_SIGNING_KEY` are secrets only — they are not in `vars`.
 5. Push or merge to `main`. `.github/workflows/deploy.yml` runs typecheck + tests, then `pnpm run deploy`, then syncs the optional secrets with `wrangler secret put`. If the two Cloudflare secrets are missing, the job logs a notice and skips; it doesn't fail.
 6. **Optional smoke test:** add the repository *variable* `TOPIAPAUSE_URL` (e.g. `https://topiapause.<subdomain>.workers.dev`). After each deploy the workflow curls `/api/health` and runs `scripts/demo-curl.sh` against it.
 
@@ -180,7 +189,7 @@ GitHub Actions deploys are blocked while the repository's GitHub billing lock is
 # Node >= 22 (see .nvmrc). wrangler 4 does not run on 20.
 pnpm install
 npx wrangler login                 # or export CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID
-pnpm run deploy                    # = pnpm build && wrangler deploy (in workers/api)
+pnpm install && pnpm build && wrangler deploy   # Workers Builds shape, from the repo root
 
 cd workers/api
 npx wrangler secret put POLICY_SIGNING_KEY   # required: openssl rand -base64 32
@@ -193,7 +202,7 @@ cd ../..
 
 Use `pnpm run deploy`, not `pnpm deploy`: `pnpm deploy` is a built-in pnpm command with a different meaning.
 
-Before the first manual deploy, set `LLM_MODEL` (for example `gpt-4o-mini`) and `ELEVENLABS_VOICE_ID` in the `vars` block of `workers/api/wrangler.jsonc` if you want those integrations. Leave them empty and chat stays scripted and voice stays in the browser.
+The `vars` block already points chat at OpenRouter `openai/gpt-4o-mini` and TTS at ElevenLabs voice `nPczCjzI2devNBz1zQrb` with model `eleven_v4`. Do not clear those vars: an empty value overwrites the live Worker on the next deploy. Chat still stays scripted until `LLM_API_KEY` is set as a secret, and live TTS stays off until `ELEVENLABS_API_KEY` is set the same way. `POLICY_SIGNING_KEY` is a secret too.
 
 Two limits of a `*.workers.dev` deploy:
 
@@ -202,15 +211,17 @@ Two limits of a `*.workers.dev` deploy:
 
 ### Keys
 
-- Secrets live only in Worker secrets (production) or `workers/api/.dev.vars` (local, gitignored; start from `.dev.vars.example`). They are never bundled into the web app, never put in `VITE_*`, and never returned by any endpoint. `/api/health` only reports `llm: "llm" | "scripted"` and `tts: "elevenlabs" | "unavailable"`.
+- Secrets (`POLICY_SIGNING_KEY`, `LLM_API_KEY`, `ELEVENLABS_API_KEY`, `TOKENOMIST_API_KEY`) live only in Worker secrets (production) or `workers/api/.dev.vars` (local, gitignored; start from `.dev.vars.example`). They are never in `wrangler.jsonc` `vars`, never bundled into the web app, never put in `VITE_*`, and never returned by any endpoint. `/api/health` only reports `llm: "llm" | "scripted"` and `tts: "elevenlabs" | "unavailable"`.
 - Without any key, every route still works: scripted U-Bot, browser speech, real guard engine.
-- If the web app is served from another origin, set `ALLOWED_ORIGIN` for chat, TTS and execute. Chat and TTS also return 403 `forbidden_origin` when `Origin` is some other site or `Sec-Fetch-Site` is `cross-site`. `guard/check` and `health` are open to any origin.
+- If the web app is served from another origin, set `ALLOWED_ORIGIN`. Chat, TTS, policy, confirm, and session return 403 `forbidden_origin` when `Origin` is missing or is some other site, or when `Sec-Fetch-Site` is `cross-site`. Those routes (except session) also need `X-TopiaPause-Session`. `guard/check` and `health` are open to any origin. `guard/check` does not call the LLM.
+- Chat and TTS have separate 20/minute budgets per IP. A per-isolate daily cap (`PAID_DAILY_MAX`, default 300) stops further upstream LLM and TTS calls. After deploy, the 21st paid call in a minute from one IP should be 429. Set spend limits on the OpenRouter and ElevenLabs accounts as well. Do not deploy this branch until `POLICY_SIGNING_KEY` is set with `openssl rand -base64 32 | wrangler secret put POLICY_SIGNING_KEY`.
+- `prefers-reduced-motion` keeps the top glow static.
 - After editing bindings, run `pnpm --filter @topiapause/api types`.
 
 ## Open questions (need a mentor or account check)
 
 - **Real U-Bot API**: does U-topia expose one (API, webhook, sandbox)? If yes, add a `RealUBotAdapter` that implements `UBotAdapter` in `packages/shared/src/types.ts`; the guard check must still run before `execute()`.
-- **Eleven v3 model id**: Thai needs Eleven v3. `ELEVENLABS_MODEL_ID` defaults to `eleven_v3`, which still has to be verified (along with latency) on our account. Flash v2.5 (`eleven_flash_v2_5`) is English only.
+- **Eleven model id**: live TTS uses `eleven_v4` (`ELEVENLABS_MODEL_ID` in `wrangler.jsonc`). Confirm Thai latency on the account. Flash v2.5 (`eleven_flash_v2_5`) is English only.
 - Submission deadline (Fri 16 Oct 14:00 Bangkok) is unconfirmed.
 
 ## Limitations

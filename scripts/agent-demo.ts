@@ -44,8 +44,12 @@ const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;
 const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
 const COLOR = { allow: '\x1b[32m', pause: '\x1b[34m', block: '\x1b[33m' } as const;
 
-async function post(path: string, body: unknown): Promise<{ status: number; json: any }> {
-  const res = await fetch(`${BASE}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+async function post(path: string, body: unknown, headers: Record<string, string> = {}): Promise<{ status: number; json: any }> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify(body),
+  });
   return { status: res.status, json: await res.json() };
 }
 
@@ -91,10 +95,27 @@ async function main(): Promise<void> {
   console.log(`  HTTP ${attack.status}: ${attack.json.error?.code}`);
 
   if (crypto?.counterOffer) {
-    console.log(`\n${bold('▶ User picks the better fit; ShopBot executes with the verdict ticket')}`);
-    const ok = await post('/api/agent/execute', { proposal: crypto.counterOffer.proposal, verdictId: crypto.verdictId, userConfirmed: true });
+    console.log(`\n${bold('▶ ShopBot tries to execute a pause with only userConfirmed')}`);
+    const denied = await post('/api/agent/execute', { proposal: crypto.counterOffer.proposal, verdictId: crypto.verdictId, userConfirmed: true });
+    console.log(`  HTTP ${denied.status}: ${denied.json.error?.code}`);
+    const app = { Origin: BASE, 'Sec-Fetch-Site': 'none' };
+    const sess = await post('/api/session', {}, app);
+    const authed = { ...app, 'X-TopiaPause-Session': sess.json.session as string };
+    const conf = await post('/api/confirm', { verdictId: crypto.verdictId, choice: 'counter_offer' }, authed);
+    console.log(`\n${bold('▶ User confirms in the app; ShopBot executes with that token')}`);
+    const ok = await post('/api/agent/execute', {
+      proposal: crypto.counterOffer.proposal,
+      verdictId: crypto.verdictId,
+      userConfirmed: true,
+      confirmation: conf.json.confirmation,
+    });
     console.log(`  HTTP ${ok.status}: ${ok.json.execution ? `${ok.json.execution.status} ${ok.json.execution.ref}` : ok.json.error?.code}`);
-    const replay = await post('/api/agent/execute', { proposal: crypto.counterOffer.proposal, verdictId: crypto.verdictId, userConfirmed: true });
+    const replay = await post('/api/agent/execute', {
+      proposal: crypto.counterOffer.proposal,
+      verdictId: crypto.verdictId,
+      userConfirmed: true,
+      confirmation: conf.json.confirmation,
+    });
     console.log(`  replay → HTTP ${replay.status}: ${replay.json.error?.code}`);
     const forged = await post('/api/agent/execute', { proposal: crypto.counterOffer.proposal, verdictId: 'v-forged', userConfirmed: true });
     console.log(`  forged id → HTTP ${forged.status}: ${forged.json.error?.code}`);

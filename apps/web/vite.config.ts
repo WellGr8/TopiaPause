@@ -14,4 +14,6 @@ export default defineConfig({
     proxy: process.env.TOPIAPAUSE_API ? { '/api': { target: process.env.TOPIAPAUSE_API, changeOrigin: true } } : undefined,
   },
   preview: { host: '0.0.0.0', port: 4173 },
+  // Keep fonts as files. The CSP is font-src 'self', so inlined data: fonts would be blocked.
+  build: { assetsInlineLimit: 0 },
 });

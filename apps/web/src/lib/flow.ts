@@ -150,7 +150,7 @@ function useChatFlowImpl() {
       const verdict = verdictFor(run, lang);
       const chosen = choice === 'counter_offer' ? verdict.counterOffer?.proposal : choice === 'original' ? run.proposal : undefined;
       const execution: Execution = chosen
-        ? ((run.verdict ? await apiExecute(chosen, run.verdict.verdictId) : null) ?? mockExecute())
+        ? ((run.verdict && (choice === 'original' || choice === 'counter_offer') ? await apiExecute(chosen, run.verdict.verdictId, choice) : null) ?? mockExecute())
         : { mode: 'mock', status: 'skipped' };
       const receipt: Receipt = {
         receiptId: newId('rcpt'),

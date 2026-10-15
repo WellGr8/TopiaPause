@@ -131,7 +131,8 @@ export type RuleId =
   | 'INVALID_INPUT'
   | 'LOW_CONFIDENCE'
   | 'UNLOCK_SOON'
-  | 'AGENT_FOLLOWED_UNTRUSTED';
+  | 'AGENT_FOLLOWED_UNTRUSTED'
+  | 'FX_UNAVAILABLE';
 
 export type Evidence = Record<string, number | string | boolean | Money>;
 

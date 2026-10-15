@@ -1,6 +1,6 @@
 import { allowedNumbers } from '@topiapause/guard-engine';
 import { SCENES, newId, type AgentProposal, type GuardVerdict, type Lang, type SceneId } from '@topiapause/shared';
-import { log, type AppEnv } from './http';
+import { chargePaid, log, type AppEnv } from './http';
 import { ExplainDraft, LlmTurn } from './schemas';
 
 // LLM-powered mock U-Bot. Provider-agnostic: any OpenAI-compatible
@@ -17,7 +17,7 @@ export interface LlmResult {
   proposal?: AgentProposal;
 }
 
-const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
+const DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
 const TIMEOUT_MS = 12_000;
 const EXPLAIN_TIMEOUT_MS = 8_000;
 
@@ -59,6 +59,10 @@ function harden(scene: SceneId, p: AgentProposal): AgentProposal | undefined {
 /** Returns null on any failure so the caller can fall back to the scripted mock. */
 export async function llmChat(env: AppEnv, input: { message: string; lang: Lang; scene?: SceneId }): Promise<LlmResult | null> {
   if (!llmConfigured(env)) return null;
+  if (!chargePaid(env)) {
+    log({ message: 'paid daily cap', kind: 'llm' });
+    return null;
+  }
   const base = (env.LLM_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
   const started = Date.now();
   try {
@@ -120,12 +124,20 @@ export async function llmExplain(env: AppEnv, verdict: GuardVerdict): Promise<{ 
           {
             role: 'system',
             content: [
-              'Paraphrase this guard explanation in Thai (th) and English (en).',
+              'Paraphrase a guard decision in Thai (th) and English (en).',
+              `The decision is ${verdict.decision}. Do not change it.`,
+              verdict.decision === 'pause' ? 'Start the Thai line with เดี๋ยวก่อน and the English line with "Hold on".' : '',
+              verdict.decision === 'block' ? 'Say the action is blocked (หยุดรายการนี้ / blocked).' : '',
+              verdict.decision === 'allow' ? 'Say it matches what the user meant (ตรงกับที่คุณตั้งใจ / Good to go).' : '',
+              'Do not call a paused or blocked action safe, and do not say good to go unless the decision is allow.',
+              'Do not include hotel, plan, merchant, or asset names.',
               `Use only numbers from this list. Any other number is rejected: ${numbers.join(', ') || '(none)'}`,
-              'Do not change the decision. Return only JSON {"th":"...","en":"..."}.',
-            ].join('\n'),
+              'Return only JSON {"th":"...","en":"..."}.',
+            ]
+              .filter(Boolean)
+              .join('\n'),
           },
-          { role: 'user', content: verdict.explanation.en },
+          { role: 'user', content: `Rules: ${verdict.findings.map((f) => f.ruleId).join(', ') || 'none'}` },
         ],
       }),
       signal: AbortSignal.timeout(EXPLAIN_TIMEOUT_MS),

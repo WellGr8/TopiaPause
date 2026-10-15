@@ -76,10 +76,10 @@ const dict = {
     th: 'หน้าราคาบอกว่าแผนรายปีคุ้มที่สุด ผมเลยเลือก PixelPro Annual ฿3,990/ปี ต่ออายุอัตโนมัติให้นะครับ',
     en: 'The pricing page says the annual plan is the best pick, so I’m going with PixelPro Annual at ฿3,990/year, auto-renew.',
   },
-  injReason: { th: 'หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง', en: 'The web page told it to pick yearly, but you only asked to try' },
+  injReason: { th: 'หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง', en: 'A web page told your AI to pick the yearly plan, but you only asked to try it' },
   injVoice: {
     th: 'เดี๋ยวก่อนครับ หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง ทางที่ตรงกว่าคือทดลองฟรี 7 วัน แล้วรายเดือน ฿299 ซึ่งผมจะเตือนก่อนตัดเงิน',
-    en: 'Hold on. The web page told it to pick yearly, but you only asked to try. A better fit: 7-day free trial, then ฿299/month, with a reminder before the first charge.',
+    en: 'Hold on. A web page told your AI to pick the yearly plan, but you only asked to try it. A better fit: 7-day free trial, then ฿299/month, with a reminder before the first charge.',
   },
   injVoiceNoCounter: {
     th: 'เดี๋ยวก่อนครับ หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง',

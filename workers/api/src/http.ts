@@ -6,9 +6,13 @@ import { issues } from './schemas';
 export interface Secrets {
   LLM_API_KEY?: string;
   ELEVENLABS_API_KEY?: string;
-  /** HMAC key for policy tokens and verdict tickets. Required in production. */
+  /** HMAC key for policy tokens, sessions, and verdict tickets. Required unless DEV=1. */
   POLICY_SIGNING_KEY?: string;
   TOKENOMIST_API_KEY?: string;
+  /** Set to "1" only in local `.dev.vars`. Production must leave this unset. */
+  DEV?: string;
+  /** Max LLM + TTS upstream calls per isolate per UTC day. Default 300. */
+  PAID_DAILY_MAX?: string;
 }
 export type AppEnv = Env & Secrets;
 
@@ -18,9 +22,9 @@ export const MAX_BODY_BYTES = 32 * 1024;
 export const PUBLIC_ROUTES = new Set(['/api/guard/check', '/api/health']);
 
 /**
- * Paid routes (LLM chat, TTS) reject a cross-site browser call.
+ * App routes reject a cross-site browser call and a missing Origin.
  * CORS headers alone do not stop a POST that ignores them.
- * A missing Origin is allowed so local curl still works; browsers always send Origin.
+ * `DEV=1` (local `.dev.vars` only) still allows a missing Origin.
  */
 export function assertSameOrigin(req: Request, env: AppEnv): void {
   const site = req.headers.get('Sec-Fetch-Site');
@@ -28,7 +32,10 @@ export function assertSameOrigin(req: Request, env: AppEnv): void {
     throw new HttpError(403, 'forbidden_origin', 'This route only accepts same-origin requests');
   }
   const origin = req.headers.get('Origin');
-  if (!origin) return;
+  if (!origin) {
+    if (env.DEV === '1') return;
+    throw new HttpError(403, 'forbidden_origin', 'This route only accepts same-origin requests');
+  }
   const self = new URL(req.url).origin;
   const allowed = origin === self || (Boolean(env.ALLOWED_ORIGIN) && origin === env.ALLOWED_ORIGIN);
   if (!allowed) throw new HttpError(403, 'forbidden_origin', 'This route only accepts same-origin requests');
@@ -48,7 +55,7 @@ export function corsHeaders(req: Request, env: AppEnv, path: string): Record<str
     return {
       'Access-Control-Allow-Origin': origin,
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, X-TopiaPause-Session',
       Vary: 'Origin',
     };
   }
@@ -58,7 +65,13 @@ export function corsHeaders(req: Request, env: AppEnv, path: string): Record<str
 export function json(data: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers },
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'no-referrer',
+      ...headers,
+    },
   });
 }
 
@@ -109,9 +122,28 @@ const isolateHits = new Map<string, number[]>();
 const ISOLATE_WINDOW_MS = 60_000;
 const ISOLATE_LIMIT = 20;
 
+const paidSpend = new Map<string, { day: string; n: number }>();
+
 /** Drops in-memory buckets. Tests call this so one suite does not trip the next. */
 export function resetIsolateRateLimit(): void {
   isolateHits.clear();
+  paidSpend.clear();
+}
+
+/**
+ * Counts LLM and TTS upstream calls for this isolate. Over the daily cap the caller
+ * skips the paid provider. The counter is not shared across isolates.
+ */
+export function chargePaid(env: AppEnv): boolean {
+  const raw = env.PAID_DAILY_MAX;
+  const parsed = raw === undefined || raw === '' ? 300 : Number(raw);
+  const max = Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 300;
+  const day = new Date().toISOString().slice(0, 10);
+  const cur = paidSpend.get('paid');
+  const n = cur && cur.day === day ? cur.n : 0;
+  if (n >= max) return false;
+  paidSpend.set('paid', { day, n: n + 1 });
+  return true;
 }
 
 /**
