@@ -25,7 +25,9 @@ function demoAudio(): Plugin {
       });
     },
     closeBundle() {
-      if (existsSync(AUDIO_DIR)) cpSync(AUDIO_DIR, join(outDir, 'audio'), { recursive: true });
+      if (existsSync(AUDIO_DIR)) {
+        cpSync(AUDIO_DIR, join(outDir, 'audio'), { recursive: true, filter: (src) => !src.endsWith('.md') });
+      }
     },
   };
 }
