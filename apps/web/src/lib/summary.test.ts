@@ -36,4 +36,17 @@ describe('pause card face', () => {
     expect(line).not.toMatch(/฿|TOKEN-X|เพดาน|พอร์ต/);
     expect(offerOf(v, 'th')).toEqual({ value: '200 USDT', detail: 'ให้ดึงเงินได้แค่ครั้งนี้' });
   });
+
+  it('cites the per-payment rule ahead of the hotel line', () => {
+    const preset = SCENES.stay;
+    const proposal = preset.buildProposal();
+    const v = evaluate({
+      intent: sceneIntent('stay', preset.userText.th, 'th'),
+      proposal,
+      policy: { ...DEFAULT_POLICY, perPaymentLimit: { minor: 50000, currency: 'THB' } },
+      lang: 'th',
+    });
+    expect(reasonLine(v, proposal, 'th')).toBe('ติดกฎที่คุณตั้งไว้: จ่ายได้ไม่เกิน ฿500.00 ต่อครั้ง');
+    expect(reasonLine(v, proposal, 'en')).toBe('Paused by your rule: max ฿500.00 per payment');
+  });
 });

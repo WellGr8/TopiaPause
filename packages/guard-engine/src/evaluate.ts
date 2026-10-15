@@ -15,7 +15,7 @@ import {
   type UntrustedSource,
   type UserPolicy,
 } from '@topiapause/shared';
-import { DEFAULT_FX, confidenceRule, stayRules, subscriptionRules, swapRules, type RuleResult } from './rules';
+import { DEFAULT_FX, confidenceRule, stayRules, subscriptionRules, swapRules, userRuleFindings, type RuleResult } from './rules';
 import { findInstruction, untrustedRule } from './untrusted';
 
 export const ENGINE_VERSION = '0.2.0';
@@ -49,7 +49,7 @@ function runRules({ intent, proposal, policy, fx = DEFAULT_FX, sources }: Evalua
       : proposal.kind === 'stay'
         ? stayRules(intent, proposal, policy, fx)
         : swapRules(intent, proposal, policy, fx);
-  const findings = [...r.findings, ...confidenceRule(intent)];
+  const findings = [...userRuleFindings(proposal, policy, fx), ...r.findings, ...confidenceRule(intent)];
   return { ...r, findings: [...untrustedRule(intent, proposal, findings, sources), ...findings] };
 }
 

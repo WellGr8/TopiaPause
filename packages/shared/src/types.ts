@@ -15,6 +15,13 @@ export interface Money {
 // ---- User policy (memory) ----
 export interface UserPolicy {
   monthlySubscriptionCap?: Money;
+  /**
+   * Max one charge, in THB satang. Absent: no per-payment cap.
+   * A charge strictly above this is paused. Exactly the limit is allowed.
+   */
+  perPaymentLimit?: Money;
+  /** Pause a subscription that is annual or set to auto-renew. Off by default. */
+  blockAnnualAutoRenew?: boolean;
   requireRefundableWhenFlexible: boolean;
   maxRefundablePremiumPct: number;
   tokenConcentrationCaps: Record<string, number>;
@@ -132,7 +139,9 @@ export type RuleId =
   | 'LOW_CONFIDENCE'
   | 'UNLOCK_SOON'
   | 'AGENT_FOLLOWED_UNTRUSTED'
-  | 'FX_UNAVAILABLE';
+  | 'FX_UNAVAILABLE'
+  | 'USER_PAYMENT_LIMIT'
+  | 'USER_BLOCK_ANNUAL';
 
 export type Evidence = Record<string, number | string | boolean | Money>;
 

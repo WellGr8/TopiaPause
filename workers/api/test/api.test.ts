@@ -255,6 +255,43 @@ describe('policy and intent are user-owned (the agent cannot relax them)', () =>
     expect((await check({ ...scene('crypto'), policyToken: other })).res.status).toBe(401);
   });
 
+  function ticketPayload(verdictId: string): Record<string, unknown> {
+    const body = verdictId.split('.')[0] ?? '';
+    const pad = body.replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(pad + '='.repeat((4 - (pad.length % 4)) % 4))) as Record<string, unknown>;
+  }
+
+  it('rejects a policy with an unknown key, a non-integer satang amount, or a non-THB cap', async () => {
+    const headers = await appHeaders();
+    const extra = await call('/api/policy', { json: { policy: { ...DEFAULT_POLICY, surprise: true } }, headers });
+    expect(extra.status).toBe(400);
+    expect(((await extra.json()) as V).error.code).toBe('invalid_input');
+    const fraction = await call('/api/policy', { json: { policy: { ...DEFAULT_POLICY, perPaymentLimit: { minor: 10.5, currency: 'THB' } } }, headers });
+    expect(fraction.status).toBe(400);
+    const usd = await call('/api/policy', { json: { policy: { ...DEFAULT_POLICY, perPaymentLimit: { minor: 50000, currency: 'USD' } } }, headers });
+    expect(usd.status).toBe(400);
+    const huge = await call('/api/policy', { json: { policy: { ...DEFAULT_POLICY, perPaymentLimit: { minor: 100_000_000_01, currency: 'THB' } } }, headers });
+    expect(huge.status).toBe(400);
+  });
+
+  it('applies a per-payment cap and binds that policy into the verdict ticket', async () => {
+    const tight = await mint({ ...DEFAULT_POLICY, perPaymentLimit: { minor: 50000, currency: 'THB' } });
+    const loose = await mint({ ...DEFAULT_POLICY, perPaymentLimit: { minor: 200000, currency: 'THB' } });
+    const paused = await check({ ...scene('stay'), policyToken: tight });
+    expect(paused.res.status).toBe(200);
+    expect(paused.v.findings.map((f: V) => f.ruleId)).toContain('USER_PAYMENT_LIMIT');
+    expect(paused.v.explanation.th).toContain('ติดกฎที่คุณตั้งไว้: จ่ายได้ไม่เกิน ฿500.00 ต่อครั้ง');
+    const followed = await check({ ...scene('stay'), policyToken: loose });
+    expect(followed.v.findings.map((f: V) => f.ruleId)).not.toContain('USER_PAYMENT_LIMIT');
+    const hashA = ticketPayload(paused.v.verdictId).policyHash;
+    const hashB = ticketPayload(followed.v.verdictId).policyHash;
+    expect(hashA).toEqual(expect.any(String));
+    expect(hashA).not.toBe(hashB);
+    const annual = await mint({ ...DEFAULT_POLICY, blockAnnualAutoRenew: true });
+    const year = await check({ ...scene('subscription'), policyToken: annual });
+    expect(year.v.findings.map((f: V) => f.ruleId)).toContain('USER_BLOCK_ANNUAL');
+  });
+
   it('a token minted by the user app applies the user policy', async () => {
     const strict = await mint({ ...DEFAULT_POLICY, monthlySubscriptionCap: { minor: 20000, currency: 'THB' } });
     const proposal = { ...SCENES.subscription.buildProposal({}), planId: 'pixelpro-monthly', price: { minor: 29900, currency: 'THB' }, interval: 'month', trialDays: 7 };

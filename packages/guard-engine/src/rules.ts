@@ -485,6 +485,54 @@ export function swapRules(intent: ActionIntent, p: TokenSwapProposal, policy: Us
   return result;
 }
 
+/** User-set rules. Absent fields match today's demo: no per-payment cap, annual block off. */
+export function userRuleFindings(proposal: AgentProposal, policy: UserPolicy, fx: FxRate[]): Finding[] {
+  const findings: Finding[] = [];
+  const limit = policy.perPaymentLimit;
+  if (limit && limit.currency === 'THB' && Number.isSafeInteger(limit.minor) && limit.minor >= 0) {
+    const raw = proposal.kind === 'subscription' ? proposal.price : proposal.kind === 'stay' ? proposal.totalPrice : proposal.amountIn;
+    if (raw.currency === 'THB') {
+      if (raw.minor > limit.minor) {
+        findings.push({
+          ruleId: 'USER_PAYMENT_LIMIT',
+          severity: 'pause',
+          evidence: { amount: raw, limit },
+          messageKey: 'user_payment_limit',
+        });
+      }
+    } else {
+      const rate = findFx(fx, raw.currency, 'THB');
+      if (!rate) {
+        findings.push({
+          ruleId: 'FX_UNAVAILABLE',
+          severity: 'pause',
+          evidence: { priceCurrency: raw.currency, capCurrency: 'THB' },
+          messageKey: 'fx_unavailable',
+        });
+      } else {
+        const thb = convert(raw, rate);
+        if (thb.minor > limit.minor) {
+          findings.push({
+            ruleId: 'USER_PAYMENT_LIMIT',
+            severity: 'pause',
+            evidence: { amount: thb, limit, fxRate: rate.rate },
+            messageKey: 'user_payment_limit',
+          });
+        }
+      }
+    }
+  }
+  if (policy.blockAnnualAutoRenew && proposal.kind === 'subscription' && (proposal.interval === 'year' || proposal.autoRenew)) {
+    findings.push({
+      ruleId: 'USER_BLOCK_ANNUAL',
+      severity: 'pause',
+      evidence: { interval: proposal.interval, autoRenew: proposal.autoRenew, price: proposal.price },
+      messageKey: 'user_block_annual',
+    });
+  }
+  return findings;
+}
+
 export function confidenceRule(intent: ActionIntent): Finding[] {
   if (Number.isFinite(intent.confidence) && intent.confidence >= 0.7) return [];
   return [

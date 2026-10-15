@@ -9,6 +9,7 @@ A guard for an AI that is about to pay, subscribe, book, or swap. The rules engi
 You say what you meant. The AI assistant proposes an action. TopiaPause checks with you before anything is paid.
 
 - The guard engine decides: allow, pause, or block. The LLM never picks the decision and never invents a price.
+- Rules you set in the app (a per-payment limit, no annual or auto-renew plan, no unlimited USDT withdrawal) are what the engine checks. The model does not decide them.
 - Money is integer minor units, exact to the satang (and to the micro-USDT). Crypto amounts stay in USDT, not baht.
 - Each API check signs a verdict ticket and stores it once in a Durable Object. A replay is rejected. A paused swap or plan needs one more tap before anything runs.
 - A pause speaks a warning. You can answer by voice. Speech never pays: the app shows what it heard, and you tap to confirm.
@@ -65,7 +66,7 @@ Node 22 and pnpm 10.
 ```bash
 pnpm install
 pnpm dev          # http://localhost:5173 — works with no keys
-pnpm test         # 293 tests
+pnpm test         # 301 tests
 pnpm typecheck
 pnpm build
 ```

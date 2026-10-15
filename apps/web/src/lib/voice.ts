@@ -128,7 +128,9 @@ export async function speak(input: { text: string; lang: Lang; clipId?: string }
     ? ((await clipUrls(input.clipId, input.lang, input.text, ['warning', 'counter'])) ?? (await clipUrls(input.clipId, input.lang, input.text, ['pause'])))
     : null;
   if (gen !== generation) return;
-  const urls = clips ?? [await ttsUrl(input.text, input.lang, input.clipId)].filter((u): u is string => Boolean(u));
+  // A user-rule sentence does not match the scene clip. Ask TTS for this exact text;
+  // if the worker rejects it, browser speech says the same line.
+  const urls = clips ?? [await ttsUrl(input.text, input.lang)].filter((u): u is string => Boolean(u));
   if (gen !== generation) return;
   if (urls.length && (await playSequence(urls, ev, gen))) return;
   if (gen !== generation) return;
