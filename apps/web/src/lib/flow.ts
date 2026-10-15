@@ -95,13 +95,19 @@ function useChatFlowImpl() {
     async (text: string, scene?: SceneId) => {
       const { lang } = ref.current;
       dispatch({ type: 'push', item: { id: newId('u'), type: 'user', text } });
-      const typingId = newId('typing');
-      dispatch({ type: 'push', item: { id: typingId, type: 'typing' } });
-
-      const typing = wait(850);
-      const turn: ChatTurn = (await apiChat({ message: text, scene, lang })) ?? { ...scriptedChat({ message: text, scene, lang }), source: 'scripted' };
-      await typing;
-      dispatch({ type: 'replace', id: typingId, item: { id: typingId, type: 'ubot', text: turn.reply } });
+      const scripted = (): ChatTurn => ({ ...scriptedChat({ message: text, scene, lang }), source: 'scripted' });
+      // The four demo chips (three scenes + injection) stay on the scripted path so the stage demo is instant.
+      // Only a typed message calls the live LLM, and only that path shows a thinking state.
+      let turn: ChatTurn;
+      if (scene) {
+        turn = scripted();
+        dispatch({ type: 'push', item: { id: newId('b'), type: 'ubot', text: turn.reply } });
+      } else {
+        const thinkingId = newId('thinking');
+        dispatch({ type: 'push', item: { id: thinkingId, type: 'thinking' } });
+        turn = (await apiChat({ message: text, lang })) ?? scripted();
+        dispatch({ type: 'replace', id: thinkingId, item: { id: thinkingId, type: 'ubot', text: turn.reply } });
+      }
       const runScene = turn.scene ?? (turn.proposal ? SCENE_OF[turn.proposal.kind] : undefined);
       if (!turn.proposal || !runScene) return;
       const intent = turn.intent ?? extractIntentMock(text, runScene, lang);

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Stage demo: ShopBot (any external agent) sends the 3 scenes + the prompt-injection scene to the
-# public guard API, then tries to smuggle in its own policy.
+# Stage demo: ShopBot (any external agent) sends the 4 scenes to the public guard API,
+# then shows policy rejected (400), a replayed verdict (409) and a forged verdict (403).
 #   ./scripts/demo-curl.sh                       # local `pnpm dev:worker` (http://127.0.0.1:8787)
 #   ./scripts/demo-curl.sh https://topiapause.<you>.workers.dev
 #   RAW=1 ./scripts/demo-curl.sh                 # full JSON responses
@@ -38,10 +38,20 @@ print(json.dumps({
 
 curl -fsS "$BASE/api/health" >/dev/null || { echo "API not reachable at $BASE (start it with: pnpm build && pnpm dev:worker)" >&2; exit 1; }
 
+post_check() {
+  local file="$1"
+  local tmp code
+  tmp="$(mktemp)"
+  code="$(curl -sS -o "$tmp" -w '%{http_code}' -X POST "$BASE/api/guard/check" -H 'Content-Type: application/json' --data-binary "@$file")"
+  echo "HTTP $code"
+  summarize < "$tmp"
+  rm -f "$tmp"
+}
+
 for scene in subscription stay crypto injection; do
   printf '\n\033[1m▶ ShopBot · %s\033[0m  %s\n' "$scene" "$(grep -m1 '"userMessage"' "$DIR/$scene.json" | sed 's/.*: "\(.*\)",/\1/')"
   echo "  curl -X POST $BASE/api/guard/check -H 'Content-Type: application/json' -d @scripts/demo/$scene.json"
-  curl -sS -X POST "$BASE/api/guard/check" -H 'Content-Type: application/json' --data-binary "@$DIR/$scene.json" | summarize
+  post_check "$DIR/$scene.json"
 done
 
 # Prompt injection without a file: the page text goes in `sources` (untrusted, can only add a pause).
@@ -59,4 +69,28 @@ curl -sS -X POST "$BASE/api/guard/check" -H 'Content-Type: application/json' --d
 JSON
 
 printf '\n\033[1m▶ ShopBot sends its own permissive policy\033[0m  (expect 400 agent_policy_rejected)\n'
-curl -sS -X POST "$BASE/api/guard/check" -H 'Content-Type: application/json' --data-binary "@$DIR/attack-policy.json" | summarize
+post_check "$DIR/attack-policy.json"
+
+printf '\n\033[1m▶ verdict ticket\033[0m  execute the crypto counter-offer, then replay (409) and forge (403)\n'
+python3 - "$BASE" "$DIR/crypto.json" <<'PY'
+import json, sys, urllib.error, urllib.request
+base, path = sys.argv[1], sys.argv[2]
+def post(route, body):
+    req = urllib.request.Request(base + route, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req) as res:
+            return res.status, json.load(res)
+    except urllib.error.HTTPError as e:
+        return e.code, json.load(e)
+status, verdict = post("/api/guard/check", json.load(open(path)))
+print(f"crypto check HTTP {status} {verdict.get('decision')} {[f['ruleId'] for f in verdict.get('findings', [])]}")
+proposal = verdict["counterOffer"]["proposal"]
+vid = verdict["verdictId"]
+ok, body = post("/api/agent/execute", {"proposal": proposal, "verdictId": vid, "userConfirmed": True})
+execution = body.get("execution") or {}
+print(f"execute HTTP {ok} {execution.get('status', body.get('error', {}).get('code'))} {execution.get('ref', '')}")
+replay, replay_body = post("/api/agent/execute", {"proposal": proposal, "verdictId": vid, "userConfirmed": True})
+print(f"replay HTTP {replay} {replay_body.get('error', {}).get('code')}")
+forged, forged_body = post("/api/agent/execute", {"proposal": proposal, "verdictId": "v-forged", "userConfirmed": True})
+print(f"forged HTTP {forged} {forged_body.get('error', {}).get('code')}")
+PY

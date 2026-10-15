@@ -105,6 +105,31 @@ export async function readBody<S extends z.ZodType>(req: Request, schema: S): Pr
   return parseJson(await readJson(req), schema);
 }
 
+const isolateHits = new Map<string, number[]>();
+const ISOLATE_WINDOW_MS = 60_000;
+const ISOLATE_LIMIT = 20;
+
+/** Drops in-memory buckets. Tests call this so one suite does not trip the next. */
+export function resetIsolateRateLimit(): void {
+  isolateHits.clear();
+}
+
+/**
+ * Per-IP limit that lives in this isolate. Paid routes use it even when the Workers
+ * Rate Limiting binding is absent (local dev, tests). Returns 429 once the window is full.
+ */
+export function isolateRateLimit(req: Request, bucket: string): void {
+  const ip = req.headers.get('CF-Connecting-IP') ?? 'local';
+  const key = `${bucket}:${ip}`;
+  const now = Date.now();
+  const hits = (isolateHits.get(key) ?? []).filter((t) => now - t < ISOLATE_WINDOW_MS);
+  if (hits.length >= ISOLATE_LIMIT) {
+    throw new HttpError(429, 'rate_limited', 'Too many requests, slow down', { 'Retry-After': '60' });
+  }
+  hits.push(now);
+  isolateHits.set(key, hits);
+}
+
 /** Per-client limit via the Workers Rate Limiting binding. A missing binding means no limit (tests). */
 export async function rateLimit(limiter: RateLimit | undefined, req: Request, bucket: string): Promise<void> {
   if (!limiter) return;

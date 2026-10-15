@@ -46,6 +46,7 @@ export type ChatItem =
   | { id: string; type: 'user'; text: string }
   | { id: string; type: 'ubot'; text: string }
   | { id: string; type: 'typing' }
+  | { id: string; type: 'thinking' }
   | { id: string; type: 'webpage'; url: string; visible: string; hidden: string }
   | { id: string; type: 'guard'; run: GuardRun };
 

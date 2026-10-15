@@ -7,7 +7,7 @@ import shopInjection from '../../../scripts/demo/injection.json';
 import shopStay from '../../../scripts/demo/stay.json';
 import shopSubscription from '../../../scripts/demo/subscription.json';
 import worker from '../src/index';
-import type { AppEnv } from '../src/http';
+import { resetIsolateRateLimit, type AppEnv } from '../src/http';
 import { resetTokenomistCache } from '../src/tokenomist';
 
 const assetFetch = vi.fn(async () => new Response('<!doctype html>', { headers: { 'Content-Type': 'text/html' } }));
@@ -57,6 +57,7 @@ async function mint(policy: UserPolicy, env?: AppEnv): Promise<string> {
 beforeEach(() => {
   vi.spyOn(console, 'log').mockImplementation(() => {});
   resetTokenomistCache();
+  resetIsolateRateLimit();
 });
 
 afterEach(() => {
@@ -439,7 +440,12 @@ describe('POST /api/agent/chat', () => {
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe('https://llm.example/v1/chat/completions');
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer sk-test');
-    expect(JSON.parse(String(init.body))).toMatchObject({ model: 'test-model', response_format: { type: 'json_object' } });
+    const sent = JSON.parse(String(init.body));
+    expect(sent).toMatchObject({ model: 'test-model', response_format: { type: 'json_object' } });
+    const system = sent.messages[0].content as string;
+    expect(system).toContain('use ผม');
+    expect(system).toContain('ครับ');
+    expect(system).toContain('Never use ฉัน, ค่ะ or คะ');
     expect(JSON.stringify(body)).not.toContain('sk-test');
   });
 
@@ -455,6 +461,25 @@ describe('POST /api/agent/chat', () => {
   it('uses the paid rate limit bucket', async () => {
     const env = makeEnv({ RATE_LIMITER_PAID: { limit: async () => ({ success: false }) } });
     expect((await call('/api/agent/chat', { json: { message: 'hi', lang: 'en' } }, env)).status).toBe(429);
+  });
+
+  it('returns 429 from the in-isolate per-IP limit on chat and tts', async () => {
+    const chatHeaders = { 'CF-Connecting-IP': '203.0.113.9' };
+    for (let i = 0; i < 20; i++) {
+      expect((await call('/api/agent/chat', { json: { message: 'hi', lang: 'en' }, headers: chatHeaders })).status).toBe(200);
+    }
+    const blocked = await call('/api/agent/chat', { json: { message: 'hi', lang: 'en' }, headers: chatHeaders });
+    expect(blocked.status).toBe(429);
+    expect((await blocked.json<Record<string, any>>()).error.code).toBe('rate_limited');
+    expect(blocked.headers.get('Retry-After')).toBe('60');
+
+    const ttsHeaders = { 'CF-Connecting-IP': '203.0.113.10' };
+    for (let i = 0; i < 20; i++) {
+      expect((await call('/api/voice/tts', { json: { text: 'hi', lang: 'en' }, headers: ttsHeaders })).status).toBe(503);
+    }
+    const ttsBlocked = await call('/api/voice/tts', { json: { text: 'hi', lang: 'en' }, headers: ttsHeaders });
+    expect(ttsBlocked.status).toBe(429);
+    expect(ttsBlocked.headers.get('Retry-After')).toBe('60');
   });
 
   it('matches natural phrasing without an LLM key', async () => {

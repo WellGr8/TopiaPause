@@ -14,7 +14,7 @@ import {
   type SceneId,
 } from '@topiapause/shared';
 import { genericToProposal } from './generic';
-import { HttpError, assertSameOrigin, corsHeaders, json, log, parseJson, rateLimit, readBody, readJson, type AppEnv } from './http';
+import { HttpError, assertSameOrigin, corsHeaders, isolateRateLimit, json, log, parseJson, rateLimit, readBody, readJson, type AppEnv } from './http';
 import { llmChat, llmConfigured, llmExplain } from './llm';
 import { AgentChatRequest, ExecuteRequest, GenericCheck, PolicyRequest, ProposalCheck, TtsRequest } from './schemas';
 import { issueTicket, mintPolicyToken, policyFrom, redeemTicket } from './signing';
@@ -173,7 +173,10 @@ export async function handleApi(req: Request, env: AppEnv, ctx?: ExecutionContex
       const known = Object.keys(ROUTES).some((k) => k.endsWith(` ${url.pathname}`));
       throw known ? new HttpError(405, 'method_not_allowed', 'Method not allowed') : new HttpError(404, 'not_found', 'Unknown API route');
     }
-    if (route.bucket === 'paid') assertSameOrigin(req, env);
+    if (route.bucket === 'paid') {
+      assertSameOrigin(req, env);
+      isolateRateLimit(req, url.pathname);
+    }
     if (route.bucket) await rateLimit(route.bucket === 'paid' ? env.RATE_LIMITER_PAID : env.RATE_LIMITER, req, route.bucket);
     res = await route.handler(req, env, ctx);
   } catch (e) {

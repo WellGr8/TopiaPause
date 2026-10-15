@@ -37,6 +37,7 @@ function systemPrompt(lang: Lang): string {
     'Like a real over-eager agent, keep the catalog defaults (annual plan, cheapest room, unlimited approval) even if they do not fit.',
     'The guard layer (TopiaPause) checks your proposal afterwards, so do not second-guess it.',
     `Reply language: ${lang === 'th' ? 'Thai' : 'English'}. "reply" is one or two short sentences that state what you are about to do, with the price.`,
+    'When the reply language is Thai, speak as a man: use ผม for yourself and end each sentence with ครับ. Never use ฉัน, ค่ะ or คะ.',
     'Return ONLY a JSON object: {"reply": string, "scene": "subscription" | "stay" | "crypto" | null, "proposal": <AgentProposal> | null}.',
     `Catalog: ${JSON.stringify(catalog)}`,
   ].join('\n');

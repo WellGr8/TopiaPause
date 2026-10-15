@@ -1,8 +1,8 @@
 import { fmtMoney, fmtNumber, money, type Lang, type UserPolicy } from '@topiapause/shared';
-import { Check } from 'lucide-react';
+import { Check, TriangleAlert } from 'lucide-react';
 import { useId, useState, type FormEvent } from 'react';
 import { t, type CopyKey } from '../copy';
-import { applyRule, parseRule, type ParsedRule, type ParseResult } from '../lib/rules';
+import { applyRule, parseRule, ruleDelta, type ParsedRule, type ParseResult } from '../lib/rules';
 import { Button, TextButton } from './ui';
 
 export function describeRule(rule: ParsedRule, lang: Lang): string {
@@ -18,9 +18,14 @@ export function describeRule(rule: ParsedRule, lang: Lang): string {
   }
 }
 
+function ruleValue(rule: ParsedRule, v: number): string {
+  return rule.kind === 'subscriptionCap' ? fmtMoney(money(Math.round(v * 100), 'THB')) : `${fmtNumber(v, 1)}%`;
+}
+
 const ERROR: Record<Extract<ParseResult, { ok: false }>['reason'], CopyKey> = {
   empty: 'ruleErrEmpty',
   noTopic: 'ruleErrNoTopic',
+  multiple: 'ruleErrMultiple',
   noNumber: 'ruleErrNoNumber',
   outOfRange: 'ruleErrRange',
 };
@@ -77,7 +82,10 @@ export function RuleInput({ policy, lang, onChange }: { policy: UserPolicy; lang
         )}
         {status.kind === 'confirm' && (
           <div className="animate-enter flex items-center gap-2 rounded-card border border-line bg-surface py-1.5 pl-4 pr-1.5">
-            <p className="min-w-0 flex-1 text-sm font-medium">{t(lang, 'ruleConfirmQ', { rule: describeRule(status.rule, lang) })}</p>
+            <div className="min-w-0 flex-1 text-sm">
+              <p className="font-medium">{t(lang, 'ruleConfirmQ', { rule: describeRule(status.rule, lang) })}</p>
+              <RuleChange policy={policy} rule={status.rule} lang={lang} />
+            </div>
             <TextButton onClick={() => setStatus({ kind: 'idle' })}>{t(lang, 'ruleEdit')}</TextButton>
             <Button type="button" variant="primary" className="min-h-10 shrink-0 px-4 text-sm" onClick={() => confirm(status.rule)}>
               {t(lang, 'confirm')}
@@ -86,5 +94,19 @@ export function RuleInput({ policy, lang, onChange }: { policy: UserPolicy; lang
         )}
       </div>
     </section>
+  );
+}
+
+function RuleChange({ policy, rule, lang }: { policy: UserPolicy; rule: ParsedRule; lang: Lang }) {
+  const d = ruleDelta(policy, rule);
+  if (d.before === undefined || d.before === d.after) return null;
+  const vars = { from: ruleValue(rule, d.before), to: ruleValue(rule, d.after) };
+  return d.loosens ? (
+    <p className="mt-0.5 flex items-center gap-1 font-medium text-block">
+      <TriangleAlert size={14} className="shrink-0" aria-hidden="true" />
+      {t(lang, 'ruleLoosens', vars)}
+    </p>
+  ) : (
+    <p className="mt-0.5 text-muted tabular-nums">{t(lang, 'ruleChange', vars)}</p>
   );
 }

@@ -24,7 +24,7 @@ TopiaPause is a guard layer for AI agents that spend money for you. Before an ag
 |---|---|---|
 | "I want to try this photo app" | buy an **annual** auto-renew plan (฿3,990) | Pauses and offers a 7-day free trial + monthly ฿299 within your ฿300 cap |
 | "Cheap hotel near Asok, plans may change" | book a **non-refundable** room (shown ฿1,200, real total ฿1,284) | Pauses, shows the total-price gap, offers the cheapest refundable room (+฿161, 12.5%) |
-| "Swap 500 USDT into TOKEN-X, just once" | request **unlimited approval** and push TOKEN-X to 45% (your cap is 30%) | Pauses and offers the max allowed swap (**$200**) with a one-time exact approval that expires in 15 minutes |
+| "Swap 500 USDT into TOKEN-X, just once" | request **unlimited approval** and push TOKEN-X to 45% (your cap is 30%) | Pauses and offers the max allowed swap (**200 USDT**) with a one-time exact approval that expires in 15 minutes |
 
 Each scene runs end to end: proposal → guard card (status + one-line reason, one counter-offer, voice autoplays) → "use this" → re-check → mock execute → receipt in the activity list.
 
@@ -66,14 +66,15 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for diagrams, data contracts an
 
 | Piece | Status |
 |---|---|
-| Guard engine (`packages/guard-engine`): all rules, precedence, `a_max`, counter-offer, re-check, number lock | **Real.** Pure TS with 31 Vitest tests. The web app and the Worker run the same code. |
-| Numbers on screen (prices, %, `a_max`, money protected) | **Real engine output.** Nothing is hard-coded in the UI. |
-| Worker API (`workers/api`) | **Real.** `POST /api/guard/check` runs the engine server-side with zod validation, CORS, per-IP rate limits and a 32 KB body cap. 24 Vitest handler tests. See [docs/API.md](docs/API.md). |
-| U-Bot | **Mock agent.** `POST /api/agent/chat` asks an OpenAI-compatible LLM to play the over-eager agent (JSON output) when `LLM_API_KEY` + `LLM_MODEL` are set; prices and portfolio are always restored from the fixed scene catalogs. Without a key: scripted replies. Intent extraction is a deterministic keyword heuristic either way. |
-| Explanations | Number-locked TH/EN templates. With an LLM key, a paraphrase is shown only when every number already came from the engine; otherwise the template stays. The LLM never writes a number the user sees. |
-| Voice | Pre-generated ElevenLabs clips from `pnpm voice:pregen` (none committed yet) → live `POST /api/voice/tts` (edge-cached, needs `ELEVENLABS_API_KEY` + `ELEVENLABS_VOICE_ID`) → browser `speechSynthesis`. |
-| Execution and receipts | **Mock** (`POST /api/agent/execute`, `mode: 'mock'`, sandbox ref). No wallet, no payment. |
-| Web ↔ API | The web app feature-detects `/api/health`. With the Worker it calls the API (Rules → "Backend" shows which path is live); on plain Vite or offline it runs the same engine in the browser. |
+| Guard engine (`packages/guard-engine`): all rules, precedence, `a_max`, counter-offer, re-check, number lock, `AGENT_FOLLOWED_UNTRUSTED` | **Real.** Pure TypeScript. The web app and the Worker run the same code. Money is integer minor units (satang, cents, micro-USDT). |
+| Numbers on screen (prices, %, `a_max`, saved ฿3,691.00, protection cost ฿161.00, 300 USDT exposure cut) | **Real engine output.** The UI classifies them; it does not invent them. |
+| Worker API (`workers/api`) | **Real.** `POST /api/guard/check` runs the engine with zod validation, CORS, a 32 KB body cap, and per-IP rate limits. Policy is a signed token (`POST /api/policy`). Verdict tickets are signed and single-use in the isolate (replay → 409, forged → 403, smuggled policy → 400). See [docs/API.md](docs/API.md). |
+| U-Bot / u.bot | **Simulated.** u.bot has no public API, so the agent role is a stand-in. The four demo chips use a deterministic script. Free-text `POST /api/agent/chat` calls an OpenAI-compatible LLM only when `LLM_API_KEY` + `LLM_MODEL` are set, and catalog prices and the portfolio are restored afterwards. Without a key, chat stays scripted. |
+| Tokenomist | **Sample data** in the demo. The unlock note is labelled "sample data, not live" unless `TOKENOMIST_API_KEY` is set. The note never changes the decision. |
+| Explanations | Number-locked TH/EN templates (`lockExplanation`). With an LLM key, a paraphrase is shown only when every number already came from the engine. |
+| Voice | Pregenerated ElevenLabs clips in `apps/web/public/audio/` (web-64k) play when their manifest text matches the engine line. Subscription and stay match. Crypto clips still say "$200" and the English injection clip says "U-Bot", so those fall back to live `POST /api/voice/tts` (needs `ELEVENLABS_API_KEY`) and then browser `speechSynthesis`. The Thai persona is male (ผม / ครับ) to match the Brian voice. |
+| Execution and receipts | **Mock** (`POST /api/agent/execute`, `mode: 'mock'`, sandbox ref). No wallet, no payment. The cost meter and the receipt arithmetic are real. |
+| Web ↔ API | The web app feature-detects `/api/health`. With the Worker it calls the API; on plain Vite or offline it runs the same engine in the browser. |
 | Persistence | `localStorage` only (rules, activity, language, theme). |
 
 ## Stack
@@ -91,7 +92,7 @@ scripts/               demo-curl.sh + guard/check payloads for the 3 stage scene
 packages/guard-engine/ deterministic rules + a_max + number lock (+ tests)
 packages/shared/       types (ARCHITECTURE §5), TH/EN templates, scene catalogs, scripted U-Bot
 demo/voice/            voice lines (display / spoken / tagged) for the 3 scenes
-apps/web/public/audio/ pre-generated clips + manifest.json (empty until `pnpm voice:pregen`)
+apps/web/public/audio/ pre-generated web-64k ElevenLabs clips + manifest.json
 docs/                  architecture, Thai summary, research, diagrams
 ```
 
@@ -113,7 +114,7 @@ pnpm build                                   # builds apps/web/dist
 cp workers/api/.dev.vars.example workers/api/.dev.vars   # optional, all keys may stay empty
 pnpm dev:worker                              # wrangler dev on http://localhost:8787
 curl -s localhost:8787/api/health
-./scripts/demo-curl.sh                       # the 3 scenes through POST /api/guard/check
+./scripts/demo-curl.sh                       # 4 scenes, then 400 / 409 / 403
 ```
 
 To keep Vite hot reload but use the Worker API: `TOPIAPAUSE_API=http://127.0.0.1:8787 pnpm dev`.
@@ -134,12 +135,12 @@ pnpm voice:pregen --only=crypto-th --force   # regenerate a subset
 - Existing clips are skipped unless the voice, model or text field changed, or you pass `--force`.
 - Without a key the script prints a note and exits 0.
 
-In the guard card, the app plays `warning` then `counter` when the card appears (or the combined `pause` clip), and `confirm` after the counter-offer's receipt. Every clip's manifest `text` is the engine's `voiceText` for that scene and language. If a policy change makes the engine say different numbers, the clips are skipped and live TTS or browser speech reads the real text. A Vitest test checks that `voice-lines.json` still matches the engine. Commit the generated `apps/web/public/audio` files once you're happy with the voice.
+The stage clips (64 kbps) and `manifest.json` are already in `apps/web/public/audio/`. The app plays `warning` then `counter` when that manifest `text` equals the engine `voiceText`, otherwise the combined `pause` clip, otherwise live TTS, otherwise browser speech. Subscription and stay match and play. Crypto recordings still say "$200" and the English injection recording says "told U-Bot", while the engine says "200 USDT" and "told it", so those fall back to live TTS. `pnpm voice:pregen` can regenerate clips when you have an ElevenLabs key. A Vitest test checks that `voice-lines.json` pause text still matches the engine, and that the injection warning/counter keys exist in the manifest.
 
 ## Test and typecheck
 
 ```bash
-pnpm test           # Vitest: guard-engine (T1–T13 from ARCHITECTURE §10), shared, Worker API handlers
+pnpm test           # Vitest: shared 16, guard-engine 60, web 45, worker API 56
 pnpm typecheck      # tsc across all workspaces
 pnpm --filter @topiapause/guard-engine test   # engine only
 ```

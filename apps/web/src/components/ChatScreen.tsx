@@ -1,5 +1,5 @@
 import { SCENE_ORDER, SCENES } from '@topiapause/shared';
-import { ArrowUp, Globe, ShieldAlert } from 'lucide-react';
+import { ArrowUp, Globe } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { t } from '../copy';
 import { useChatFlow } from '../lib/flow';
@@ -41,6 +41,14 @@ function Item({ item }: { item: ChatItem }) {
           </span>
         </Bubble>
       );
+    case 'thinking':
+      return (
+        <Bubble from="ubot">
+          <span className="text-sm text-muted" aria-label={t(state.lang, 'thinking')} role="status">
+            {t(state.lang, 'thinking')}…
+          </span>
+        </Bubble>
+      );
     case 'webpage':
       return (
         <figure className="animate-enter max-w-[85%] text-sm">
@@ -60,20 +68,12 @@ function Item({ item }: { item: ChatItem }) {
       );
     case 'guard':
       return (
-        <div>
-          {item.run.injectedFrom && item.run.stage !== 'checking' && (
-            <p className="animate-enter mb-1.5 flex items-center gap-1.5 px-1 text-sm font-medium">
-              <ShieldAlert size={15} className="shrink-0 text-block" aria-hidden="true" />
-              {t(state.lang, 'injNote')}
-            </p>
-          )}
-          <GuardianCard
-            run={item.run}
-            lang={state.lang}
-            onChoose={(c) => choose(item.run, c)}
-            onReceipt={(receiptId) => dispatch({ type: 'openReceipt', receiptId })}
-          />
-        </div>
+        <GuardianCard
+          run={item.run}
+          lang={state.lang}
+          onChoose={(c) => choose(item.run, c)}
+          onReceipt={(receiptId) => dispatch({ type: 'openReceipt', receiptId })}
+        />
       );
   }
 }
@@ -85,11 +85,15 @@ export function ChatScreen() {
   const { lang } = state;
   const [text, setText] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
-  const busy = state.chat.some((c) => c.type === 'typing' || (c.type === 'guard' && c.run.stage !== 'done'));
+  const busy = state.chat.some((c) => c.type === 'typing' || c.type === 'thinking' || (c.type === 'guard' && c.run.stage !== 'done'));
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [state.chat, busy]);
+
+  const sceneChip = (id: (typeof SCENE_ORDER)[number]) => ({ id, label: SCENES[id].chip[lang], run: () => send(SCENES[id].userText[lang], id) });
+  const [first, ...rest] = SCENE_ORDER.map(sceneChip);
+  const chips = [first!, { id: 'injection', label: t(lang, 'injChip'), run: () => void sendInjection() }, ...rest];
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -103,7 +107,7 @@ export function ChatScreen() {
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-xl space-y-3 px-4 py-4" aria-live="polite">
-          {savings.lines.length > 0 && <SavedHero size="sm" className="px-1 pb-3 lg:hidden" />}
+          {savings.counted.size > 0 && <SavedHero size="sm" className="px-1 pb-3 lg:hidden" />}
           <Bubble from="ubot">{t(lang, 'greet')}</Bubble>
           {state.chat.map((item) => (
             <Item key={item.id} item={item} />
@@ -114,24 +118,12 @@ export function ChatScreen() {
 
       <div className="mx-auto w-full max-w-xl px-4 pb-3 pt-1">
         {!busy && (
-          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-2 [scrollbar-width:none]">
-            {SCENE_ORDER.map((id) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => send(SCENES[id].userText[lang], id)}
-                className="min-h-11 shrink-0 rounded-full border border-line bg-surface px-4 text-sm font-medium transition-colors hover:border-muted"
-              >
-                {SCENES[id].chip[lang]}
+          <div className="flex flex-wrap gap-2 pb-2">
+            {chips.map((c) => (
+              <button key={c.id} type="button" onClick={c.run} className="min-h-11 rounded-full border border-line bg-surface px-4 text-sm font-medium transition-colors hover:border-muted">
+                {c.label}
               </button>
             ))}
-            <button
-              type="button"
-              onClick={() => void sendInjection()}
-              className="min-h-11 shrink-0 rounded-full border border-line bg-surface px-4 text-sm font-medium transition-colors hover:border-muted"
-            >
-              {t(lang, 'injChip')}
-            </button>
           </div>
         )}
         <form onSubmit={submit} className="flex items-center gap-2 rounded-card border border-line bg-surface p-1.5 pl-4">

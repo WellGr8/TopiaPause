@@ -74,6 +74,7 @@ export async function apiGuardCheck(input: {
   proposal: AgentProposal;
   policy: UserPolicy;
   lang: Lang;
+  /** Untrusted context the agent read (e.g. a web page); the engine checks whether the proposal followed it. */
   sources?: UntrustedSource[];
 }): Promise<GuardVerdict | null> {
   if (!(await apiHealth())) return null;
