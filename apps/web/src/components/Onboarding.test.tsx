@@ -1,12 +1,14 @@
 /** @vitest-environment happy-dom */
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { App } from '../App';
 import { speak } from '../lib/voice';
 import { AppProvider } from '../state';
 import { Onboarding } from './Onboarding';
 
 vi.mock('../lib/voice', () => ({
   speak: vi.fn(async () => {}),
+  speakClip: vi.fn(async () => {}),
   stopVoice: vi.fn(),
 }));
 
@@ -31,6 +33,23 @@ function renderLanding() {
   );
 }
 
+function rect(left: number): () => DOMRect {
+  return () =>
+    ({
+      left,
+      top: 0,
+      right: left + 280,
+      bottom: 96,
+      width: 280,
+      height: 96,
+      x: left,
+      y: 0,
+      toJSON() {
+        return {};
+      },
+    }) as DOMRect;
+}
+
 beforeEach(() => {
   localStorage.clear();
   vi.mocked(speak).mockClear();
@@ -46,44 +65,119 @@ describe('first screen', () => {
   it('renders the hero chat from the subscription scene', () => {
     matchMedia(true);
     renderLanding();
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('ให้ AI จ่ายแทนได้ โดยไม่ต้องเข้าใจทุกเงื่อนไข');
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('ก่อน AI จ่าย\nเราถามคุณก่อน');
     expect(screen.getByText('ลองแอปนี้ให้หน่อย')).toBeTruthy();
     expect(screen.getByText('U-Bot (จำลอง)')).toBeTruthy();
-    expect(screen.getByText(/กำลังสมัครแพ็กเกจรายปี ฿3,990\.00/)).toBeTruthy();
+    expect(screen.getByText('สมัครรายปี ฿3,990.00 ให้นะครับ')).toBeTruthy();
     const plain = screen.getByTestId('pause-plain');
     expect(plain.textContent).toContain('เดี๋ยวครับ คุณแค่อยากลอง');
     expect(plain.textContent).toContain('฿299.00');
-    expect(plain.textContent).toContain('฿3,691.00');
-    expect(plain.textContent).toContain('งบสมาชิก ฿300 ของคุณทำงานแล้ว');
-    expect(screen.getByRole('button', { name: 'ฟังเสียงเตือน' }).className).toContain('min-h-12');
+    expect(plain.textContent).toContain('฿3,990.00');
+    expect(plain.textContent).toContain('ประหยัด ฿3,691.00');
+    expect(plain.textContent).not.toContain('งบสมาชิก');
+    expect(screen.getByTestId('pause-details').textContent).toContain('งบสมาชิก ฿300.00 ของคุณทำงานแล้ว');
+    const listen = screen.getByRole('button', { name: 'ฟังเสียงเตือน' });
+    expect(listen.className).toContain('min-h-12');
+    expect(listen.textContent).toContain('ฟัง');
     expect(speak).not.toHaveBeenCalled();
+    const cta = screen.getByRole('button', { name: 'ลองให้ AI จ่ายดู' });
+    expect(cta.className).toContain('btn-gradient');
+    expect(cta.className).not.toContain('bg-ink');
   });
 
-  it('shows the finished chat immediately when motion is reduced', () => {
+  it('shows the finished chat immediately when motion is reduced, and never auto-advances', () => {
     matchMedia(true);
+    const intervals = vi.spyOn(window, 'setInterval');
     renderLanding();
-    expect(screen.getByRole('region', { name: 'TopiaPause' }).getAttribute('class')).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'TopiaPause' })).toBeTruthy();
     expect(document.querySelector('[data-reduced="true"]')?.getAttribute('data-step')).toBe('3');
     expect(screen.getByText('เดี๋ยวครับ คุณแค่อยากลอง')).toBeTruthy();
+    expect(intervals).not.toHaveBeenCalled();
     expect(speak).not.toHaveBeenCalled();
+    intervals.mockRestore();
   });
 
-  it('plays a scenario pause from its chip, and keeps jargon inside details', () => {
+  it('selects a scenario card and replays that pause', () => {
     matchMedia(true);
     renderLanding();
-    fireEvent.click(screen.getByRole('button', { name: 'AI จองที่พักให้' }));
-    const stay = screen.getByTestId('pause-plain');
-    expect(stay.textContent).toContain('฿1,284.00');
-    expect(stay.textContent).toContain('กฎที่พักต้องยกเลิกได้ของคุณทำงานแล้ว');
+    const app = screen.getByRole('tab', { name: /สมัครแอป/ });
+    const stay = screen.getByRole('tab', { name: /จองที่พัก/ });
+    const coin = screen.getByRole('tab', { name: /ลงทุนเหรียญ/ });
+    expect(app.getAttribute('aria-selected')).toBe('true');
+    expect(app.className).toContain('border-ink');
+    expect(app.className).toContain('w-[85%]');
+    expect(stay.getAttribute('aria-selected')).toBe('false');
+    expect(stay.getAttribute('tabindex')).toBe('-1');
+    expect(screen.getByRole('tablist').className).toContain('md:grid-cols-3');
+    expect(screen.getByRole('button', { name: 'สมัครแอป' }).className).toContain('h-12');
 
-    fireEvent.click(screen.getByRole('button', { name: 'AI ลงทุนเหรียญให้' }));
-    const coin = screen.getByTestId('pause-plain');
-    expect(coin.textContent).toContain('ไปลงเหรียญเดียวมากเกินไป เสี่ยงเสียเงินก้อนใหญ่');
-    expect(coin.textContent).toContain('AI กำลังจะให้สิทธิ์ดึงเงินได้ไม่จำกัด');
-    expect(coin.textContent).toContain('USDT');
-    expect(coin.textContent).not.toMatch(/฿|TOKEN-X|เพดาน/);
+    fireEvent.click(stay);
+    const hero = screen.getByRole('tabpanel');
+    const stayPlain = screen.getByTestId('pause-plain');
+    expect(stay.getAttribute('aria-selected')).toBe('true');
+    expect(hero.textContent).toContain('฿1,200.00');
+    expect(hero.textContent).toContain('฿1,284.00');
+    expect(stayPlain.textContent).toContain('฿1,445.00');
+    expect(stayPlain.textContent).toContain('฿161.00');
+    expect(stayPlain.textContent).not.toContain('กฎที่พักต้องยกเลิกได้');
+    expect(screen.getByTestId('pause-details').textContent).toContain('กฎที่พักต้องยกเลิกได้ของคุณทำงานแล้ว');
+
+    fireEvent.click(coin);
+    const coinPlain = screen.getByTestId('pause-plain');
+    expect(coinPlain.textContent).toContain('500 USDT');
+    expect(coinPlain.textContent).toContain('200 USDT');
+    expect(coinPlain.textContent).not.toMatch(/฿|TOKEN-X|เพดาน/);
     expect(screen.getByTestId('pause-details').textContent).toContain('CONC_CAP');
     expect(screen.getByTestId('pause-details').textContent).toContain('APPROVAL_SCOPE');
+  });
+
+  it('moves selection with the arrow keys, Home, and End', () => {
+    matchMedia(true);
+    renderLanding();
+    const app = screen.getByRole('tab', { name: /สมัครแอป/ });
+    const stay = screen.getByRole('tab', { name: /จองที่พัก/ });
+    const coin = screen.getByRole('tab', { name: /ลงทุนเหรียญ/ });
+    app.focus();
+    fireEvent.keyDown(app, { key: 'ArrowRight' });
+    expect(stay.getAttribute('aria-selected')).toBe('true');
+    expect(stay.getAttribute('tabindex')).toBe('0');
+    expect(app.getAttribute('tabindex')).toBe('-1');
+    expect(document.activeElement).toBe(stay);
+    expect(screen.getByTestId('pause-plain').textContent).toContain('฿1,445.00');
+
+    fireEvent.keyDown(stay, { key: 'ArrowRight' });
+    expect(coin.getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(coin);
+
+    fireEvent.keyDown(coin, { key: 'ArrowRight' });
+    expect(app.getAttribute('aria-selected')).toBe('true');
+
+    fireEvent.keyDown(app, { key: 'End' });
+    expect(coin.getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(coin);
+
+    fireEvent.keyDown(coin, { key: 'Home' });
+    expect(app.getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(app);
+
+    fireEvent.keyDown(app, { key: 'ArrowLeft' });
+    expect(coin.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('selects the card nearest the left edge when the row scrolls', () => {
+    matchMedia(true);
+    renderLanding();
+    const list = screen.getByRole('tablist');
+    Object.defineProperty(list, 'scrollWidth', { configurable: true, value: 900 });
+    Object.defineProperty(list, 'clientWidth', { configurable: true, value: 390 });
+    list.getBoundingClientRect = rect(0);
+    const [app, stay, coin] = screen.getAllByRole('tab');
+    app!.getBoundingClientRect = rect(-300);
+    stay!.getBoundingClientRect = rect(8);
+    coin!.getBoundingClientRect = rect(320);
+    fireEvent.scroll(list);
+    expect(stay!.getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByTestId('pause-plain').textContent).toContain('฿1,445.00');
   });
 
   it('plays the Thai warning only after the listen button', () => {
@@ -96,5 +190,17 @@ describe('first screen', () => {
     expect(input.lang).toBe('th');
     expect(input.clipId).toBe('subscription-pause');
     expect(input.text).toContain('เดี๋ยวก่อนครับ');
+  });
+
+  it('opens the selected scenario from the primary button', async () => {
+    matchMedia(true);
+    render(
+      <AppProvider>
+        <App />
+      </AppProvider>,
+    );
+    fireEvent.click(screen.getByRole('tab', { name: /จองที่พัก/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'ลองให้ AI จ่ายดู' }));
+    expect(await screen.findByText('หาโรงแรมถูกๆ ใกล้อโศก คืนวันศุกร์ แต่แผนอาจเปลี่ยนนะ')).toBeTruthy();
   });
 });

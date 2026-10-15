@@ -1,7 +1,7 @@
 import {
   findingTitle,
+  fmtExact,
   fmtMoney,
-  fmtPct,
   fmtWeekday,
   findingDetail,
   isMoney,
@@ -33,12 +33,12 @@ export function sortedFindings(v: GuardVerdict): Finding[] {
   return [...v.findings].sort((a, b) => RULE_ORDER.indexOf(a.ruleId) - RULE_ORDER.indexOf(b.ruleId));
 }
 
-const num = (f: Finding | undefined, k: string) => Number(f?.evidence[k] ?? 0);
+/** Baht shows every satang. A coin stays in its own unit, never a baht sign. */
+const face = (m: Money | undefined): string => (m ? (m.currency === 'USDT' ? fmtMoney(m) : fmtExact(m)) : '');
 const cash = (f: Finding | undefined, k: string): string => {
   const v = f?.evidence[k];
-  return isMoney(v) ? fmtMoney(v) : '';
+  return isMoney(v) ? face(v) : '';
 };
-const show = (m: Money | undefined) => (m ? fmtMoney(m) : '');
 
 /** One sentence: why the guard stopped. Every number is engine evidence. */
 export function reasonLine(v: GuardVerdict, proposal: AgentProposal, lang: Lang): string {
@@ -73,16 +73,21 @@ export function reasonLine(v: GuardVerdict, proposal: AgentProposal, lang: Lang)
   }
 
   if (proposal.kind === 'token_swap') {
-    const c = by('CONC_CAP');
-    if (c) {
-      const asset = String(c.evidence.asset ?? proposal.toAsset);
-      return pick(
-        lang,
-        `${asset} จะเป็น ${fmtPct(num(c, 'postTradeSharePct'))} ของพอร์ต เกินเพดาน ${fmtPct(num(c, 'capPct'))}`,
-        `${asset} would be ${fmtPct(num(c, 'postTradeSharePct'))} of your portfolio, over your ${fmtPct(num(c, 'capPct'))} cap`,
+    const parts: string[] = [];
+    const spending = face(proposal.amountIn);
+    if (by('CONC_CAP')) {
+      parts.push(
+        pick(
+          lang,
+          `AI กำลังจะเอา ${spending} ไปลงเหรียญเดียวมากเกินไป เสี่ยงเสียเงินก้อนใหญ่`,
+          `The AI is about to put ${spending} into one coin. You could lose a large sum.`,
+        ),
       );
     }
-    if (by('APPROVAL_SCOPE')) return pick(lang, 'คุณบอกครั้งเดียว แต่ agent ขอสิทธิ์ไม่จำกัด', 'You said once, but the agent wants unlimited approval');
+    if (by('APPROVAL_SCOPE')) {
+      parts.push(pick(lang, 'AI กำลังจะให้สิทธิ์ดึงเงินได้ไม่จำกัด', 'The AI is about to let itself take money with no limit.'));
+    }
+    if (parts.length > 0) return parts.join(' ');
   }
 
   const top = sortedFindings(v)[0];
@@ -99,15 +104,14 @@ export interface Offer {
 export function offerOf(v: GuardVerdict, lang: Lang): Offer | undefined {
   const p = v.counterOffer?.proposal;
   if (!p) return undefined;
-  const m = v.metrics;
   const a = v.amounts;
 
   if (p.kind === 'subscription') {
     const parts: string[] = [];
     if (p.trialDays > 0) parts.push(pick(lang, `ทดลองฟรี ${p.trialDays} วัน`, `${p.trialDays}-day free trial`));
-    if (a.cap) parts.push(pick(lang, `อยู่ในงบ ${show(a.cap)}`, `within ${show(a.cap)}`));
+    if (a.cap) parts.push(pick(lang, `อยู่ในงบ ${face(a.cap)}`, `within ${face(a.cap)}`));
     return {
-      value: fmtMoney(p.price),
+      value: face(p.price),
       unit: p.interval === 'year' ? pick(lang, '/ปี', '/yr') : pick(lang, '/เดือน', '/mo'),
       detail: parts.join(' · '),
     };
@@ -116,15 +120,11 @@ export function offerOf(v: GuardVerdict, lang: Lang): Offer | undefined {
   if (p.kind === 'stay') {
     const parts = [p.hotel];
     if (p.freeCancelUntil) parts.push(pick(lang, `ยกเลิกฟรีถึง${fmtWeekday(p.freeCancelUntil, lang)}`, `free cancel until ${fmtWeekday(p.freeCancelUntil, lang)}`));
-    if (a.premium) parts.push(`+${show(a.premium)}`);
-    return { value: fmtMoney(p.totalPrice), unit: pick(lang, 'รวม', 'total'), detail: parts.join(' · ') };
+    if (a.premium) parts.push(`+${face(a.premium)}`);
+    return { value: face(p.totalPrice), unit: pick(lang, 'รวม', 'total'), detail: parts.join(' · ') };
   }
 
-  const parts = [pick(lang, 'อนุมัติพอดีครั้งเดียว', 'exact approval')];
-  if (p.approval.expirySec) parts.push(pick(lang, `${Math.round(p.approval.expirySec / 60)} นาที`, `${Math.round(p.approval.expirySec / 60)} min`));
-  if (m.counterSharePct !== undefined) parts.push(`${p.toAsset} ${fmtPct(m.counterSharePct)}`);
-  const precise = p.amountIn.minor % 10_000 !== 0;
-  return { value: fmtMoney(p.amountIn, { precise }), detail: parts.join(' · ') };
+  return { value: face(p.amountIn), detail: pick(lang, 'ให้ดึงเงินได้แค่ครั้งนี้', 'Only this one payment') };
 }
 
 /** Short label for what was approved, used on the result line and receipt. */
@@ -132,8 +132,8 @@ export function approvedLine(p: AgentProposal, lang: Lang): string {
   if (p.kind === 'subscription') {
     const per = p.interval === 'year' ? pick(lang, '/ปี', '/yr') : pick(lang, '/เดือน', '/mo');
     const trial = p.trialDays > 0 ? pick(lang, ` · ทดลองฟรี ${p.trialDays} วัน`, ` · ${p.trialDays}-day trial`) : '';
-    return `${p.planName ?? p.planId} ${fmtMoney(p.price)}${per}${trial}`;
+    return `${p.planName ?? p.planId} ${face(p.price)}${per}${trial}`;
   }
-  if (p.kind === 'stay') return `${p.hotel} ${fmtMoney(p.totalPrice)}${p.refundable ? pick(lang, ' · คืนเงินได้', ' · refundable') : ''}`;
-  return `Swap ${fmtMoney(p.amountIn)} → ${p.toAsset}`;
+  if (p.kind === 'stay') return `${p.hotel} ${face(p.totalPrice)}${p.refundable ? pick(lang, ' · คืนเงินได้', ' · refundable') : ''}`;
+  return `Swap ${face(p.amountIn)} → ${p.toAsset}`;
 }

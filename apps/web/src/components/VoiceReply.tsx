@@ -119,10 +119,10 @@ export function VoiceReply({
           onClick={() => (phase === 'recording' ? stop() : void start())}
           disabled={phase === 'sending'}
           aria-pressed={phase === 'recording'}
-          className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-control bg-ink px-4 text-[17px] font-semibold text-canvas disabled:opacity-40"
+          className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-control border border-line bg-surface px-4 text-[17px] font-semibold text-ink disabled:opacity-40"
         >
           <Mic size={20} aria-hidden="true" />
-          {phase === 'recording' ? t(lang, 'micStop') : phase === 'sending' ? t(lang, 'micStop') : t(lang, 'mic')}
+          {phase === 'recording' ? t(lang, 'micStop') : phase === 'sending' ? t(lang, 'micHearing') : t(lang, 'mic')}
         </button>
       )}
 
@@ -144,7 +144,7 @@ export function VoiceReply({
                 type="button"
                 data-testid="voice-confirm"
                 onClick={() => onConfirm(action)}
-                className="inline-flex min-h-12 flex-1 items-center justify-center rounded-control bg-ink px-4 text-[17px] font-semibold text-canvas"
+                className="inline-flex min-h-12 flex-1 items-center justify-center rounded-control border border-line bg-surface px-4 text-[17px] font-semibold text-ink"
               >
                 {t(lang, 'voiceTap')}
               </button>

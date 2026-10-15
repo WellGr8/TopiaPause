@@ -1,5 +1,5 @@
 import { describeProposal, findingDetail, findingTitle, type Lang } from '@topiapause/shared';
-import { Play, ShieldAlert } from 'lucide-react';
+import { ShieldAlert, Volume2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { t } from '../copy';
 import { verdictFor } from '../lib/guard';
@@ -159,22 +159,20 @@ export function GuardianCard({
             {t(lang, 'injNote')}
           </p>
         )}
-        <div className="flex items-start gap-3">
-          <h3 className="flex-1 text-[19px] font-semibold leading-snug">
-            <Status decision={decision} lang={lang} /> <span className="text-muted">—</span>{' '}
-            {injected ? t(lang, 'injReason') : reasonLine(verdict, run.proposal, lang)}
-          </h3>
-          <button
-            type="button"
-            onClick={voice.toggle}
-            aria-label={voice.state === 'speaking' ? t(lang, 'stop') : t(lang, 'listen')}
-            aria-pressed={voice.state === 'speaking'}
-            className="-mr-2 -mt-2 inline-flex h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-control px-2 text-muted hover:text-ink"
-          >
-            {voice.state !== 'speaking' && <Play size={13} fill="currentColor" aria-hidden="true" />}
-            <Waveform active={voice.state === 'speaking'} />
-          </button>
-        </div>
+        <h3 className="text-[19px] font-semibold leading-snug">
+          <Status decision={decision} lang={lang} /> <span className="text-muted">—</span> {injected ? t(lang, 'injReason') : reasonLine(verdict, run.proposal, lang)}
+        </h3>
+        <button
+          type="button"
+          onClick={voice.toggle}
+          aria-label={voice.state === 'speaking' ? t(lang, 'stop') : t(lang, 'landListen')}
+          aria-pressed={voice.state === 'speaking'}
+          className="mt-3 inline-flex min-h-12 items-center gap-2 rounded-full border border-line bg-surface px-4 text-[17px] font-medium text-ink"
+        >
+          <Volume2 size={20} aria-hidden="true" />
+          {voice.state === 'speaking' ? t(lang, 'stop') : t(lang, 'landListen')}
+          {voice.state === 'speaking' && <Waveform active />}
+        </button>
 
         {offer && (
           <div className="mt-4 border-t border-line pt-4">
@@ -186,13 +184,11 @@ export function GuardianCard({
               {offer.value}
               {offer.unit && <span className="ml-1 text-lg font-medium tracking-normal text-muted">{offer.unit}</span>}
             </p>
-            <p className="mt-2 text-sm text-muted">{offer.detail}</p>
+            <p className="mt-2 text-[17px] leading-relaxed text-ink">{offer.detail}</p>
           </div>
         )}
         {!offer && decision === 'pause' && <p className="mt-3 text-sm text-muted">{t(lang, 'noCounter')}</p>}
         {blocked && <p className="mt-3 text-sm text-block">{t(lang, 'blockedNote')}</p>}
-
-        {decision === 'pause' && <VoiceReply lang={lang} canCounter={Boolean(offer)} onConfirm={choose} />}
 
         <div className="mt-5 flex gap-2">
           {offer ? (
@@ -218,6 +214,8 @@ export function GuardianCard({
             </Button>
           )}
         </div>
+
+        {decision === 'pause' && <VoiceReply lang={lang} canCounter={Boolean(offer)} onConfirm={choose} />}
 
         <div className="mt-1 flex items-center justify-between">
           <TextButton aria-expanded={open} onClick={() => setOpen((o) => !o)}>

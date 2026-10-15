@@ -22,12 +22,17 @@ describe('landing preview uses the engine scenes', () => {
   it('subscription amounts are the scene fixtures, to the satang', () => {
     const p = landingPreview('subscription', 'th');
     expect(p.user).toBe('ลองแอปนี้ให้หน่อย');
+    expect(p.chip).toBe('สมัครแอป');
+    expect(p.hint).toBe('รายปีที่แพงกว่า');
     expect(p.agentLabel).toBe('U-Bot (จำลอง)');
     expect(p.lead).toBe('เดี๋ยวครับ คุณแค่อยากลอง');
-    expect(p.agent).toContain('฿3,990.00');
-    expect(p.better).toContain('฿299.00');
-    expect(p.better).toContain('฿3,691.00');
-    expect(p.ruleLine).toBe('งบสมาชิก ฿300 ของคุณทำงานแล้ว');
+    expect(p.agent).toBe('สมัครรายปี ฿3,990.00 ให้นะครับ');
+    expect(p.offer.amount).toBe('฿299.00');
+    expect(p.offer.note).toBe('เดือนแรก');
+    expect(p.offer.was).toBe('฿3,990.00');
+    expect(p.offer.saved).toBe('ประหยัด ฿3,691.00');
+    expect(landingPlainText('subscription', 'th')).not.toContain('งบสมาชิก');
+    expect(p.ruleLine).toBe('งบสมาชิก ฿300.00 ของคุณทำงานแล้ว');
     expect(p.details.map((d) => d.ruleId)).toEqual(expect.arrayContaining(['SUB_COMMITMENT', 'SUB_OVER_CAP']));
     expect(fmtExact({ minor: 399000, currency: 'THB' })).toBe('฿3,990.00');
     expect(fmtExact({ minor: 369100, currency: 'THB' })).toBe('฿3,691.00');
@@ -35,22 +40,24 @@ describe('landing preview uses the engine scenes', () => {
 
   it('crypto pause stays in plain words and USDT, with the rule ids behind details', () => {
     const plain = landingPlainText('crypto', 'th');
-    expect(plain).toContain('ไปลงเหรียญเดียวมากเกินไป เสี่ยงเสียเงินก้อนใหญ่');
-    expect(plain).toContain('AI กำลังจะให้สิทธิ์ดึงเงินได้ไม่จำกัด');
-    expect(plain).toContain('USDT');
-    expect(plain).not.toMatch(/฿|TOKEN-X|เพดาน|approval|concentration/i);
+    expect(plain).toContain('จะเอา 500 USDT ไปลงเหรียญเดียว');
+    expect(plain).toContain('200 USDT');
+    expect(plain).toContain('ให้ดึงเงินได้แค่ครั้งนี้');
+    expect(plain).not.toMatch(/฿|TOKEN-X|เพดาน|พอร์ต|approval|concentration/i);
     const p = landingPreview('crypto', 'th');
+    expect(p.ruleLine).not.toMatch(/฿|TOKEN-X|เพดาน/);
     expect(p.details.map((d) => d.ruleId)).toEqual(expect.arrayContaining(['CONC_CAP', 'APPROVAL_SCOPE']));
     expect(p.details.map((d) => d.text).join('\n')).toContain('TOKEN-X');
   });
 
-  it('stay pause uses the engine totals, not a baht sign on a coin', () => {
+  it('stay pause uses the engine totals, and keeps the rule line in details', () => {
     const plain = landingPlainText('stay', 'th');
     expect(plain).toContain('฿1,200.00');
     expect(plain).toContain('฿1,284.00');
     expect(plain).toContain('฿1,445.00');
     expect(plain).toContain('฿161.00');
-    expect(plain).toContain('กฎที่พักต้องยกเลิกได้ของคุณทำงานแล้ว');
+    expect(plain).not.toContain('กฎที่พักต้องยกเลิกได้ของคุณทำงานแล้ว');
+    expect(landingPreview('stay', 'th').ruleLine).toBe('กฎที่พักต้องยกเลิกได้ของคุณทำงานแล้ว');
   });
 });
 
