@@ -659,6 +659,64 @@ describe('POST /api/voice/tts', () => {
   });
 });
 
+describe('session binding (User-Agent, not IP)', () => {
+  const ua = 'Mozilla/5.0 (TopiaPause test)';
+
+  it('a session minted on IP A verifies on IP B, by header and by cookie', async () => {
+    const minted = await call('/api/session', {
+      json: {},
+      headers: { Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin', 'User-Agent': ua, 'CF-Connecting-IP': '203.0.113.1' },
+    });
+    expect(minted.status).toBe(200);
+    const body = (await minted.json()) as V;
+    const setCookie = minted.headers.get('Set-Cookie') ?? '';
+    expect(setCookie).toBe(`tp_session=${body.session}; HttpOnly; Secure; SameSite=Strict; Path=/api; Max-Age=600`);
+
+    const headerRes = await call('/api/policy', {
+      json: { policy: DEFAULT_POLICY },
+      headers: {
+        Origin: ORIGIN,
+        'Sec-Fetch-Site': 'same-origin',
+        'User-Agent': ua,
+        'CF-Connecting-IP': '198.51.100.8',
+        'X-TopiaPause-Session': body.session,
+      },
+    });
+    expect(headerRes.status).toBe(200);
+
+    const cookieRes = await call('/api/policy', {
+      json: { policy: DEFAULT_POLICY },
+      headers: {
+        Origin: ORIGIN,
+        'Sec-Fetch-Site': 'same-origin',
+        'User-Agent': ua,
+        'CF-Connecting-IP': '198.51.100.9',
+        Cookie: `tp_session=${body.session}`,
+      },
+    });
+    expect(cookieRes.status).toBe(200);
+  });
+
+  it('a different User-Agent is 403 invalid_session', async () => {
+    const token = await session(makeEnv(), { 'User-Agent': 'BrowserA/1.0' });
+    const res = await call('/api/confirm', {
+      json: { verdictId: 'v1', choice: 'counter_offer' },
+      headers: { Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin', 'User-Agent': 'BrowserB/2.0', 'X-TopiaPause-Session': token },
+    });
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as V).error.code).toBe('invalid_session');
+  });
+
+  it('a missing session is 403 session_required', async () => {
+    const res = await call('/api/policy', {
+      json: { policy: DEFAULT_POLICY },
+      headers: { Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin', 'User-Agent': ua },
+    });
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as V).error.code).toBe('session_required');
+  });
+});
+
 describe('routing', () => {
   it('404s unknown API routes and 405s wrong methods', async () => {
     expect((await call('/api/nope')).status).toBe(404);

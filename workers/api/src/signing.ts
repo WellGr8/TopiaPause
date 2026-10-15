@@ -11,6 +11,7 @@ const enc = new TextEncoder();
 const POLICY_TTL_SEC = 30 * 24 * 3600;
 export const TICKET_TTL_SEC = 10 * 60;
 const SESSION_TTL_SEC = 10 * 60;
+const SESSION_COOKIE = 'tp_session';
 
 let ephemeral: CryptoKey | undefined;
 const keys = new Map<string, Promise<CryptoKey>>();
@@ -91,24 +92,41 @@ export async function policyFrom(env: AppEnv, token: string | undefined): Promis
 
 // ---------------- Browser session ----------------
 
-/** Binds a session to the client IP and a hash of the User-Agent. */
+/** Binds a session to a hash of the User-Agent. The IP is not part of the binding: Private Relay, WARP, and mobile networks change it mid-session. Rate limits still key on IP. */
 export async function clientBinding(req: Request): Promise<string> {
-  const ip = req.headers.get('CF-Connecting-IP') ?? 'local';
   const ua = req.headers.get('User-Agent') ?? '';
   const digest = await crypto.subtle.digest('SHA-256', enc.encode(ua));
-  return `${ip}|${b64url(new Uint8Array(digest)).slice(0, 16)}`;
+  return b64url(new Uint8Array(digest)).slice(0, 16);
+}
+
+export function sessionCookie(token: string): string {
+  return `${SESSION_COOKIE}=${token}; HttpOnly; Secure; SameSite=Strict; Path=/api; Max-Age=${SESSION_TTL_SEC}`;
+}
+
+function cookieValue(req: Request, name: string): string | undefined {
+  const raw = req.headers.get('Cookie');
+  if (!raw) return undefined;
+  for (const part of raw.split(';')) {
+    const eq = part.indexOf('=');
+    if (eq === -1) continue;
+    if (part.slice(0, eq).trim() !== name) continue;
+    const value = part.slice(eq + 1).trim();
+    if (value) return value;
+  }
+  return undefined;
 }
 
 export async function mintSession(env: AppEnv, req: Request): Promise<{ session: string; expiresAt: string }> {
   const exp = nowSec() + SESSION_TTL_SEC;
-  const session = await sign(env, 'session', { v: 1, bind: await clientBinding(req), exp });
+  const session = await sign(env, 'session', { v: 2, bind: await clientBinding(req), exp });
   return { session, expiresAt: new Date(exp * 1000).toISOString() };
 }
 
-export async function verifySession(env: AppEnv, req: Request, token: string | null): Promise<void> {
+export async function verifySession(env: AppEnv, req: Request): Promise<void> {
+  const token = cookieValue(req, SESSION_COOKIE) ?? req.headers.get('X-TopiaPause-Session');
   if (!token) throw new HttpError(403, 'session_required', 'This route needs a TopiaPause session');
   const payload = (await verify(env, 'session', token)) as { v?: number; bind?: string; exp?: number } | undefined;
-  if (!payload || payload.v !== 1 || typeof payload.bind !== 'string' || typeof payload.exp !== 'number') {
+  if (!payload || payload.v !== 2 || typeof payload.bind !== 'string' || typeof payload.exp !== 'number') {
     throw new HttpError(403, 'invalid_session', 'Session token is invalid');
   }
   if (payload.exp < nowSec()) throw new HttpError(403, 'invalid_session', 'Session token expired');
