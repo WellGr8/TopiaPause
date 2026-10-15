@@ -71,7 +71,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for diagrams, data contracts an
 | Worker API (`workers/api`) | **Real.** `POST /api/guard/check` runs the engine server-side with zod validation, CORS, per-IP rate limits and a 32 KB body cap. 24 Vitest handler tests. See [docs/API.md](docs/API.md). |
 | U-Bot | **Mock agent.** `POST /api/agent/chat` asks an OpenAI-compatible LLM to play the over-eager agent (JSON output) when `LLM_API_KEY` + `LLM_MODEL` are set; prices and portfolio are always restored from the fixed scene catalogs. Without a key: scripted replies. Intent extraction is a deterministic keyword heuristic either way. |
 | Explanations | Number-locked TH/EN templates. The LLM never writes a number the user sees. |
-| Voice | `POST /api/voice/tts` streams ElevenLabs mp3 (edge-cached) when `ELEVENLABS_API_KEY` + `ELEVENLABS_VOICE_ID` are set; otherwise it returns 503 and the browser uses `speechSynthesis`. |
+| Voice | Pre-generated ElevenLabs clips from `pnpm voice:pregen` (none committed yet) → live `POST /api/voice/tts` (edge-cached, needs `ELEVENLABS_API_KEY` + `ELEVENLABS_VOICE_ID`) → browser `speechSynthesis`. |
 | Execution and receipts | **Mock** (`POST /api/agent/execute`, `mode: 'mock'`, sandbox ref). No wallet, no payment. |
 | Web ↔ API | The web app feature-detects `/api/health`. With the Worker it calls the API (Rules → "Backend" shows which path is live); on plain Vite or offline it runs the same engine in the browser. |
 | Persistence | `localStorage` only (rules, activity, language, theme). |
@@ -90,7 +90,8 @@ workers/api/           Cloudflare Worker: serves apps/web/dist + /api/* (guard c
 scripts/               demo-curl.sh + guard/check payloads for the 3 stage scenes
 packages/guard-engine/ deterministic rules + a_max + number lock (+ tests)
 packages/shared/       types (ARCHITECTURE §5), TH/EN templates, scene catalogs, scripted U-Bot
-demo/audio/            pre-generated voice clips + manifest.json (placeholder)
+demo/voice/            voice lines (display / spoken / tagged) for the 3 scenes
+apps/web/public/audio/ pre-generated clips + manifest.json (empty until `pnpm voice:pregen`)
 docs/                  architecture, Thai summary, research, diagrams
 ```
 
@@ -116,6 +117,24 @@ curl -s localhost:8787/api/health
 ```
 
 To keep Vite hot reload but use the Worker API: `TOPIAPAUSE_API=http://127.0.0.1:8787 pnpm dev`.
+
+## Voice clips (optional, recommended for the stage)
+
+The voice lines for the 3 scenes are in [`demo/voice/voice-lines.md`](demo/voice/voice-lines.md) (and `.json`). `display` is the on-screen text, `spoken` has numbers written out for natural Thai, and `tagged` adds optional Eleven v3 audio tags.
+
+```bash
+export ELEVENLABS_API_KEY=...  ELEVENLABS_VOICE_ID=...   # or put them in workers/api/.dev.vars
+pnpm voice:pregen --dry-run      # list the 30 clips and character count (no key needed)
+pnpm voice:pregen                # writes apps/web/public/audio/*.mp3 + manifest.json (model eleven_v3)
+pnpm voice:pregen --tagged       # use the tagged text instead
+pnpm voice:pregen --only=crypto-th --force   # regenerate a subset
+```
+
+- Options: `ELEVENLABS_VOICE_ID_TH` / `ELEVENLABS_VOICE_ID_EN` override the voice per language, and `ELEVENLABS_MODEL_ID` overrides the model.
+- Existing clips are skipped unless the voice, model or text field changed, or you pass `--force`.
+- Without a key the script prints a note and exits 0.
+
+In the guard card, the app plays `warning` then `counter` when the card appears (or the combined `pause` clip), and `confirm` after the counter-offer's receipt. Every clip's manifest `text` is the engine's `voiceText` for that scene and language. If a policy change makes the engine say different numbers, the clips are skipped and live TTS or browser speech reads the real text. A Vitest test checks that `voice-lines.json` still matches the engine. Commit the generated `apps/web/public/audio` files once you're happy with the voice.
 
 ## Test and typecheck
 

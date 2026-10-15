@@ -52,7 +52,7 @@ flowchart LR
   EL["ElevenLabs TTS<br/>Eleven v3 (Thai) / Flash v2.5 (EN)"]
   SC["ElevenLabs Scribe STT<br/>(optional)"]
   TK["Tokenomist API<br/>(optional, cached)"]
-  CLIPS["demo/audio<br/>pre-generated clips"]
+  CLIPS["apps/web/public/audio<br/>pre-generated clips"]
 
   UI --> CHAT --> ADP --> LLM
   UI --> GUARD
@@ -222,7 +222,7 @@ export interface GuardVerdict {
   metrics: Record<string, number>;          // e.g. postTradeSharePct, aMaxUsd, monthlyEquivalent
   assumptions: string[];                    // shown every time
   explanation: { th: string; en: string; source: 'llm' | 'template' };
-  voiceText: { th: string; en: string; clipId?: string }; // clipId -> demo/audio
+  voiceText: { th: string; en: string; clipId?: string }; // clipId -> apps/web/public/audio
   engineVersion: string;
 }
 
@@ -331,7 +331,7 @@ Set secrets with `wrangler secret put <NAME>`. Never commit `.dev.vars`.
 - Backup: the same static build on Vercel/Netlify pointing at the Worker.
 - Before demo:
   - open the site in a fresh session and on mobile
-  - make sure the `demo/audio` clips are reachable
+  - make sure the `/audio/*.mp3` clips are reachable (`pnpm voice:pregen`)
   - make sure preset buttons work even if the LLM is down
 
 ---
