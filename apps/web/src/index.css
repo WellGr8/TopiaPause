@@ -40,6 +40,8 @@
   --color-ink: #0a1630;
   --color-muted: #4d566b;
   --color-line: #e4e9f2;
+  /* Secondary text that sits directly on the ambient glow (header). */
+  --color-on-glow: #232a42;
 
   --color-allow: #0f766e;
   --color-pause: #1d4ed8;
@@ -90,6 +92,7 @@
   --color-ink: #eef2fa;
   --color-muted: #a7b2c8;
   --color-line: #22325a;
+  --color-on-glow: #dfe5f2;
   --color-allow: #2dd4bf;
   --color-pause: #8fb4ff;
   --color-block: #fbbf24;
@@ -119,82 +122,70 @@
 }
 
 /*
- * Ambient glow (see Ambient.tsx). Each blob's opacity is
- * --o-<hue> x --k (theme/variant strength) x --boost (voice) x --zone-k,
- * so moods only swap numbers and the opacity transition does the blending.
+ * Ambient glow (see Ambient.tsx): a band across the top ~20% of the screen
+ * that fades out softly; everything below stays clean canvas. Each blob's
+ * opacity is --o-<hue> x --k (theme/variant strength) x --boost (voice), so
+ * moods only swap numbers and the opacity transition does the blending.
  */
 .ambient {
   position: fixed;
-  inset: 0;
+  inset: 0 0 auto;
+  height: 30vh;
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
   contain: strict;
-  --k: 0.75;
+  -webkit-mask-image: linear-gradient(to bottom, #000 35%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 35%, transparent 100%);
+  --k: 1;
   --boost: 1;
-  --blur: 100px;
-  --o-blue: 0.3;
-  --o-purple: 0.22;
-  --o-rose: 0;
+  --blur: 72px;
+  --o-blue: 0.55;
+  --o-purple: 0.5;
+  --o-rose: 0.32;
   --o-teal: 0;
 }
+@media (min-width: 640px) {
+  .ambient {
+    --blur: 100px;
+  }
+}
 .dark .ambient {
-  --k: 0.95;
+  --k: 0.8;
 }
 .ambient[data-variant='onboarding'] {
-  --k: 1;
-  --blur: 110px;
+  height: 34vh;
+  --k: 1.15;
 }
 .dark .ambient[data-variant='onboarding'] {
-  --k: 1.25;
+  --k: 0.9;
 }
 
 /* Moods follow the live guard card; the last matching rule wins. */
 :root:has([data-guard='verdict'][data-decision='allow']) .ambient {
-  --o-blue: 0.3;
-  --o-purple: 0.08;
-  --o-teal: 0.28;
+  --o-blue: 0.6;
+  --o-purple: 0.2;
+  --o-rose: 0;
+  --o-teal: 0.5;
 }
 :root:has([data-guard='verdict'][data-decision='pause']) .ambient,
 :root:has([data-guard='verdict'][data-decision='block']) .ambient {
-  --o-blue: 0.22;
-  --o-purple: 0.24;
-  --o-rose: 0.24;
+  --o-blue: 0.42;
+  --o-purple: 0.5;
+  --o-rose: 0.55;
 }
 :root:has([data-guard='checking'], [data-guard='rechecking']) .ambient {
-  --o-blue: 0.34;
-  --o-purple: 0.3;
-  --o-rose: 0.06;
+  --o-blue: 0.62;
+  --o-purple: 0.58;
+  --o-rose: 0.36;
   --o-teal: 0;
 }
 :root:has([data-voice='speaking']) .ambient {
-  --boost: 1.1;
-}
-
-.ambient-zone {
-  position: absolute;
-  inset-inline: 0;
-}
-.ambient-top {
-  top: 0;
-  height: 48vh;
-  --zone-k: 1;
-}
-.ambient-bottom {
-  bottom: 0;
-  height: 30vh;
-  --zone-k: 0.5;
-}
-.ambient[data-variant='onboarding'] .ambient-top {
-  height: 62vh;
-}
-.ambient[data-variant='onboarding'] .ambient-bottom {
-  --zone-k: 0.8;
+  --boost: 1.12;
 }
 
 .ambient-blob {
   position: absolute;
-  max-width: 880px;
   border-radius: 50%;
   filter: blur(var(--blur));
   will-change: transform, opacity;
@@ -203,38 +194,33 @@
 }
 .ambient-blob[data-hue='blue'] {
   background: var(--color-glow-blue);
-  opacity: calc(var(--o-blue) * var(--k) * var(--boost) * var(--zone-k));
+  opacity: calc(var(--o-blue) * var(--k) * var(--boost));
   --drift: ambient-drift-a;
-  --dur: 19s;
+  --dur: 22s;
+  left: -12%; top: -70%; width: 62%; height: 150%;
 }
 .ambient-blob[data-hue='purple'] {
   background: var(--color-glow-purple);
-  opacity: calc(var(--o-purple) * var(--k) * var(--boost) * var(--zone-k));
+  opacity: calc(var(--o-purple) * var(--k) * var(--boost));
   --drift: ambient-drift-b;
-  --dur: 23s;
+  --dur: 27s;
+  left: 28%; top: -80%; width: 56%; height: 160%;
 }
 .ambient-blob[data-hue='rose'] {
   background: var(--color-glow-rose);
-  opacity: calc(var(--o-rose) * var(--k) * var(--boost) * var(--zone-k));
+  opacity: calc(var(--o-rose) * var(--k) * var(--boost));
   --drift: ambient-drift-c;
-  --dur: 17s;
+  --dur: 24s;
+  left: 62%; top: -60%; width: 50%; height: 140%;
 }
 .ambient-blob[data-hue='teal'] {
   background: var(--color-glow-teal);
-  opacity: calc(var(--o-teal) * var(--k) * var(--boost) * var(--zone-k));
+  opacity: calc(var(--o-teal) * var(--k) * var(--boost));
   --drift: ambient-drift-c;
-  --dur: 25s;
+  --dur: 29s;
   animation-direction: alternate-reverse;
+  left: 8%; top: -60%; width: 46%; height: 130%;
 }
-
-.ambient-top [data-hue='blue'] { left: -15%; top: -60%; width: 70%; height: 90%; }
-.ambient-top [data-hue='purple'] { left: 38%; top: -68%; width: 72%; height: 95%; }
-.ambient-top [data-hue='rose'] { left: 58%; top: -48%; width: 50%; height: 70%; }
-.ambient-top [data-hue='teal'] { left: 5%; top: -48%; width: 50%; height: 70%; }
-.ambient-bottom [data-hue='purple'] { left: -10%; top: 55%; width: 65%; height: 90%; }
-.ambient-bottom [data-hue='blue'] { left: 45%; top: 60%; width: 65%; height: 90%; }
-.ambient-bottom [data-hue='rose'] { left: 30%; top: 70%; width: 45%; height: 70%; }
-.ambient-bottom [data-hue='teal'] { left: 20%; top: 65%; width: 55%; height: 80%; }
 
 .ambient[data-paused] .ambient-blob {
   animation-play-state: paused;
@@ -242,31 +228,24 @@
 
 @keyframes ambient-drift-a {
   0% { transform: translate3d(0, 0, 0) scale(1, 1) rotate(0deg); }
-  50% { transform: translate3d(9%, 7%, 0) scale(1.14, 0.9) rotate(9deg); }
-  100% { transform: translate3d(-7%, 4%, 0) scale(0.92, 1.1) rotate(-6deg); }
+  50% { transform: translate3d(22%, 14%, 0) scale(1.25, 0.85) rotate(14deg); }
+  100% { transform: translate3d(-14%, 6%, 0) scale(0.85, 1.18) rotate(-10deg); }
 }
 @keyframes ambient-drift-b {
   0% { transform: translate3d(0, 0, 0) scale(1, 1) rotate(0deg); }
-  50% { transform: translate3d(-11%, 9%, 0) scale(0.9, 1.12) rotate(-10deg); }
-  100% { transform: translate3d(6%, -3%, 0) scale(1.1, 0.94) rotate(7deg); }
+  50% { transform: translate3d(-24%, 12%, 0) scale(0.82, 1.2) rotate(-16deg); }
+  100% { transform: translate3d(16%, -6%, 0) scale(1.22, 0.9) rotate(10deg); }
 }
 @keyframes ambient-drift-c {
   0% { transform: translate3d(0, 0, 0) scale(1, 1); }
-  50% { transform: translate3d(-8%, -10%, 0) scale(1.16, 0.95); }
-  100% { transform: translate3d(10%, 6%, 0) scale(0.94, 1.08); }
+  50% { transform: translate3d(-20%, -10%, 0) scale(1.24, 0.9); }
+  100% { transform: translate3d(18%, 10%, 0) scale(0.86, 1.14); }
 }
-
-/* The blue wave is reserved for moments when TopiaPause is thinking or speaking. */
-@utility bg-wave {
-  background-image: linear-gradient(
-    90deg,
-    var(--color-wave-1),
-    var(--color-wave-2),
-    var(--color-wave-3),
-    var(--color-wave-4),
-    var(--color-wave-1)
-  );
-  background-size: 200% 100%;
+/* Reduced motion: no stillness, just a much slower, smaller sway. */
+@keyframes ambient-drift-soft {
+  0% { transform: translate3d(0, 0, 0) scale(1, 1); }
+  50% { transform: translate3d(7%, 4%, 0) scale(1.06, 0.96); }
+  100% { transform: translate3d(-6%, 2%, 0) scale(0.96, 1.05); }
 }
 
 @layer base {
@@ -293,7 +272,11 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0ms !important;
   }
+  /* Beats the blanket rule above (higher specificity, both !important). */
   .ambient-blob {
-    animation: none;
+    animation-name: ambient-drift-soft !important;
+    animation-duration: calc(var(--dur) * 2) !important;
+    animation-iteration-count: infinite !important;
+    transition-duration: 800ms !important;
   }
 }

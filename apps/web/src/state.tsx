@@ -74,21 +74,30 @@ type Action =
   | { type: 'reset' };
 
 const STORAGE_KEY = 'topiapause:v2';
+/** Light by default; dark only once the user flips the toggle (system preference is ignored). */
+const THEME_KEY = 'topiapause:theme';
+
+function savedTheme(): Theme {
+  try {
+    return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light';
+  } catch {
+    return 'light';
+  }
+}
 
 function initial(): AppState {
-  const prefersDark = typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches;
   const base: AppState = {
     onboarded: false,
     screen: 'chat',
     lang: 'th',
-    theme: prefersDark ? 'dark' : 'light',
+    theme: savedTheme(),
     policy: DEFAULT_POLICY,
     chat: [],
     activity: [],
   };
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Partial<AppState> | null;
-    if (saved) return { ...base, ...saved, chat: [], screen: 'chat' };
+    if (saved) return { ...base, ...saved, theme: base.theme, chat: [], screen: 'chat' };
   } catch {
     // ignore corrupt storage
   }
@@ -141,6 +150,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', state.theme === 'dark');
+    localStorage.setItem(THEME_KEY, state.theme);
     document.documentElement.lang = state.lang;
   }, [state.theme, state.lang]);
 

@@ -11,7 +11,7 @@ export function LangButton({ className }: { className?: string }) {
       type="button"
       aria-label={t(lang, 'switchLangLabel')}
       onClick={() => dispatch({ type: 'lang', lang: lang === 'th' ? 'en' : 'th' })}
-      className={`inline-flex h-11 min-w-11 items-center justify-center rounded-control px-2 text-sm font-medium text-muted hover:text-ink ${className ?? ''}`}
+      className={`inline-flex h-11 min-w-11 items-center justify-center rounded-control px-2 text-sm font-medium text-on-glow hover:text-ink ${className ?? ''}`}
     >
       {t(lang, 'switchLang')}
     </button>
@@ -32,11 +32,11 @@ export function Header() {
           <h1 className="flex-1 font-semibold">{title}</h1>
         ) : (
           <p className="flex-1 font-semibold">
-            U-Bot <span className="font-normal text-muted">· {t(lang, 'mock')}</span>
+            U-Bot <span className="font-normal text-on-glow">· {t(lang, 'mock')}</span>
           </p>
         )}
         {screen === 'chat' && state.chat.length > 0 && (
-          <IconButton label={t(lang, 'newChat')} onClick={() => dispatch({ type: 'clearChat' })}>
+          <IconButton className="text-on-glow!" label={t(lang, 'newChat')} onClick={() => dispatch({ type: 'clearChat' })}>
             <RotateCcw size={18} />
           </IconButton>
         )}
