@@ -135,8 +135,9 @@
   overflow: hidden;
   pointer-events: none;
   contain: strict;
-  -webkit-mask-image: linear-gradient(to bottom, #000 35%, transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 35%, transparent 100%);
+  /* Full strength behind the header, then a quick fade so content text below keeps AA. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 18%, rgb(0 0 0 / 0.45) 40%, rgb(0 0 0 / 0.15) 70%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 18%, rgb(0 0 0 / 0.45) 40%, rgb(0 0 0 / 0.15) 70%, transparent 100%);
   --k: 1;
   --boost: 1;
   --blur: 72px;

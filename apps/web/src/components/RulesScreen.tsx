@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { t } from '../copy';
 import { apiHealth, type Health } from '../lib/api';
 import { useApp } from '../state';
+import { RuleInput } from './RuleInput';
 import { RuleRow, RulesEditor } from './RulesEditor';
 import { Card, TextButton, Toggle } from './ui';
 
@@ -20,7 +21,8 @@ export function RulesScreen() {
         : t(lang, 'backendBrowser');
   return (
     <div className="mx-auto w-full max-w-xl space-y-8 px-4 pb-8 pt-6">
-      <Card>
+      <RuleInput policy={state.policy} lang={lang} onChange={(policy) => dispatch({ type: 'policy', policy })} />
+      <Card className="-mt-4">
         <RulesEditor policy={state.policy} lang={lang} extended onChange={(policy) => dispatch({ type: 'policy', policy })} />
       </Card>
 

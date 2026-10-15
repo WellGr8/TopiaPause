@@ -34,12 +34,15 @@ export interface GuardRun {
   verdictLang?: Lang;
   guardSource?: 'api' | 'browser';
   agentSource?: 'llm' | 'scripted';
+  /** Set when the proposal followed an instruction found on a web page (prompt-injection scene). */
+  injectedFrom?: string;
 }
 
 export type ChatItem =
   | { id: string; type: 'user'; text: string }
   | { id: string; type: 'ubot'; text: string }
   | { id: string; type: 'typing' }
+  | { id: string; type: 'webpage'; url: string; visible: string; hidden: string }
   | { id: string; type: 'guard'; run: GuardRun };
 
 export interface ActivityEntry {

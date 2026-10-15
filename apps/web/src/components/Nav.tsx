@@ -1,8 +1,8 @@
 import { Activity, MessageCircle, SlidersHorizontal, type LucideIcon } from 'lucide-react';
 import { t, type CopyKey } from '../copy';
 import { useApp, type Screen } from '../state';
-import { useProtectedTotals } from './ActivityScreen';
 import { LangButton } from './Header';
+import { SavedHero } from './SavedHero';
 import { Logo, cx } from './ui';
 
 const ITEMS: Array<{ screen: Screen; icon: LucideIcon; label: CopyKey }> = [
@@ -40,7 +40,6 @@ export function BottomNav() {
 export function Sidebar() {
   const { state, dispatch } = useApp();
   const { lang } = state;
-  const { primary, secondary } = useProtectedTotals();
   return (
     <aside className="hidden h-full w-64 shrink-0 flex-col border-r border-line px-4 py-5 lg:flex">
       <div className="flex items-center gap-2.5 px-2">
@@ -71,15 +70,7 @@ export function Sidebar() {
         </ul>
       </nav>
 
-      <div className="mt-10 px-2">
-        <p className="text-sm text-muted">{t(lang, 'protectedMonth')}</p>
-        <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums">{primary}</p>
-        {secondary && (
-          <p className="mt-1 text-sm text-muted">
-            + <span className="text-ink">{secondary}</span> {t(lang, 'inCrypto')}
-          </p>
-        )}
-      </div>
+      <SavedHero className="mt-10 px-2" />
 
       <div className="mt-auto flex items-center justify-between px-2">
         <p className="text-xs text-muted">{t(lang, 'sandbox')}</p>

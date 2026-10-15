@@ -2,6 +2,7 @@ import { t } from '../copy';
 import { useApp } from '../state';
 import { Ambient } from './Ambient';
 import { LangButton } from './Header';
+import { RuleInput } from './RuleInput';
 import { RulesEditor } from './RulesEditor';
 import { Button, Card, Logo, WaveStrip } from './ui';
 
@@ -26,7 +27,11 @@ export function Onboarding() {
           <p className="mt-3 text-[17px] leading-relaxed text-muted">{t(lang, 'onbBody')}</p>
         </section>
 
-        <section className="mt-10" aria-labelledby="onb-rules">
+        <div className="mt-9">
+          <RuleInput policy={state.policy} lang={lang} onChange={(policy) => dispatch({ type: 'policy', policy })} />
+        </div>
+
+        <section className="mt-4" aria-labelledby="onb-rules">
           <h2 id="onb-rules" className="mb-2 px-1 text-sm text-muted">
             {t(lang, 'onbRules')}
           </h2>
