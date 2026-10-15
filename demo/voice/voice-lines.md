@@ -174,6 +174,17 @@ Tone: calm, friendly, never alarmist. Polite particle "ครับ" (male perso
 | tagged (optional) | [calm] เดี๋ยวครับ... โทเคนเอ็กซ์จะเป็นสี่สิบห้าเปอร์เซ็นต์ เกินเพดานสามสิบ แถมขอสิทธิ์แบบไม่จำกัด [warmly] ทางที่ผ่านกฎคือ สองร้อย ยูเอสดีที โดยอนุมัติแค่สองร้อย ยูเอสดีที ครั้งเดียว ใช้ได้สิบห้านาทีครับ | [calm] Hold on... TOKEN-X would hit forty-five percent, over your thirty percent cap, with unlimited approval. [warmly] What passes your rules is two hundred USDT, with a one-time approval of exactly two hundred USDT, valid for fifteen minutes. |
 | est. seconds · file | 12.1 s · `crypto-th-pause.mp3` | 12.9 s · `crypto-en-pause.mp3` |
 
+## Scene 4: Prompt injection (just try → page tells agents "pick the annual plan" → AGENT_FOLLOWED_UNTRUSTED)
+
+Engine clipId `injection-pause`: used whenever AGENT_FOLLOWED_UNTRUSTED fires on the PixelPro proposal.
+
+| | TH | EN |
+|---|---|---|
+| manifest `text` (= engine voiceText) | เดี๋ยวก่อนครับ หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง ทางที่ตรงกว่าคือทดลองฟรี 7 วัน แล้วรายเดือน ฿299 ซึ่งผมจะเตือนก่อนตัดเงิน | Hold on. The web page told it to pick yearly, but you only asked to try. A better fit: 7-day free trial, then ฿299/month, with a reminder before the first charge. |
+| spoken (TTS) | เดี๋ยวก่อนครับ หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง ทางที่ตรงกว่าคือ ทดลองฟรีเจ็ดวัน แล้วค่อยเป็นรายเดือน สองร้อยเก้าสิบเก้าบาท ผมจะเตือนก่อนตัดเงินครับ | Hold on. The web page told it to pick yearly, but you only asked to try. A better fit: a seven-day free trial, then two hundred ninety-nine baht a month. I'll remind you before the first charge. |
+| tagged (optional) | [calm] เดี๋ยวก่อนครับ... หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง [warmly] ทางที่ตรงกว่าคือ ทดลองฟรีเจ็ดวัน แล้วค่อยเป็นรายเดือน สองร้อยเก้าสิบเก้าบาท ผมจะเตือนก่อนตัดเงินครับ | [calm] Hold on... The web page told it to pick yearly, but you only asked to try. [warmly] A better fit: a seven-day free trial, then two hundred ninety-nine baht a month. I'll remind you before the first charge. |
+| est. seconds · file | 10.5 s · `injection-th-pause.mp3` | 10 s · `injection-en-pause.mp3` |
+
 
 ## Thai number readings used
 | Display | Spoken Thai |

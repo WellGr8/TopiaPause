@@ -45,7 +45,7 @@ export type ProposalKind = AgentProposal['kind'];
 
 export interface ProposalBase {
   proposalId: string;
-  agent: { name: 'U-Bot (mock)' | 'U-Bot'; adapter: 'mock' | 'real' };
+  agent: { name: string; adapter: 'mock' | 'real' | 'external' };
   /** Agent's own wording (display only, never used for decisions). */
   summary: string;
 }
@@ -130,7 +130,8 @@ export type RuleId =
   | 'INSUFFICIENT_BALANCE'
   | 'INVALID_INPUT'
   | 'LOW_CONFIDENCE'
-  | 'UNLOCK_SOON';
+  | 'UNLOCK_SOON'
+  | 'AGENT_FOLLOWED_UNTRUSTED';
 
 export type Evidence = Record<string, number | string | boolean | Money>;
 
@@ -198,6 +199,14 @@ export interface BreakdownSection {
   lines: BreakdownLine[];
   total: BreakdownLine;
   fx?: { amount: Money; rate: string; asOf: string; source: string };
+}
+
+// ---- Untrusted context ----
+/** Content the agent read. Untrusted: it can only add a pause, never loosen a rule or the intent. */
+export interface UntrustedSource {
+  kind: 'web_page' | 'email' | 'tool_output';
+  url?: string;
+  text: string;
 }
 
 // ---- Context notes ----
@@ -283,35 +292,32 @@ export interface AgentChatResponse {
 }
 
 export interface GuardCheckRequest {
-  userText: string;
+  /** The user's own message, verbatim; intent is derived from it server-side. */
+  userMessage: string;
   proposal: AgentProposal;
-  policy: UserPolicy;
+  policyToken?: string;
+  sources?: UntrustedSource[];
   lang: Lang;
-  intent?: ActionIntent;
-  followUp?: string;
 }
 
 /** Decimal string ("3990.00") or integer minor units. */
 export type MoneyInput = { currency: Currency } & ({ value: string | number } | { minor: number });
 
-/** Agent-agnostic proposal any external agent can send to POST /api/guard/check. */
+/**
+ * Agent-agnostic request any external agent can send to POST /api/guard/check.
+ * Agents never send policy or intent: the policy comes from the user's signed token and the
+ * intent is derived by TopiaPause from the user's own message.
+ */
 export interface GenericGuardRequest {
   agent: { name: string; version?: string };
-  /** What the user asked for, in their words. The only input that decides intent. */
-  intent: string;
+  /** The user's own message, verbatim. */
+  userMessage: string;
   action:
-    | {
-        type: 'subscribe';
-        merchant: string;
-        plan: string;
-        interval: 'month' | 'year';
-        autoRenew?: boolean;
-        trialDays?: number;
-      }
+    | { type: 'subscribe'; merchant: string; plan: string; interval: 'month' | 'year'; autoRenew?: boolean; trialDays?: number }
     | { type: 'book'; hotel: string; refundable: boolean; freeCancelUntil?: string; shownPrice?: MoneyInput }
     | {
         type: 'swap';
-        from: Currency;
+        from: string;
         to: string;
         approval: { type: 'exact' | 'unlimited'; amount?: MoneyInput; expirySec?: number; spender?: string };
         feePpm?: number;
@@ -321,9 +327,10 @@ export interface GenericGuardRequest {
   amount: MoneyInput;
   /** Options the agent saw but didn't pick; the guard can only counter-offer from these. */
   alternatives?: Array<{ name: string; amount: MoneyInput; interval?: 'month' | 'year'; trialDays?: number; refundable?: boolean; freeCancelUntil?: string }>;
-  /** Text the agent read (web page, email). Never used for decisions; scanned for injected instructions. */
-  context?: { source?: string; text?: string };
-  policy?: UserPolicy;
+  /** What the agent read (page, email, tool output). Untrusted; scanned for instructions aimed at agents. */
+  sources?: UntrustedSource[];
+  /** Issued by POST /api/policy to the user's own app. */
+  policyToken?: string;
   lang?: Lang;
 }
 

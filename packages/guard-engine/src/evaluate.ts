@@ -12,9 +12,11 @@ import {
   type Lang,
   type MarketData,
   type RiskNote,
+  type UntrustedSource,
   type UserPolicy,
 } from '@topiapause/shared';
 import { DEFAULT_FX, confidenceRule, stayRules, subscriptionRules, swapRules, type RuleResult } from './rules';
+import { findInstruction, untrustedRule } from './untrusted';
 
 export const ENGINE_VERSION = '0.2.0';
 
@@ -34,20 +36,21 @@ export interface EvaluateInput {
   fx?: FxRate[];
   /** Token unlock data for the crypto risk note (informational only). */
   market?: MarketData;
-  /** Text the agent read (web page, email). Scanned for injected instructions, never used for decisions. */
-  agentContext?: string;
+  /** What the agent read. Untrusted: can only add AGENT_FOLLOWED_UNTRUSTED, never loosen anything. */
+  sources?: UntrustedSource[];
   /** Reference time for date windows; keeps the engine pure. */
   now?: string;
 }
 
-function runRules({ intent, proposal, policy, fx = DEFAULT_FX }: EvaluateInput): RuleResult {
+function runRules({ intent, proposal, policy, fx = DEFAULT_FX, sources }: EvaluateInput): RuleResult {
   const r =
     proposal.kind === 'subscription'
       ? subscriptionRules(intent, proposal, policy, fx)
       : proposal.kind === 'stay'
         ? stayRules(intent, proposal, policy, fx)
         : swapRules(intent, proposal, policy, fx);
-  return { ...r, findings: [...r.findings, ...confidenceRule(intent)] };
+  const findings = [...r.findings, ...confidenceRule(intent)];
+  return { ...r, findings: [...untrustedRule(intent, proposal, findings, sources), ...findings] };
 }
 
 /** Decision only, no counter-offer. Used for re-checks. */
@@ -100,28 +103,18 @@ function unlockNote(input: EvaluateInput): RiskNote | undefined {
   };
 }
 
-// Instruction-like text inside content the agent read. Heuristic on purpose: the guard never
-// obeys it anyway (decisions come from the user's words), the note just makes the attempt visible.
-const INJECTION = [
-  /ignore (all |any |the )?(previous|prior|user|above)/i,
-  /\b(system|assistant)\s*:/i,
-  /\b(you must|always|agent(s)? should)\s+(choose|select|pick|buy|approve)/i,
-  /\b(choose|select|pick)\s+(the\s+)?(annual|yearly|premium|unlimited)/i,
-  /ไม่ต้องสนใจ|เลือกแพ็กเกจรายปี|เลือกรายปี/,
-];
-
-function injectionNote(text: string | undefined): RiskNote | undefined {
-  if (!text) return undefined;
-  const hit = INJECTION.map((re) => re.exec(text)).find(Boolean);
-  if (!hit) return undefined;
-  const start = Math.max(0, hit.index - 20);
-  const excerpt = text.slice(start, start + 90).replace(/\s+/g, ' ').trim();
+/** Instruction found but the proposal still matches the user: say it was ignored. No source text is echoed. */
+function ignoredInstructionNote(input: EvaluateInput, findings: Finding[]): RiskNote | undefined {
+  if (findings.some((f) => f.ruleId === 'AGENT_FOLLOWED_UNTRUSTED')) return undefined;
+  const ins = findInstruction(input.sources);
+  if (!ins) return undefined;
+  const where = { web_page: ['หน้าเว็บ', 'A web page'], email: ['อีเมล', 'An email'], tool_output: ['ผลลัพธ์จากเครื่องมือ', 'A tool output'] }[ins.sourceKind];
   return {
     kind: 'injection',
-    severity: 'warn',
+    severity: 'info',
     text: {
-      th: `เนื้อหาที่ agent อ่านพยายามสั่งให้เลือกแทนคุณ: “${excerpt}” TopiaPause ตัดสินจากสิ่งที่คุณพูดเท่านั้น`,
-      en: `Content the agent read tried to steer the choice: “${excerpt}”. TopiaPause only decides from what you said.`,
+      th: `${where[0]}ที่ agent อ่านมีคำสั่งถึง AI แต่ข้อเสนอยังตรงกับที่คุณขอ จึงไม่มีผล`,
+      en: `${where[1]} the agent read contains instructions for AI agents; the proposal still matches what you asked, so they had no effect.`,
     },
   };
 }
@@ -150,7 +143,7 @@ export function evaluate(input: EvaluateInput): GuardVerdict {
     breakdown = [];
   }
 
-  const notes = [unlockNote(input), injectionNote(input.agentContext)].filter((n): n is RiskNote => !!n);
+  const notes = [unlockNote(input), ignoredInstructionNote(input, r.findings)].filter((n): n is RiskNote => !!n);
   const tpl = { decision, findings: r.findings, counterOffer, metrics, amounts, proposal: input.proposal };
   return {
     verdictId: `v-${input.proposal.proposalId}`,

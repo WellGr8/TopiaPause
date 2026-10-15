@@ -31,7 +31,37 @@ export const RULE_TITLES: Record<RuleId, { th: string; en: string }> = {
   INVALID_INPUT: { th: 'ข้อมูลไม่ถูกต้อง', en: 'Invalid input' },
   LOW_CONFIDENCE: { th: 'ยังไม่แน่ใจว่าคุณหมายถึงอะไร', en: 'Not sure what you meant' },
   UNLOCK_SOON: { th: 'มีโทเคนปลดล็อกเร็วๆ นี้', en: 'Large token unlock soon' },
+  AGENT_FOLLOWED_UNTRUSTED: { th: 'agent ทำตามคำสั่งจากเนื้อหาภายนอก', en: 'Agent followed instructions from content it read' },
 };
+
+// Fixed vocabulary only: evidence for AGENT_FOLLOWED_UNTRUSTED never carries source text.
+const SOURCE_WORD = {
+  web_page: { th: 'หน้าเว็บ', en: 'The web page' },
+  email: { th: 'อีเมล', en: 'The email' },
+  tool_output: { th: 'ผลลัพธ์จากเครื่องมือ', en: 'The tool output' },
+} as const;
+const PUSHED_WORD = {
+  yearly: { th: 'เลือกรายปี', en: 'pick yearly' },
+  unlimited: { th: 'อนุมัติแบบไม่จำกัด', en: 'approve unlimited spending' },
+  non_refundable: { th: 'จองห้องคืนเงินไม่ได้', en: 'book a non-refundable room' },
+  other: { th: 'เลือกแทนคุณ', en: 'choose for you' },
+} as const;
+const ASKED_WORD = {
+  trial: { th: 'แต่คุณบอกแค่ลอง', en: 'but you only asked to try' },
+  once: { th: 'แต่คุณบอกว่าครั้งเดียว', en: 'but you said just once' },
+  flexible: { th: 'แต่คุณบอกว่าแผนอาจเปลี่ยน', en: 'but you said your plans may change' },
+  other: { th: 'แต่ไม่ตรงกับที่คุณขอ', en: "but that isn't what you asked for" },
+} as const;
+const word = <T extends Record<string, { th: string; en: string }>>(table: T, key: unknown, fallback: keyof T, lang: Lang) =>
+  (table[(typeof key === 'string' && key in table ? key : fallback) as keyof T] as { th: string; en: string })[lang];
+
+/** "หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง" / "The web page told it to pick yearly, but you only asked to try" */
+function untrustedLine(e: Evidence, lang: Lang): string {
+  const src = word(SOURCE_WORD, e.sourceKind, 'web_page', lang);
+  const pushed = word(PUSHED_WORD, e.pushed, 'other', lang);
+  const asked = word(ASKED_WORD, e.asked, 'other', lang);
+  return lang === 'th' ? `${src}สั่งให้${pushed} ${asked}` : `${src} told it to ${pushed}, ${asked}`;
+}
 
 export function findingTitle(ruleId: RuleId, lang: Lang): string {
   return RULE_TITLES[ruleId][lang];
@@ -104,6 +134,8 @@ export function findingDetail(f: Finding, lang: Lang): string {
         `มั่นใจเพียง ${fmtPct(num(e, 'confidencePct'))} ช่วยยืนยันรายละเอียดอีกครั้ง`,
         `Only ${fmtPct(num(e, 'confidencePct'))} confident. Please confirm the details.`,
       );
+    case 'AGENT_FOLLOWED_UNTRUSTED':
+      return lang === 'th' ? untrustedLine(e, lang) : `${untrustedLine(e, lang)}.`;
     case 'UNLOCK_SOON':
       return pick(lang, 'มีการปลดล็อกโทเคนจำนวนมากภายใน 7 วัน', 'A large token unlock is due within 7 days.');
   }
@@ -222,12 +254,16 @@ export function buildExplanation(input: TemplateInput): { th: string; en: string
 const SCENE_BY_KIND = { subscription: 'subscription', stay: 'stay', token_swap: 'crypto' } as const;
 
 export function buildVoiceText(input: TemplateInput): { th: string; en: string; clipId: string } {
-  const clipId = `${SCENE_BY_KIND[input.proposal.kind]}-${input.decision}`;
   const ev = (id: RuleId) => input.findings.find((f) => f.ruleId === id)?.evidence;
+  const untrusted = ev('AGENT_FOLLOWED_UNTRUSTED');
+  const clipId = untrusted ? `injection-${input.decision}` : `${SCENE_BY_KIND[input.proposal.kind]}-${input.decision}`;
   const make = (lang: Lang): string => {
     if (input.decision === 'allow') return pick(lang, 'ตรงกับที่คุณตั้งใจครับ', 'This matches what you meant.');
     const p = input.proposal;
     const tail = counterSentence(input, lang);
+    if (untrusted) {
+      return `${pick(lang, 'เดี๋ยวก่อนครับ', 'Hold on.')} ${lang === 'th' ? untrustedLine(untrusted, lang) : `${untrustedLine(untrusted, lang)}.`} ${tail}`.trim();
+    }
     if (p.kind === 'subscription' && ev('SUB_COMMITMENT')) {
       return `${pick(lang, 'เดี๋ยวก่อนครับ', 'Hold on.')} ${findingDetail(input.findings.find((f) => f.ruleId === 'SUB_COMMITMENT')!, lang)} ${tail}`.trim();
     }
