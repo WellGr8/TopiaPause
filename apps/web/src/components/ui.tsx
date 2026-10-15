@@ -1,6 +1,6 @@
 import type { Decision, Lang } from '@topiapause/shared';
 import { Minus, Plus } from 'lucide-react';
-import type { ButtonHTMLAttributes, HTMLAttributes } from 'react';
+import { useId, type ButtonHTMLAttributes, type HTMLAttributes } from 'react';
 import { DECISION_LABEL } from '../copy';
 
 export function cx(...c: Array<string | false | null | undefined>): string {
@@ -8,11 +8,34 @@ export function cx(...c: Array<string | false | null | undefined>): string {
 }
 
 export function Logo({ size = 32 }: { size?: number }) {
+  const uid = useId().replace(/:/g, '');
+  const g = `${uid}-g`;
+  const h = `${uid}-h`;
+  const s = `${uid}-s`;
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" className="shrink-0 text-ink">
-      <rect width="64" height="64" rx="18" fill="currentColor" />
-      <rect x="22" y="18" width="7" height="28" rx="3.5" className="fill-canvas" />
-      <rect x="35" y="18" width="7" height="28" rx="3.5" className="fill-canvas" />
+    <svg width={size} height={size} viewBox="0 0 128 128" aria-hidden="true" className="shrink-0">
+      <defs>
+        <linearGradient id={g} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#67C7FF" />
+          <stop offset=".5" stopColor="#9B8CFF" />
+          <stop offset="1" stopColor="#FF9CC8" />
+        </linearGradient>
+        <radialGradient id={h} cx=".3" cy=".2" r=".8">
+          <stop offset="0" stopColor="#fff" stopOpacity=".55" />
+          <stop offset="1" stopColor="#fff" stopOpacity="0" />
+        </radialGradient>
+        <filter id={s} x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#4B3FB8" floodOpacity=".28" />
+        </filter>
+      </defs>
+      <rect width="128" height="128" rx="32" fill={`url(#${g})`} />
+      <rect width="128" height="128" rx="32" fill={`url(#${h})`} />
+      <g filter={`url(#${s})`}>
+        <rect x="42" y="40" width="12" height="28" rx="6" fill="#fff" />
+        <rect x="74" y="40" width="12" height="28" rx="6" fill="#fff" />
+        <path d="M42 84 Q64 102 86 84" stroke="#fff" strokeLinecap="round" strokeLinejoin="round" fill="none" strokeWidth="10" />
+        <path d="M98 22 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3z" fill="#fff" />
+      </g>
     </svg>
   );
 }

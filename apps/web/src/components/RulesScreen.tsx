@@ -1,3 +1,4 @@
+import { DEFAULT_POLICY } from '@topiapause/shared';
 import { useEffect, useState } from 'react';
 import { t } from '../copy';
 import { apiHealth, type Health } from '../lib/api';
@@ -23,7 +24,7 @@ export function RulesScreen() {
     <div className="mx-auto w-full max-w-xl space-y-8 px-4 pb-8 pt-6">
       <RuleInput policy={state.policy} lang={lang} onChange={(policy) => dispatch({ type: 'policy', policy })} />
       <Card className="-mt-4">
-        <RulesEditor policy={state.policy} lang={lang} extended onChange={(policy) => dispatch({ type: 'policy', policy })} />
+        <RulesEditor policy={state.policy} lang={lang} onChange={(policy) => dispatch({ type: 'policy', policy })} />
       </Card>
 
       <section aria-labelledby="display">
@@ -57,9 +58,12 @@ export function RulesScreen() {
         </Card>
       </section>
 
-      <div className="flex items-center justify-between px-1">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
         <p className="text-xs text-muted">{t(lang, 'mockNote')}</p>
-        <TextButton onClick={() => dispatch({ type: 'reset' })}>{t(lang, 'resetDemo')}</TextButton>
+        <div className="flex gap-1">
+          <TextButton onClick={() => dispatch({ type: 'policy', policy: DEFAULT_POLICY })}>{t(lang, 'resetRules')}</TextButton>
+          <TextButton onClick={() => dispatch({ type: 'reset' })}>{t(lang, 'resetDemo')}</TextButton>
+        </div>
       </div>
     </div>
   );

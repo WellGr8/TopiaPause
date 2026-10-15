@@ -1,4 +1,4 @@
-import { fmtMoney, fmtNumber, fmtPct, fmtWeekday, pick } from './format';
+import { fmtExact, fmtMoney, fmtNumber, fmtPct, fmtWeekday, pick } from './format';
 import { isMoney } from './money';
 import type {
   AgentProposal,
@@ -33,6 +33,8 @@ export const RULE_TITLES: Record<RuleId, { th: string; en: string }> = {
   UNLOCK_SOON: { th: 'มีโทเคนปลดล็อกเร็วๆ นี้', en: 'Large token unlock soon' },
   AGENT_FOLLOWED_UNTRUSTED: { th: 'ผู้ช่วย AI ทำตามคำสั่งจากที่อื่น', en: 'The assistant followed instructions from something it read' },
   FX_UNAVAILABLE: { th: 'ไม่มีอัตราแลกเปลี่ยน', en: 'No exchange rate' },
+  USER_PAYMENT_LIMIT: { th: 'เกินวงเงินต่อครั้งที่คุณตั้งไว้', en: 'Over the per-payment limit you set' },
+  USER_BLOCK_ANNUAL: { th: 'รายปีหรือต่ออายุอัตโนมัติ', en: 'Annual or auto-renew' },
 };
 
 // Fixed vocabulary only: evidence for AGENT_FOLLOWED_UNTRUSTED never carries source text.
@@ -148,6 +150,13 @@ export function findingDetail(f: Finding, lang: Lang): string {
         `ไม่มีอัตราแลกเปลี่ยน ${str(e, 'priceCurrency')} เป็น ${str(e, 'capCurrency')} จึงหยุดไว้ก่อน`,
         `No exchange rate from ${str(e, 'priceCurrency')} to ${str(e, 'capCurrency')}, so this is paused.`,
       );
+    case 'USER_PAYMENT_LIMIT': {
+      const cap = e.limit;
+      const shown = isMoney(cap) ? fmtExact(cap) : '';
+      return pick(lang, `ติดกฎที่คุณตั้งไว้: จ่ายได้ไม่เกิน ${shown} ต่อครั้ง`, `Paused by your rule: max ${shown} per payment`);
+    }
+    case 'USER_BLOCK_ANNUAL':
+      return pick(lang, 'ติดกฎที่คุณตั้งไว้: ไม่เอาแพ็กเกจรายปีหรือต่ออายุอัตโนมัติ', 'Paused by your rule: no annual plan and no auto-renew');
   }
 }
 
@@ -269,6 +278,8 @@ export function buildVoiceText(input: TemplateInput): { th: string; en: string; 
   const clipId = untrusted ? `injection-${input.decision}` : `${SCENE_BY_KIND[input.proposal.kind]}-${input.decision}`;
   const make = (lang: Lang): string => {
     if (input.decision === 'allow') return pick(lang, 'ตรงกับที่คุณตั้งใจครับ', 'This matches what you meant.');
+    const userRule = input.findings.find((f) => f.ruleId === 'USER_PAYMENT_LIMIT' || f.ruleId === 'USER_BLOCK_ANNUAL');
+    if (userRule) return findingDetail(userRule, lang);
     const p = input.proposal;
     const tail = counterSentence(input, lang);
     if (untrusted) {

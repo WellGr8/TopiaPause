@@ -15,6 +15,8 @@ import {
 } from '@topiapause/shared';
 
 const RULE_ORDER: RuleId[] = [
+  'USER_PAYMENT_LIMIT',
+  'USER_BLOCK_ANNUAL',
   'AGENT_FOLLOWED_UNTRUSTED',
   'INVALID_INPUT',
   'INSUFFICIENT_BALANCE',
@@ -46,6 +48,10 @@ export function reasonLine(v: GuardVerdict, proposal: AgentProposal, lang: Lang)
   const by = (id: RuleId) => v.findings.find((f) => f.ruleId === id);
   const untrusted = by('AGENT_FOLLOWED_UNTRUSTED');
   if (untrusted) return findingDetail(untrusted, lang).replace(/\.$/, '');
+  const pay = by('USER_PAYMENT_LIMIT');
+  if (pay) return findingDetail(pay, lang);
+  const annual = by('USER_BLOCK_ANNUAL');
+  if (annual) return findingDetail(annual, lang);
 
   if (proposal.kind === 'subscription') {
     const c = by('SUB_COMMITMENT');

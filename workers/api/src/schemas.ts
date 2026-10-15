@@ -97,15 +97,22 @@ export const TokenSwapProposal = z.object({
 export const AgentProposal = z.discriminatedUnion('kind', [SubscriptionProposal, StayProposal, TokenSwapProposal]);
 
 /** Only accepted by POST /api/policy (the user's own app), never from an agent. */
-export const UserPolicy = z.object({
-  monthlySubscriptionCap: Money.optional(),
-  requireRefundableWhenFlexible: z.boolean(),
-  maxRefundablePremiumPct: z.number().finite().min(0).max(1000),
-  tokenConcentrationCaps: z.record(str(20), z.number().finite().min(0).max(1)),
-  approvalMode: z.enum(['exact', 'allow_unlimited']),
-  oneTimeApprovalMaxExpirySec: z.number().int().positive().max(31_536_000),
-  unlockWarnPctOfCirculating: z.number().finite().min(0).max(100).optional(),
-});
+/** ฿100,000,000.00 in satang. A personal per-payment cap above this is rejected. */
+const MAX_PAYMENT_SATANG = 100_000_000_00;
+
+export const UserPolicy = z
+  .object({
+    monthlySubscriptionCap: Money.optional(),
+    perPaymentLimit: z.object({ minor: z.number().int().min(1).max(MAX_PAYMENT_SATANG), currency: z.literal('THB') }).optional(),
+    blockAnnualAutoRenew: z.boolean().optional(),
+    requireRefundableWhenFlexible: z.boolean(),
+    maxRefundablePremiumPct: z.number().finite().min(0).max(1000),
+    tokenConcentrationCaps: z.record(str(20), z.number().finite().min(0).max(1)),
+    approvalMode: z.enum(['exact', 'allow_unlimited']),
+    oneTimeApprovalMaxExpirySec: z.number().int().positive().max(31_536_000),
+    unlockWarnPctOfCirculating: z.number().finite().min(0).max(100).optional(),
+  })
+  .strict();
 
 export const PolicyRequest = z.object({
   policy: UserPolicy,

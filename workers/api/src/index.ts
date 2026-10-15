@@ -80,7 +80,7 @@ async function guardCheck(req: Request, env: AppEnv, ctx?: ExecutionContext): Pr
   }
   // The public check never calls an LLM. The template is the explanation, so the meter stays at 0.
   verdict = { ...verdict, explanation: lockExplanation(undefined, verdict) };
-  verdict.verdictId = await issueTicket(env, verdict, proposal);
+  verdict.verdictId = await issueTicket(env, verdict, proposal, policy);
 
   const externalCalls = market?.externalCalls ?? 0;
   const llmCalls = 0;

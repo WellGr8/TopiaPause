@@ -156,6 +156,7 @@ function initial(): AppState {
         onboarded: base.onboarded,
         openScene: base.openScene,
         openTicket: base.openTicket,
+        policy: { ...DEFAULT_POLICY, ...(saved.policy ?? {}) },
       };
     }
   } catch {

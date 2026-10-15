@@ -179,7 +179,12 @@ async function readTicket(env: AppEnv, ticket: string): Promise<Ticket & { jti: 
 }
 
 /** An allow clears the original. A pause clears only the counter-offer, and that still needs a confirmation. */
-export async function issueTicket(env: AppEnv, verdict: GuardVerdict, original: AgentProposal): Promise<string> {
+export async function policyHash(policy: UserPolicy): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', enc.encode(canonical(UserPolicySchema.parse(policy))));
+  return b64url(new Uint8Array(digest)).slice(0, 32);
+}
+
+export async function issueTicket(env: AppEnv, verdict: GuardVerdict, original: AgentProposal, policy: UserPolicy): Promise<string> {
   const choices: { original?: string; counter_offer?: string } = {};
   if (verdict.decision === 'allow') {
     choices.original = await proposalHash(original);
@@ -194,6 +199,7 @@ export async function issueTicket(env: AppEnv, verdict: GuardVerdict, original: 
     exp,
     needsUser: verdict.decision === 'pause',
     choices,
+    policyHash: await policyHash(policy),
     facts: {
       decision: verdict.decision,
       findings: verdict.findings,

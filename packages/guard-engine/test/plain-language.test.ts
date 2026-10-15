@@ -18,6 +18,8 @@ const RULES: RuleId[] = [
   'UNLOCK_SOON',
   'AGENT_FOLLOWED_UNTRUSTED',
   'FX_UNAVAILABLE',
+  'USER_PAYMENT_LIMIT',
+  'USER_BLOCK_ANNUAL',
 ];
 
 describe('reason templates stay in everyday words', () => {
