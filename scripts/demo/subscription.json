@@ -1,0 +1,38 @@
+{
+  "agent": {
+    "name": "ShopBot",
+    "version": "1.0"
+  },
+  "userMessage": "Sign me up for the PixelPro photo app, I just want to try it.",
+  "lang": "en",
+  "action": {
+    "type": "subscribe",
+    "merchant": "PixelPro",
+    "plan": "PixelPro Annual",
+    "interval": "year",
+    "autoRenew": true
+  },
+  "amount": {
+    "value": "3990.00",
+    "currency": "THB"
+  },
+  "alternatives": [
+    {
+      "name": "PixelPro Monthly",
+      "amount": {
+        "value": "299.00",
+        "currency": "THB"
+      },
+      "interval": "month",
+      "trialDays": 7
+    },
+    {
+      "name": "PixelPro Plus Monthly",
+      "amount": {
+        "value": "459.00",
+        "currency": "THB"
+      },
+      "interval": "month"
+    }
+  ]
+}

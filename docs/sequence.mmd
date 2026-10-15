@@ -1,0 +1,33 @@
+sequenceDiagram
+  autonumber
+  actor U as User
+  participant W as Web chat (U-Bot mock UI)
+  participant A as Worker /api/agent/chat
+  participant L as LLM (JSON)
+  participant G as Worker /api/guard/check
+  participant E as Guard engine (deterministic)
+  participant V as /api/voice/tts (ElevenLabs v3)
+  U->>W: "Swap 500 USDT into TOKEN-X, just this once"
+  W->>A: message + scene + policy
+  A->>L: plan action (UBotAdapter: MockUBot)
+  L-->>A: AgentProposal (swap 500, approval UNLIMITED)
+  A-->>W: proposal shown as U-Bot message
+  W->>G: GuardCheckRequest (userText, proposal, policy)
+  G->>L: extract ActionIntent (frequency = once)
+  L-->>G: ActionIntent JSON (schema-validated)
+  G->>E: evaluate(intent, proposal, policy, portfolio)
+  E-->>G: PAUSE: CONC 45% > 30%, APPROVAL unlimited vs once<br/>counterOffer: swap 200, exact approval 200, 15 min
+  G->>E: re-check counterOffer
+  E-->>G: ALLOW (30.0%)
+  G->>L: explain(verdict JSON) TH/EN, numbers locked
+  L-->>G: explanation (number check passed)
+  G-->>W: GuardVerdict (decision, findings, counterOffer, explanation, voiceText)
+  W->>V: voiceText (or play pre-generated clip)
+  V-->>W: audio/mpeg
+  W-->>U: Guardian card + spoken warning (Thai)
+  U->>W: "Why only $200?"
+  W->>G: follow-up (answered from same verdict numbers)
+  U->>W: Confirm counter-offer
+  W->>A: execute(counterOffer) via UBotAdapter
+  A-->>W: mock execution result (sandbox, no real money)
+  W-->>U: Receipt (TH/EN): intent, original, decision, chosen, assumptions

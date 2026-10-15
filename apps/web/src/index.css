@@ -1,0 +1,280 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+@import '@fontsource/ibm-plex-sans-thai/400.css';
+@import '@fontsource/ibm-plex-sans-thai/500.css';
+@import '@fontsource/ibm-plex-sans-thai/600.css';
+@import '@fontsource/ibm-plex-sans-thai/700.css';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design tokens. The default palette, radii and shadows are cleared so only
+ * these exist: 1 brand colour + the wave/CTA gradients, 4 ambient glow hues,
+ * 3 grays, 3 status colours, 2 radii, 1 shadow. Dark mode swaps the values, not the class names.
+ */
+@theme {
+  --font-sans: 'Inter Variable', 'IBM Plex Sans Thai', ui-sans-serif, system-ui, sans-serif;
+
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-canvas: #f7faff;
+  --color-surface: #ffffff;
+
+  --color-brand: #2563eb;
+  --color-on-brand: #ffffff;
+  --color-wave-1: #4f7bff;
+  --color-wave-2: #8b5cf6;
+  --color-wave-3: #f0507a;
+  --color-wave-4: #8b5cf6;
+
+  /* Ambient glow hues; only ever rendered blurred and at low opacity. */
+  --color-glow-blue: #4f7bff;
+  --color-glow-purple: #8b5cf6;
+  --color-glow-rose: #f0507a;
+  --color-glow-teal: #2cc5c0;
+
+  /* Primary CTA fill; both ends keep >= 4.5:1 against on-brand text. */
+  --color-cta-from: #2f5bea;
+  --color-cta-to: #7238e0;
+
+  --color-ink: #0a1630;
+  --color-muted: #4d566b;
+  --color-line: #e4e9f2;
+  /* Secondary text that sits directly on the ambient glow (header). */
+  --color-on-glow: #232a42;
+
+  --color-allow: #0f766e;
+  --color-pause: #1d4ed8;
+  --color-block: #b45309;
+
+  --radius-*: initial;
+  --radius-control: 12px;
+  --radius-card: 20px;
+
+  --shadow-*: initial;
+  --shadow-card: 0 1px 2px rgb(10 22 48 / 0.04), 0 12px 32px -16px rgb(10 22 48 / 0.14);
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-enter: enter 260ms var(--ease-out-soft) both;
+  --animate-wave-flow: wave-flow 2.4s linear infinite;
+  --animate-wave-bar: wave-bar 0.9s ease-in-out infinite;
+  --animate-dot: dot 1.2s ease-in-out infinite;
+  --animate-draw: draw 520ms var(--ease-out-soft) forwards;
+
+  @keyframes enter {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes wave-flow {
+    from { background-position: 0% 50%; }
+    to { background-position: 200% 50%; }
+  }
+  @keyframes wave-bar {
+    0%, 100% { transform: scaleY(0.35); }
+    50% { transform: scaleY(1); }
+  }
+  @keyframes dot {
+    0%, 60%, 100% { opacity: 0.3; }
+    30% { opacity: 1; }
+  }
+  @keyframes draw {
+    to { stroke-dashoffset: 0; }
+  }
+}
+
+.dark {
+  color-scheme: dark;
+  --color-canvas: #0a1630;
+  --color-surface: #111f3f;
+  --color-brand: #6ea8ff;
+  --color-on-brand: #0a1630;
+  --color-ink: #eef2fa;
+  --color-muted: #a7b2c8;
+  --color-line: #22325a;
+  --color-on-glow: #dfe5f2;
+  --color-allow: #2dd4bf;
+  --color-pause: #8fb4ff;
+  --color-block: #fbbf24;
+  --color-cta-from: #7aa7ff;
+  --color-cta-to: #b195ff;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3);
+}
+
+/* Primary CTA: blue -> purple fill with a soft sheen that sweeps on hover. */
+@utility btn-gradient {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background-image: linear-gradient(100deg, var(--color-cta-from), var(--color-cta-to));
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(105deg, transparent 30%, rgb(255 255 255 / 0.26) 50%, transparent 70%);
+    transform: translateX(-110%);
+    transition: transform 900ms var(--ease-out-soft);
+  }
+  &:hover:not(:disabled)::after {
+    transform: translateX(110%);
+  }
+}
+
+/*
+ * Ambient glow (see Ambient.tsx): a band across the top ~20% of the screen
+ * that fades out softly; everything below stays clean canvas. Each blob's
+ * opacity is --o-<hue> x --k (theme/variant strength) x --boost (voice), so
+ * moods only swap numbers and the opacity transition does the blending.
+ */
+.ambient {
+  position: fixed;
+  inset: 0 0 auto;
+  height: 30vh;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+  /* Full strength behind the header, then a quick fade so content text below keeps AA. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 18%, rgb(0 0 0 / 0.45) 40%, rgb(0 0 0 / 0.15) 70%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 18%, rgb(0 0 0 / 0.45) 40%, rgb(0 0 0 / 0.15) 70%, transparent 100%);
+  --k: 1;
+  --boost: 1;
+  --blur: 72px;
+  --o-blue: 0.55;
+  --o-purple: 0.5;
+  --o-rose: 0.32;
+  --o-teal: 0;
+}
+@media (min-width: 640px) {
+  .ambient {
+    --blur: 100px;
+  }
+}
+.dark .ambient {
+  --k: 0.8;
+}
+.ambient[data-variant='onboarding'] {
+  height: 34vh;
+  --k: 1.15;
+}
+.dark .ambient[data-variant='onboarding'] {
+  --k: 0.9;
+}
+
+/* Moods follow the live guard card; the last matching rule wins. */
+:root:has([data-guard='verdict'][data-decision='allow']) .ambient {
+  --o-blue: 0.6;
+  --o-purple: 0.2;
+  --o-rose: 0;
+  --o-teal: 0.5;
+}
+:root:has([data-guard='verdict'][data-decision='pause']) .ambient,
+:root:has([data-guard='verdict'][data-decision='block']) .ambient {
+  --o-blue: 0.42;
+  --o-purple: 0.5;
+  --o-rose: 0.55;
+}
+:root:has([data-guard='checking'], [data-guard='rechecking']) .ambient {
+  --o-blue: 0.62;
+  --o-purple: 0.58;
+  --o-rose: 0.36;
+  --o-teal: 0;
+}
+:root:has([data-voice='speaking']) .ambient {
+  --boost: 1.12;
+}
+
+.ambient-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(var(--blur));
+  will-change: transform, opacity;
+  transition: opacity 800ms var(--ease-out-soft);
+  animation: var(--drift) var(--dur) ease-in-out infinite alternate;
+}
+.ambient-blob[data-hue='blue'] {
+  background: var(--color-glow-blue);
+  opacity: calc(var(--o-blue) * var(--k) * var(--boost));
+  --drift: ambient-drift-a;
+  --dur: 22s;
+  left: -12%; top: -70%; width: 62%; height: 150%;
+}
+.ambient-blob[data-hue='purple'] {
+  background: var(--color-glow-purple);
+  opacity: calc(var(--o-purple) * var(--k) * var(--boost));
+  --drift: ambient-drift-b;
+  --dur: 27s;
+  left: 28%; top: -80%; width: 56%; height: 160%;
+}
+.ambient-blob[data-hue='rose'] {
+  background: var(--color-glow-rose);
+  opacity: calc(var(--o-rose) * var(--k) * var(--boost));
+  --drift: ambient-drift-c;
+  --dur: 24s;
+  left: 62%; top: -60%; width: 50%; height: 140%;
+}
+.ambient-blob[data-hue='teal'] {
+  background: var(--color-glow-teal);
+  opacity: calc(var(--o-teal) * var(--k) * var(--boost));
+  --drift: ambient-drift-c;
+  --dur: 29s;
+  animation-direction: alternate-reverse;
+  left: 8%; top: -60%; width: 46%; height: 130%;
+}
+
+.ambient[data-paused] .ambient-blob {
+  animation-play-state: paused;
+}
+
+@keyframes ambient-drift-a {
+  0% { transform: translate3d(0, 0, 0) scale(1, 1) rotate(0deg); }
+  50% { transform: translate3d(22%, 14%, 0) scale(1.25, 0.85) rotate(14deg); }
+  100% { transform: translate3d(-14%, 6%, 0) scale(0.85, 1.18) rotate(-10deg); }
+}
+@keyframes ambient-drift-b {
+  0% { transform: translate3d(0, 0, 0) scale(1, 1) rotate(0deg); }
+  50% { transform: translate3d(-24%, 12%, 0) scale(0.82, 1.2) rotate(-16deg); }
+  100% { transform: translate3d(16%, -6%, 0) scale(1.22, 0.9) rotate(10deg); }
+}
+@keyframes ambient-drift-c {
+  0% { transform: translate3d(0, 0, 0) scale(1, 1); }
+  50% { transform: translate3d(-20%, -10%, 0) scale(1.24, 0.9); }
+  100% { transform: translate3d(18%, 10%, 0) scale(0.86, 1.14); }
+}
+/* Reduced motion: no stillness, just a much slower, smaller sway. */
+@keyframes ambient-drift-soft {
+  0% { transform: translate3d(0, 0, 0) scale(1, 1); }
+  50% { transform: translate3d(7%, 4%, 0) scale(1.06, 0.96); }
+  100% { transform: translate3d(-6%, 2%, 0) scale(0.96, 1.05); }
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-canvas font-sans text-ink antialiased;
+    font-variant-numeric: tabular-nums;
+    -webkit-tap-highlight-color: transparent;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0ms !important;
+  }
+  /* The top glow stays put. The soft-drift override used to beat the rule above. */
+  .ambient-blob {
+    animation: none !important;
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@topiapause/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "types": "wrangler types --include-runtime=false --strict-vars=false",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@topiapause/guard-engine": "workspace:*",
+    "@topiapause/shared": "workspace:*",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261015.1",
+    "vitest": "^5.0.4",
+    "wrangler": "^4.151.0"
+  }
+}

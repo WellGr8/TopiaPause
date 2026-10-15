@@ -1,0 +1,362 @@
+{
+  "meta": {
+    "project": "TopiaPause",
+    "source_branch": "WellGr8/TopiaPause@cursor/topiapause-scaffold-5de7",
+    "model_th": "eleven_v3",
+    "model_en": "eleven_flash_v2_5 (or eleven_v3 for a matching voice)",
+    "voice_ids": {
+      "th": "TODO (pick via GET /v1/shared-voices?language=th)",
+      "en": "TODO"
+    },
+    "fields": {
+      "display": "on-screen text (engine formatting)",
+      "spoken": "TTS input with numbers written out (send this when tags are off)",
+      "tagged": "spoken + OPTIONAL Eleven v3 audio tags",
+      "est_seconds": "rough estimate, verify after generation"
+    },
+    "audio_tag_note": "Audio tags are OPTIONAL Eleven v3 hints. Test with the chosen voice; strip them if they get spoken aloud or sound odd in Thai.",
+    "manifest_note": "apps/web/src/lib/voice.ts plays a clip only if manifest text equals the engine voiceText (or text is omitted). For the *-pause clips use manifestText below as the manifest 'text', but generate audio from pause.spoken/tagged."
+  },
+  "scenes": {
+    "subscription": {
+      "warning": {
+        "th": {
+          "display": "เดี๋ยวก่อนครับ คุณแค่อยากลอง แต่นี่คือรายปี ฿3,990 ต่ออายุอัตโนมัติ",
+          "spoken": "เดี๋ยวก่อนครับ คุณแค่อยากลอง แต่นี่คือรายปี สามพันเก้าร้อยเก้าสิบบาท ต่ออายุเองครับ",
+          "tagged": "[calm] เดี๋ยวก่อนครับ... คุณแค่อยากลอง แต่นี่คือรายปี สามพันเก้าร้อยเก้าสิบบาท ต่ออายุเองครับ",
+          "est_seconds": 5.6,
+          "clip_key": "subscription-th-warning",
+          "file": "subscription-th-warning.mp3"
+        },
+        "en": {
+          "display": "Hold on. You wanted a trial, but this is a ฿3,990 yearly plan that auto-renews.",
+          "spoken": "Hold on. You wanted a trial. This is a yearly auto-renew plan: three thousand nine hundred ninety baht.",
+          "tagged": "[calm] Hold on... You wanted a trial. This is a yearly auto-renew plan: three thousand nine hundred ninety baht.",
+          "est_seconds": 6.4,
+          "clip_key": "subscription-en-warning",
+          "file": "subscription-en-warning.mp3"
+        }
+      },
+      "counter": {
+        "th": {
+          "display": "ทางที่ตรงกว่าคือทดลองฟรี 7 วัน แล้วรายเดือน ฿299 ผมจะเตือนก่อนตัดเงินครับ",
+          "spoken": "ทางที่ตรงกว่าคือ ทดลองฟรีเจ็ดวัน แล้วค่อยเป็นรายเดือน สองร้อยเก้าสิบเก้าบาท ผมจะเตือนก่อนตัดเงินครับ",
+          "tagged": "[warmly] ทางที่ตรงกว่าคือ ทดลองฟรีเจ็ดวัน แล้วค่อยเป็นรายเดือน สองร้อยเก้าสิบเก้าบาท ผมจะเตือนก่อนตัดเงินครับ",
+          "est_seconds": 6.9,
+          "clip_key": "subscription-th-counter",
+          "file": "subscription-th-counter.mp3"
+        },
+        "en": {
+          "display": "A better fit: a 7-day free trial, then ฿299 a month. I'll remind you before the first charge.",
+          "spoken": "A better fit: a seven-day free trial, then two hundred ninety-nine baht a month. I'll remind you before the first charge.",
+          "tagged": "[warmly] A better fit: a seven-day free trial, then two hundred ninety-nine baht a month. I'll remind you before the first charge.",
+          "est_seconds": 7.5,
+          "clip_key": "subscription-en-counter",
+          "file": "subscription-en-counter.mp3"
+        }
+      },
+      "confirm": {
+        "th": {
+          "display": "เรียบร้อยครับ เริ่มทดลองฟรี 7 วันแล้ว ยังไม่มีการตัดเงิน ดูใบเสร็จได้ในกิจกรรม",
+          "spoken": "เรียบร้อยครับ เริ่มทดลองฟรีเจ็ดวันแล้ว ยังไม่มีการตัดเงิน ดูใบเสร็จได้ในหน้ากิจกรรมครับ",
+          "tagged": "[warmly] เรียบร้อยครับ เริ่มทดลองฟรีเจ็ดวันแล้ว ยังไม่มีการตัดเงิน ดูใบเสร็จได้ในหน้ากิจกรรมครับ",
+          "est_seconds": 6.0,
+          "clip_key": "subscription-th-confirm",
+          "file": "subscription-th-confirm.mp3"
+        },
+        "en": {
+          "display": "Done. Your 7-day free trial has started and nothing has been charged. The receipt is in Activity.",
+          "spoken": "Done. Your seven-day free trial has started, and nothing has been charged. The receipt is in Activity.",
+          "tagged": "[warmly] Done. Your seven-day free trial has started, and nothing has been charged. The receipt is in Activity.",
+          "est_seconds": 6.1,
+          "clip_key": "subscription-en-confirm",
+          "file": "subscription-en-confirm.mp3"
+        }
+      },
+      "why": {
+        "th": {
+          "display": "รายปี ฿3,990 เฉลี่ย ฿332.50/เดือน เกินงบ ฿300 และต้องจ่ายล่วงหน้าทั้งก้อน",
+          "spoken": "รายปีสามพันเก้าร้อยเก้าสิบบาท เฉลี่ยเดือนละสามร้อยสามสิบสองบาทห้าสิบสตางค์ เกินงบสามร้อยบาทที่ตั้งไว้ แถมต้องจ่ายล่วงหน้าทั้งก้อนครับ",
+          "tagged": "[thoughtful] รายปีสามพันเก้าร้อยเก้าสิบบาท เฉลี่ยเดือนละสามร้อยสามสิบสองบาทห้าสิบสตางค์ เกินงบสามร้อยบาทที่ตั้งไว้ แถมต้องจ่ายล่วงหน้าทั้งก้อนครับ",
+          "est_seconds": 9.3,
+          "clip_key": "subscription-th-why",
+          "file": "subscription-th-why.mp3"
+        },
+        "en": {
+          "display": "฿3,990 a year works out to ฿332.50 a month, over your ฿300 cap, and it's paid upfront.",
+          "spoken": "Three thousand, nine hundred ninety baht a year works out to three hundred thirty-two baht fifty a month. That's over your three hundred baht cap, and it's paid upfront.",
+          "tagged": "[thoughtful] Three thousand, nine hundred ninety baht a year works out to three hundred thirty-two baht fifty a month. That's over your three hundred baht cap, and it's paid upfront.",
+          "est_seconds": 10.4,
+          "clip_key": "subscription-en-why",
+          "file": "subscription-en-why.mp3"
+        }
+      },
+      "pause": {
+        "th": {
+          "manifestText": "เดี๋ยวก่อนครับ คุณบอกว่าอยากลอง แต่นี่คือแพ็กเกจรายปี ฿3,990 ที่ต่ออายุอัตโนมัติ ทางที่ตรงกว่าคือทดลองฟรี 7 วัน แล้วรายเดือน ฿299 ซึ่งผมจะเตือนก่อนตัดเงิน",
+          "display": "เดี๋ยวก่อนครับ คุณบอกว่าอยากลอง แต่นี่คือแพ็กเกจรายปี ฿3,990 ที่ต่ออายุอัตโนมัติ ทางที่ตรงกว่าคือทดลองฟรี 7 วัน แล้วรายเดือน ฿299 ซึ่งผมจะเตือนก่อนตัดเงิน",
+          "spoken": "เดี๋ยวก่อนครับ คุณแค่อยากลอง แต่นี่คือรายปี สามพันเก้าร้อยเก้าสิบบาท ต่ออายุเองครับ ทางที่ตรงกว่าคือ ทดลองฟรีเจ็ดวัน แล้วค่อยเป็นรายเดือน สองร้อยเก้าสิบเก้าบาท ผมจะเตือนก่อนตัดเงินครับ",
+          "tagged": "[calm] เดี๋ยวก่อนครับ... คุณแค่อยากลอง แต่นี่คือรายปี สามพันเก้าร้อยเก้าสิบบาท ต่ออายุเองครับ [warmly] ทางที่ตรงกว่าคือ ทดลองฟรีเจ็ดวัน แล้วค่อยเป็นรายเดือน สองร้อยเก้าสิบเก้าบาท ผมจะเตือนก่อนตัดเงินครับ",
+          "est_seconds": 12.5,
+          "clip_key": "subscription-th-pause",
+          "file": "subscription-th-pause.mp3"
+        },
+        "en": {
+          "manifestText": "Hold on. You said you want to try it, but this is a ฿3,990 annual plan that auto-renews. A better fit: 7-day free trial, then ฿299/month, with a reminder before the first charge.",
+          "display": "Hold on. You said you want to try it, but this is a ฿3,990 annual plan that auto-renews. A better fit: 7-day free trial, then ฿299/month, with a reminder before the first charge.",
+          "spoken": "Hold on. You wanted a trial. This is a yearly auto-renew plan: three thousand nine hundred ninety baht. A better fit: a seven-day free trial, then two hundred ninety-nine baht a month. I'll remind you before the first charge.",
+          "tagged": "[calm] Hold on... You wanted a trial. This is a yearly auto-renew plan: three thousand nine hundred ninety baht. [warmly] A better fit: a seven-day free trial, then two hundred ninety-nine baht a month. I'll remind you before the first charge.",
+          "est_seconds": 13.9,
+          "clip_key": "subscription-en-pause",
+          "file": "subscription-en-pause.mp3"
+        }
+      }
+    },
+    "stay": {
+      "warning": {
+        "th": {
+          "display": "คุณบอกว่าแผนอาจเปลี่ยน แต่ห้องนี้คืนเงินไม่ได้นะครับ",
+          "spoken": "คุณบอกว่าแผนอาจเปลี่ยน แต่ห้องที่ซิตี้เนสต์นี้ คืนเงินไม่ได้นะครับ",
+          "tagged": "[calm] คุณบอกว่าแผนอาจเปลี่ยน... แต่ห้องที่ซิตี้เนสต์นี้ คืนเงินไม่ได้นะครับ",
+          "est_seconds": 4.6,
+          "clip_key": "stay-th-warning",
+          "file": "stay-th-warning.mp3"
+        },
+        "en": {
+          "display": "You said your plans may change, but this City Nest room is non-refundable.",
+          "spoken": "You said your plans may change, but this City Nest room is non-refundable.",
+          "tagged": "[calm] You said your plans may change... but this City Nest room is non-refundable.",
+          "est_seconds": 4.6,
+          "clip_key": "stay-en-warning",
+          "file": "stay-en-warning.mp3"
+        }
+      },
+      "counter": {
+        "th": {
+          "display": "จ่ายเพิ่ม ฿161 ได้ Asok Inn รวม ฿1,445 ยกเลิกฟรีถึงวันพฤหัสบดีครับ",
+          "spoken": "ถ้าจ่ายเพิ่มอีกร้อยหกสิบเอ็ดบาท จะได้อโศกอินน์ ราคารวมหนึ่งพันสี่ร้อยสี่สิบห้าบาท ยกเลิกฟรีได้ถึงวันพฤหัสบดีครับ",
+          "tagged": "[warmly] ถ้าจ่ายเพิ่มอีกร้อยหกสิบเอ็ดบาท จะได้อโศกอินน์ ราคารวมหนึ่งพันสี่ร้อยสี่สิบห้าบาท ยกเลิกฟรีได้ถึงวันพฤหัสบดีครับ",
+          "est_seconds": 7.8,
+          "clip_key": "stay-th-counter",
+          "file": "stay-th-counter.mp3"
+        },
+        "en": {
+          "display": "For ฿161 more, Asok Inn at ฿1,445 total, with free cancellation until Thursday.",
+          "spoken": "For one hundred sixty-one baht more, you get Asok Inn at one thousand, four hundred forty-five baht total, with free cancellation until Thursday.",
+          "tagged": "[warmly] For one hundred sixty-one baht more, you get Asok Inn at one thousand, four hundred forty-five baht total, with free cancellation until Thursday.",
+          "est_seconds": 8.2,
+          "clip_key": "stay-en-counter",
+          "file": "stay-en-counter.mp3"
+        }
+      },
+      "confirm": {
+        "th": {
+          "display": "จองอโศกอินน์ให้แล้วครับ ยกเลิกฟรีได้ถึงวันพฤหัสบดี ใบเสร็จอยู่ในกิจกรรม",
+          "spoken": "จองอโศกอินน์ให้แล้วครับ ถ้าแผนเปลี่ยน ยกเลิกฟรีได้ถึงวันพฤหัสบดี ใบเสร็จอยู่ในหน้ากิจกรรมครับ",
+          "tagged": "[warmly] จองอโศกอินน์ให้แล้วครับ ถ้าแผนเปลี่ยน ยกเลิกฟรีได้ถึงวันพฤหัสบดี ใบเสร็จอยู่ในหน้ากิจกรรมครับ",
+          "est_seconds": 6.4,
+          "clip_key": "stay-th-confirm",
+          "file": "stay-th-confirm.mp3"
+        },
+        "en": {
+          "display": "Booked Asok Inn. Free cancellation until Thursday. The receipt is in Activity.",
+          "spoken": "Booked Asok Inn. If your plans change, you can cancel free until Thursday. The receipt is in Activity.",
+          "tagged": "[warmly] Booked Asok Inn. If your plans change, you can cancel free until Thursday. The receipt is in Activity.",
+          "est_seconds": 6.4,
+          "clip_key": "stay-en-confirm",
+          "file": "stay-en-confirm.mp3"
+        }
+      },
+      "why": {
+        "th": {
+          "display": "แพงกว่า ฿161 (12.5%) ไม่เกินเพดาน 15% ที่ตั้งไว้ ถ้าแผนเปลี่ยนจะไม่เสีย ฿1,284",
+          "spoken": "แพงกว่าแค่ร้อยหกสิบเอ็ดบาท หรือสิบสองจุดห้าเปอร์เซ็นต์ ยังไม่เกินเพดานสิบห้าเปอร์เซ็นต์ที่คุณตั้งไว้ และถ้าแผนเปลี่ยน คุณจะไม่เสียหนึ่งพันสองร้อยแปดสิบสี่บาทครับ",
+          "tagged": "[thoughtful] แพงกว่าแค่ร้อยหกสิบเอ็ดบาท หรือสิบสองจุดห้าเปอร์เซ็นต์ ยังไม่เกินเพดานสิบห้าเปอร์เซ็นต์ที่คุณตั้งไว้ และถ้าแผนเปลี่ยน คุณจะไม่เสียหนึ่งพันสองร้อยแปดสิบสี่บาทครับ",
+          "est_seconds": 11.2,
+          "clip_key": "stay-th-why",
+          "file": "stay-th-why.mp3"
+        },
+        "en": {
+          "display": "It's ฿161 more (12.5%), within your 15% limit. If plans change, you don't lose ฿1,284.",
+          "spoken": "It's one hundred sixty-one baht more, twelve point five percent, which is within your fifteen percent limit. If plans change, you don't lose one thousand, two hundred eighty-four baht.",
+          "tagged": "[thoughtful] It's one hundred sixty-one baht more, twelve point five percent, which is within your fifteen percent limit. If plans change, you don't lose one thousand, two hundred eighty-four baht.",
+          "est_seconds": 10.4,
+          "clip_key": "stay-en-why",
+          "file": "stay-en-why.mp3"
+        }
+      },
+      "pause": {
+        "th": {
+          "manifestText": "คุณบอกว่าแผนอาจเปลี่ยน แต่ห้องนี้คืนเงินไม่ได้ ถ้าจ่ายเพิ่ม ฿161 จะได้ห้องที่ยกเลิกฟรีได้ถึงวันพฤหัสบดี",
+          "display": "คุณบอกว่าแผนอาจเปลี่ยน แต่ห้องนี้คืนเงินไม่ได้ ถ้าจ่ายเพิ่ม ฿161 จะได้ห้องที่ยกเลิกฟรีได้ถึงวันพฤหัสบดี",
+          "spoken": "คุณบอกว่าแผนอาจเปลี่ยน แต่ห้องที่ซิตี้เนสต์นี้ คืนเงินไม่ได้นะครับ ถ้าจ่ายเพิ่มอีกร้อยหกสิบเอ็ดบาท จะได้อโศกอินน์ ราคารวมหนึ่งพันสี่ร้อยสี่สิบห้าบาท ยกเลิกฟรีได้ถึงวันพฤหัสบดีครับ",
+          "tagged": "[calm] คุณบอกว่าแผนอาจเปลี่ยน... แต่ห้องที่ซิตี้เนสต์นี้ คืนเงินไม่ได้นะครับ [warmly] ถ้าจ่ายเพิ่มอีกร้อยหกสิบเอ็ดบาท จะได้อโศกอินน์ ราคารวมหนึ่งพันสี่ร้อยสี่สิบห้าบาท ยกเลิกฟรีได้ถึงวันพฤหัสบดีครับ",
+          "est_seconds": 12.4,
+          "clip_key": "stay-th-pause",
+          "file": "stay-th-pause.mp3"
+        },
+        "en": {
+          "manifestText": "You said your plans may change, but this room is non-refundable. For ฿161 more, you get free cancellation until Thursday.",
+          "display": "You said your plans may change, but this room is non-refundable. For ฿161 more, you get free cancellation until Thursday.",
+          "spoken": "You said your plans may change, but this City Nest room is non-refundable. For one hundred sixty-one baht more, you get Asok Inn at one thousand, four hundred forty-five baht total, with free cancellation until Thursday.",
+          "tagged": "[calm] You said your plans may change... but this City Nest room is non-refundable. [warmly] For one hundred sixty-one baht more, you get Asok Inn at one thousand, four hundred forty-five baht total, with free cancellation until Thursday.",
+          "est_seconds": 12.9,
+          "clip_key": "stay-en-pause",
+          "file": "stay-en-pause.mp3"
+        }
+      }
+    },
+    "crypto": {
+      "warning": {
+        "th": {
+          "display": "เดี๋ยวครับ TOKEN-X จะเป็น 45% เกินเพดาน 30% และขอสิทธิ์แบบไม่จำกัด",
+          "spoken": "เดี๋ยวครับ โทเคนเอ็กซ์จะเป็นสี่สิบห้าเปอร์เซ็นต์ เกินเพดานสามสิบ แถมขอสิทธิ์แบบไม่จำกัด",
+          "tagged": "[calm] เดี๋ยวครับ... โทเคนเอ็กซ์จะเป็นสี่สิบห้าเปอร์เซ็นต์ เกินเพดานสามสิบ แถมขอสิทธิ์แบบไม่จำกัด",
+          "est_seconds": 6.0,
+          "clip_key": "crypto-th-warning",
+          "file": "crypto-th-warning.mp3"
+        },
+        "en": {
+          "display": "Hold on. TOKEN-X would hit 45%, over your 30% cap, with unlimited approval.",
+          "spoken": "Hold on. TOKEN-X would hit forty-five percent, over your thirty percent cap, with unlimited approval.",
+          "tagged": "[calm] Hold on... TOKEN-X would hit forty-five percent, over your thirty percent cap, with unlimited approval.",
+          "est_seconds": 5.4,
+          "clip_key": "crypto-en-warning",
+          "file": "crypto-en-warning.mp3"
+        }
+      },
+      "counter": {
+        "th": {
+          "display": "ทางที่ผ่านกฎคือ 200 USDT อนุมัติแค่ 200 USDT ครั้งเดียว ใช้ได้ 15 นาที",
+          "spoken": "ทางที่ผ่านกฎคือ สองร้อย ยูเอสดีที โดยอนุมัติแค่สองร้อย ยูเอสดีที ครั้งเดียว ใช้ได้สิบห้านาทีครับ",
+          "tagged": "[warmly] ทางที่ผ่านกฎคือ สองร้อย ยูเอสดีที โดยอนุมัติแค่สองร้อย ยูเอสดีที ครั้งเดียว ใช้ได้สิบห้านาทีครับ",
+          "est_seconds": 6.1,
+          "clip_key": "crypto-th-counter",
+          "file": "crypto-th-counter.mp3"
+        },
+        "en": {
+          "display": "What passes your rules: 200 USDT, with a one-time exact approval of 200 USDT for 15 minutes.",
+          "spoken": "What passes your rules is two hundred USDT, with a one-time approval of exactly two hundred USDT, valid for fifteen minutes.",
+          "tagged": "[warmly] What passes your rules is two hundred USDT, with a one-time approval of exactly two hundred USDT, valid for fifteen minutes.",
+          "est_seconds": 7.5,
+          "clip_key": "crypto-en-counter",
+          "file": "crypto-en-counter.mp3"
+        }
+      },
+      "confirm": {
+        "th": {
+          "display": "เรียบร้อยครับ แลก 200 USDT แล้ว TOKEN-X อยู่ที่ 30% พอดี และไม่มีสิทธิ์ค้างไว้ (เดโม)",
+          "spoken": "เรียบร้อยครับ แลกสองร้อย ยูเอสดีทีแล้ว โทเคนเอ็กซ์อยู่ที่สามสิบเปอร์เซ็นต์พอดี และไม่มีสิทธิ์ใช้เงินค้างไว้ครับ",
+          "tagged": "[warmly] เรียบร้อยครับ แลกสองร้อย ยูเอสดีทีแล้ว โทเคนเอ็กซ์อยู่ที่สามสิบเปอร์เซ็นต์พอดี และไม่มีสิทธิ์ใช้เงินค้างไว้ครับ",
+          "est_seconds": 7.5,
+          "clip_key": "crypto-th-confirm",
+          "file": "crypto-th-confirm.mp3"
+        },
+        "en": {
+          "display": "Done. Swapped 200 USDT. TOKEN-X is now exactly 30%, and no approval is left open (demo).",
+          "spoken": "Done. Swapped two hundred USDT. TOKEN-X is now exactly thirty percent, and no approval is left open.",
+          "tagged": "[warmly] Done. Swapped two hundred USDT. TOKEN-X is now exactly thirty percent, and no approval is left open.",
+          "est_seconds": 6.1,
+          "clip_key": "crypto-en-confirm",
+          "file": "crypto-en-confirm.mp3"
+        }
+      },
+      "why": {
+        "th": {
+          "display": "เพดาน 30% ของพอร์ต 2,000 USDT คือ 600 USDT คุณถืออยู่ 400 USDT จึงเพิ่มได้สูงสุด 200 USDT",
+          "spoken": "เพดานสามสิบเปอร์เซ็นต์ของพอร์ตสองพัน ยูเอสดีที คือหกร้อย ยูเอสดีที ตอนนี้คุณถืออยู่สี่ร้อย ยูเอสดีที เลยเพิ่มได้อีกสูงสุดสองร้อย ยูเอสดีทีครับ",
+          "tagged": "[thoughtful] เพดานสามสิบเปอร์เซ็นต์ของพอร์ตสองพัน ยูเอสดีที คือหกร้อย ยูเอสดีที... ตอนนี้คุณถืออยู่สี่ร้อย ยูเอสดีที เลยเพิ่มได้อีกสูงสุดสองร้อย ยูเอสดีทีครับ",
+          "est_seconds": 9.1,
+          "clip_key": "crypto-th-why",
+          "file": "crypto-th-why.mp3"
+        },
+        "en": {
+          "display": "A 30% cap on a 2,000 USDT portfolio is 600 USDT. You hold 400 USDT, so the most you can add is 200 USDT.",
+          "spoken": "A thirty percent cap on a two thousand USDT portfolio is six hundred USDT. You already hold four hundred, so the most you can add is two hundred USDT.",
+          "tagged": "[thoughtful] A thirty percent cap on a two thousand USDT portfolio is six hundred USDT. You already hold four hundred... so the most you can add is two hundred USDT.",
+          "est_seconds": 10.4,
+          "clip_key": "crypto-en-why",
+          "file": "crypto-en-why.mp3"
+        }
+      },
+      "pause": {
+        "th": {
+          "manifestText": "พอร์ตคุณจะมี TOKEN-X ถึง 45% เกินเพดาน 30% ที่ตั้งไว้ และ agent ขอสิทธิ์ใช้เงินแบบไม่จำกัด ทางเลือกที่ผ่านกฎคือ 200 USDT โดยอนุมัติแค่ 200 USDT ครั้งเดียว ใช้ได้ 15 นาที",
+          "display": "พอร์ตคุณจะมี TOKEN-X ถึง 45% เกินเพดาน 30% ที่ตั้งไว้ และ agent ขอสิทธิ์ใช้เงินแบบไม่จำกัด ทางเลือกที่ผ่านกฎคือ 200 USDT โดยอนุมัติแค่ 200 USDT ครั้งเดียว ใช้ได้ 15 นาที",
+          "spoken": "เดี๋ยวครับ โทเคนเอ็กซ์จะเป็นสี่สิบห้าเปอร์เซ็นต์ เกินเพดานสามสิบ แถมขอสิทธิ์แบบไม่จำกัด ทางที่ผ่านกฎคือ สองร้อย ยูเอสดีที โดยอนุมัติแค่สองร้อย ยูเอสดีที ครั้งเดียว ใช้ได้สิบห้านาทีครับ",
+          "tagged": "[calm] เดี๋ยวครับ... โทเคนเอ็กซ์จะเป็นสี่สิบห้าเปอร์เซ็นต์ เกินเพดานสามสิบ แถมขอสิทธิ์แบบไม่จำกัด [warmly] ทางที่ผ่านกฎคือ สองร้อย ยูเอสดีที โดยอนุมัติแค่สองร้อย ยูเอสดีที ครั้งเดียว ใช้ได้สิบห้านาทีครับ",
+          "est_seconds": 12.1,
+          "clip_key": "crypto-th-pause",
+          "file": "crypto-th-pause.mp3"
+        },
+        "en": {
+          "manifestText": "Your TOKEN-X share would hit 45%, above your 30% cap, and the agent wants unlimited approval. The option that passes your rules is 200 USDT, with a one-time exact approval of 200 USDT for 15 minutes.",
+          "display": "Your TOKEN-X share would hit 45%, above your 30% cap, and the agent wants unlimited approval. The option that passes your rules is 200 USDT, with a one-time exact approval of 200 USDT for 15 minutes.",
+          "spoken": "Hold on. TOKEN-X would hit forty-five percent, over your thirty percent cap, with unlimited approval. What passes your rules is two hundred USDT, with a one-time approval of exactly two hundred USDT, valid for fifteen minutes.",
+          "tagged": "[calm] Hold on... TOKEN-X would hit forty-five percent, over your thirty percent cap, with unlimited approval. [warmly] What passes your rules is two hundred USDT, with a one-time approval of exactly two hundred USDT, valid for fifteen minutes.",
+          "est_seconds": 12.9,
+          "clip_key": "crypto-en-pause",
+          "file": "crypto-en-pause.mp3"
+        }
+      }
+    },
+    "injection": {
+      "warning": {
+        "th": {
+          "display": "เดี๋ยวก่อนครับ หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง",
+          "spoken": "เดี๋ยวก่อนครับ หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลองครับ",
+          "tagged": "[calm] เดี๋ยวก่อนครับ... หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลองครับ",
+          "est_seconds": 4.8,
+          "clip_key": "injection-th-warning",
+          "file": "injection-th-warning.mp3"
+        },
+        "en": {
+          "display": "Hold on. The web page told U-Bot to pick yearly, but you only asked to try.",
+          "spoken": "Hold on. The web page told U-Bot to pick yearly, but you only asked to try.",
+          "tagged": "[calm] Hold on... The web page told U-Bot to pick yearly, but you only asked to try.",
+          "est_seconds": 4.9,
+          "clip_key": "injection-en-warning",
+          "file": "injection-en-warning.mp3"
+        }
+      },
+      "counter": {
+        "th": {
+          "display": "ทางที่ตรงกว่าคือทดลองฟรี 7 วัน แล้วรายเดือน ฿299 ผมจะเตือนก่อนตัดเงินครับ",
+          "spoken": "ทางที่ตรงกว่าคือ ทดลองฟรีเจ็ดวัน แล้วค่อยเป็นรายเดือน สองร้อยเก้าสิบเก้าบาท ผมจะเตือนก่อนตัดเงินครับ",
+          "tagged": "[warmly] ทางที่ตรงกว่าคือ ทดลองฟรีเจ็ดวัน แล้วค่อยเป็นรายเดือน สองร้อยเก้าสิบเก้าบาท ผมจะเตือนก่อนตัดเงินครับ",
+          "est_seconds": 6.9,
+          "clip_key": "injection-th-counter",
+          "file": "injection-th-counter.mp3"
+        },
+        "en": {
+          "display": "A better fit: a 7-day free trial, then ฿299 a month. I'll remind you before the first charge.",
+          "spoken": "A better fit: a seven-day free trial, then two hundred ninety-nine baht a month. I'll remind you before the first charge.",
+          "tagged": "[warmly] A better fit: a seven-day free trial, then two hundred ninety-nine baht a month. I'll remind you before the first charge.",
+          "est_seconds": 7.5,
+          "clip_key": "injection-en-counter",
+          "file": "injection-en-counter.mp3"
+        }
+      },
+      "pause": {
+        "th": {
+          "manifestText": "เดี๋ยวก่อนครับ หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง ทางที่ตรงกว่าคือทดลองฟรี 7 วัน แล้วรายเดือน ฿299 ซึ่งผมจะเตือนก่อนตัดเงิน",
+          "display": "เดี๋ยวก่อนครับ หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง ทางที่ตรงกว่าคือทดลองฟรี 7 วัน แล้วรายเดือน ฿299 ซึ่งผมจะเตือนก่อนตัดเงิน",
+          "spoken": "เดี๋ยวก่อนครับ หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง ทางที่ตรงกว่าคือ ทดลองฟรีเจ็ดวัน แล้วค่อยเป็นรายเดือน สองร้อยเก้าสิบเก้าบาท ผมจะเตือนก่อนตัดเงินครับ",
+          "tagged": "[calm] เดี๋ยวก่อนครับ... หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง [warmly] ทางที่ตรงกว่าคือ ทดลองฟรีเจ็ดวัน แล้วค่อยเป็นรายเดือน สองร้อยเก้าสิบเก้าบาท ผมจะเตือนก่อนตัดเงินครับ",
+          "est_seconds": 10.5,
+          "clip_key": "injection-th-pause",
+          "file": "injection-th-pause.mp3"
+        },
+        "en": {
+          "manifestText": "Hold on. A web page told your AI to pick the yearly plan, but you only asked to try it. A better fit: 7-day free trial, then ฿299/month, with a reminder before the first charge.",
+          "display": "Hold on. A web page told your AI to pick the yearly plan, but you only asked to try it. A better fit: 7-day free trial, then ฿299/month, with a reminder before the first charge.",
+          "spoken": "Hold on. The web page told it to pick yearly, but you only asked to try. A better fit: a seven-day free trial, then two hundred ninety-nine baht a month. I'll remind you before the first charge.",
+          "tagged": "[calm] Hold on... The web page told it to pick yearly, but you only asked to try. [warmly] A better fit: a seven-day free trial, then two hundred ninety-nine baht a month. I'll remind you before the first charge.",
+          "est_seconds": 10,
+          "clip_key": "injection-en-pause",
+          "file": "injection-en-pause.mp3"
+        }
+      }
+    }
+  }
+}

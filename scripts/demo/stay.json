@@ -1,0 +1,49 @@
+{
+  "agent": {
+    "name": "ShopBot",
+    "version": "1.0"
+  },
+  "userMessage": "Find me a cheap hotel near Asok for Friday night. My plans may change.",
+  "lang": "en",
+  "action": {
+    "type": "book",
+    "hotel": "City Nest Asok",
+    "refundable": false,
+    "shownPrice": {
+      "value": "1200.00",
+      "currency": "THB"
+    }
+  },
+  "amount": {
+    "value": "1284.00",
+    "currency": "THB"
+  },
+  "alternatives": [
+    {
+      "name": "Asok Inn",
+      "amount": {
+        "value": "1445.00",
+        "currency": "THB"
+      },
+      "refundable": true,
+      "freeCancelUntil": "2026-10-22T18:00:00+07:00"
+    },
+    {
+      "name": "Sukhumvit Grand",
+      "amount": {
+        "value": "2140.00",
+        "currency": "THB"
+      },
+      "refundable": true,
+      "freeCancelUntil": "2026-10-22T12:00:00+07:00"
+    },
+    {
+      "name": "Budget Box 21",
+      "amount": {
+        "value": "1310.00",
+        "currency": "THB"
+      },
+      "refundable": false
+    }
+  ]
+}
