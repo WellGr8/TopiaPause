@@ -11,7 +11,7 @@ export function LangButton({ className }: { className?: string }) {
       type="button"
       aria-label={t(lang, 'switchLangLabel')}
       onClick={() => dispatch({ type: 'lang', lang: lang === 'th' ? 'en' : 'th' })}
-      className={`inline-flex h-11 min-w-11 items-center justify-center rounded-control px-2 text-sm font-medium text-on-glow hover:text-ink ${className ?? ''}`}
+      className={`inline-flex h-12 min-w-12 items-center justify-center rounded-control px-2 text-[17px] font-medium text-on-glow hover:text-ink ${className ?? ''}`}
     >
       {t(lang, 'switchLang')}
     </button>

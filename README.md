@@ -4,6 +4,8 @@
 
 > AI agents do what you say. TopiaPause makes sure they do what you meant.
 
+The first screen is written for older adults and for people new to crypto transactions: plain words, a spoken warning, and large tap targets. The product never labels its visitors that way.
+
 TopiaPause is a guard layer for AI agents that spend money for you. Before an agent pays, subscribes, books or approves, TopiaPause compares **what you said** with **what the agent is about to do**. If they don't match, it pauses, warns you out loud in Thai or English, and offers an alternative that fits what you meant. It re-checks that alternative, and nothing happens until you confirm.
 
 **AI proposes, rules decide, you sign.** The LLM handles language. Every number comes from a deterministic, unit-tested rules engine.

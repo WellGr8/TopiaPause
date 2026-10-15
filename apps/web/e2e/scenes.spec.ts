@@ -18,7 +18,7 @@ test('three demo scenes pause and accept the counter-offer', async ({ page }) =>
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'เริ่มใช้งาน' }).click();
+  await page.getByRole('button', { name: 'ลองให้ AI จ่ายดู' }).click();
 
   for (const scene of SCENES) {
     await page.getByRole('button', { name: scene.chip }).click();

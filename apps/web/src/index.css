@@ -154,12 +154,12 @@
 .dark .ambient {
   --k: 0.8;
 }
-.ambient[data-variant='onboarding'] {
-  height: 34vh;
-  --k: 1.15;
+.ambient[data-variant='landing'] {
+  height: 20vh;
+  --k: 1.05;
 }
-.dark .ambient[data-variant='onboarding'] {
-  --k: 0.9;
+.dark .ambient[data-variant='landing'] {
+  --k: 0.85;
 }
 
 /* Moods follow the live guard card; the last matching rule wins. */

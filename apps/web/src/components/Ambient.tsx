@@ -7,7 +7,7 @@ import { useApp } from '../state';
  * (`:has()` on the guard card's data attributes); this component only adjusts
  * speed and pauses while the tab is hidden. Only transform/opacity animate.
  */
-export function Ambient({ variant = 'app' }: { variant?: 'app' | 'onboarding' }) {
+export function Ambient({ variant = 'app' }: { variant?: 'app' | 'landing' }) {
   const { state } = useApp();
   const ref = useRef<HTMLDivElement>(null);
   const active = state.chat.some((c) => c.type === 'guard' && c.run.stage !== 'done');
