@@ -14,14 +14,16 @@ const openedTickets = new Set<string>();
 function Bubble({ from, children }: { from: 'user' | 'ubot'; children: ReactNode }) {
   return (
     <div className={cx('animate-enter flex', from === 'user' && 'justify-end')}>
-      <p
-        className={cx(
-          'max-w-[85%] rounded-card px-4 py-2.5 text-[15px] leading-relaxed',
-          from === 'user' ? 'rounded-br-control bg-ink text-canvas' : 'rounded-bl-control border border-line bg-surface',
-        )}
-      >
-        {children}
-      </p>
+      <div className={cx('max-w-[85%]', from === 'user' && 'text-right')}>
+        <p
+          className={cx(
+            'rounded-card px-4 py-2.5 text-[15px] leading-relaxed',
+            from === 'user' ? 'rounded-br-control bg-ink text-canvas' : 'rounded-bl-control border border-line bg-surface',
+          )}
+        >
+          {children}
+        </p>
+      </div>
     </div>
   );
 }
@@ -87,12 +89,42 @@ export function ChatScreen() {
   const savings = useSavings();
   const { lang } = state;
   const [text, setText] = useState('');
+  const [sentFree, setSentFree] = useState(false);
+  const [examplesOpen, setExamplesOpen] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
   const busy = state.chat.some((c) => c.type === 'typing' || c.type === 'thinking' || (c.type === 'guard' && c.run.stage !== 'done'));
 
+  const scrollToEnd = () => endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    scrollToEnd();
   }, [state.chat, busy]);
+
+  useEffect(() => {
+    const node = composerRef.current;
+    if (!node || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => scrollToEnd());
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const apply = () => {
+      document.documentElement.style.setProperty('--vv-height', `${vv.height}px`);
+      const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.documentElement.style.setProperty('--vv-bottom', `${offset}px`);
+    };
+    apply();
+    vv.addEventListener('resize', apply);
+    vv.addEventListener('scroll', apply);
+    return () => {
+      vv.removeEventListener('resize', apply);
+      vv.removeEventListener('scroll', apply);
+    };
+  }, []);
 
   useEffect(() => {
     const ticket = state.openTicket;
@@ -112,7 +144,28 @@ export function ChatScreen() {
     if (!v || busy) return;
     send(v);
     setText('');
+    setSentFree(true);
+    setExamplesOpen(false);
   };
+
+  const collapsed = sentFree || text.trim().length > 0;
+  const row = (list: typeof chips) => (
+    <div className="relative">
+      <div data-testid="chip-row" className="chip-row flex snap-x snap-mandatory gap-2 overflow-x-auto pb-2">
+        {list.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            onClick={c.run}
+            className="min-h-11 shrink-0 snap-start whitespace-nowrap rounded-full border border-line bg-surface px-4 text-sm font-medium transition-colors hover:border-muted"
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-canvas to-transparent" aria-hidden="true" />
+    </div>
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -127,16 +180,27 @@ export function ChatScreen() {
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-xl px-4 pb-3 pt-1">
-        {!busy && (
-          <div className="flex flex-wrap gap-2 pb-2">
-            {chips.map((c) => (
-              <button key={c.id} type="button" onClick={c.run} className="min-h-11 rounded-full border border-line bg-surface px-4 text-sm font-medium transition-colors hover:border-muted">
-                {c.label}
-              </button>
-            ))}
+      <div ref={composerRef} className="mx-auto w-full max-w-xl px-4 pb-[max(0.75rem,var(--vv-bottom,0px))] pt-1">
+        {!busy && collapsed && (
+          <div className="flex items-center gap-2 pb-2">
+            <button
+              type="button"
+              onClick={first!.run}
+              className="min-h-11 shrink-0 whitespace-nowrap rounded-full border border-line bg-surface px-4 text-sm font-medium"
+            >
+              {first!.label}
+            </button>
+            <button
+              type="button"
+              aria-expanded={examplesOpen}
+              onClick={() => setExamplesOpen((open) => !open)}
+              className="min-h-11 shrink-0 rounded-full border border-line px-3 text-sm font-medium text-muted"
+            >
+              {t(lang, 'chipsExamples')}
+            </button>
           </div>
         )}
+        {!busy && (!collapsed || examplesOpen) && row(collapsed ? chips.slice(1) : chips)}
         <form onSubmit={submit} className="flex items-center gap-2 rounded-card border border-line bg-surface p-1.5 pl-4">
           <label className="sr-only" htmlFor="composer">
             {t(lang, 'placeholder')}

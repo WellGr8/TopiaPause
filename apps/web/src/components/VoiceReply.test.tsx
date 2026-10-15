@@ -64,27 +64,30 @@ afterEach(() => {
 });
 
 describe('VoiceReply', () => {
-  it('hides the mic when recording is unsupported', () => {
+  it('tells an in-app browser to open Chrome and still offers the buttons above', () => {
     render(<VoiceReply lang="th" canCounter onConfirm={vi.fn()} />);
     expect(screen.queryByTestId('voice-mic')).toBeNull();
-    expect(screen.queryByText('ใช้ปุ่มด้านล่างได้เลย')).toBeNull();
+    expect(screen.getByText(/เปิดในเบราว์เซอร์ Chrome/)).toBeTruthy();
+    expect(screen.getByText(/แตะปุ่มด้านบน/)).toBeTruthy();
   });
 
-  it('hides the mic when permission is denied', async () => {
+  it('shows a retry when microphone permission is denied', async () => {
     micOk(false);
     render(<VoiceReply lang="th" canCounter onConfirm={vi.fn()} />);
     fireEvent.click(screen.getByTestId('voice-mic'));
-    expect(await screen.findByText('ใช้ปุ่มด้านล่างได้เลย')).toBeTruthy();
+    expect(await screen.findByText('ไม่ได้รับสิทธิ์ไมค์')).toBeTruthy();
+    expect(screen.getByTestId('voice-retry')).toBeTruthy();
     expect(screen.queryByTestId('voice-mic')).toBeNull();
   });
 
-  it('hides the mic when speech-to-text is rate-limited', async () => {
+  it('shows a retry when speech-to-text fails', async () => {
     micOk();
     stubFetch(429, { error: { code: 'rate_limited' } });
     render(<VoiceReply lang="th" canCounter onConfirm={vi.fn()} />);
     fireEvent.click(screen.getByTestId('voice-mic'));
     fireEvent.click(await screen.findByRole('button', { name: 'หยุดฟัง' }));
-    expect(await screen.findByText('ใช้ปุ่มด้านล่างได้เลย')).toBeTruthy();
+    expect(await screen.findByText('ฟังไม่ชัด')).toBeTruthy();
+    expect(screen.getByTestId('voice-retry')).toBeTruthy();
     expect(screen.queryByTestId('voice-mic')).toBeNull();
   });
 
@@ -112,9 +115,13 @@ describe('VoiceReply', () => {
     render(<VoiceReply lang="th" canCounter onConfirm={onConfirm} />);
     fireEvent.click(screen.getByTestId('voice-mic'));
     fireEvent.click(await screen.findByRole('button', { name: 'หยุดฟัง' }));
-    expect(await screen.findByText(/ลองพูดอีกครั้ง/)).toBeTruthy();
+    expect(await screen.findByText(/ลองพูดสั้นๆ/)).toBeTruthy();
+    expect(screen.getByTestId('voice-again')).toBeTruthy();
+    expect(screen.getByTestId('voice-use-recommended')).toBeTruthy();
     expect(screen.queryByTestId('voice-confirm')).toBeNull();
     expect(onConfirm).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('voice-use-recommended'));
+    expect(onConfirm).toHaveBeenCalledWith('counter_offer');
   });
 
   it('stops a recording after 6 seconds', async () => {
@@ -156,7 +163,30 @@ describe('pause screen', () => {
     };
     render(<GuardianCard run={run} lang="th" onChoose={vi.fn()} onReceipt={vi.fn()} />);
     expect(screen.queryByTestId('voice-mic')).toBeNull();
+    expect(screen.getByText(/เปิดในเบราว์เซอร์ Chrome/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'ใช้ทางเลือกนี้' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'ยกเลิก' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'ทำตามเดิม' })).toBeTruthy();
+  });
+
+  it('keeps the main buttons when the reply is unclear', async () => {
+    micOk();
+    stubFetch(200, { transcript: 'อืม', action: 'unclear' });
+    const scene = SCENES.subscription;
+    const run: GuardRun = {
+      runId: 'run-2',
+      scene: 'subscription',
+      userText: scene.userText.th,
+      intent: sceneIntent('subscription', scene.userText.th, 'th'),
+      proposal: scene.buildProposal({}),
+      policy: DEFAULT_POLICY,
+      stage: 'verdict',
+    };
+    render(<GuardianCard run={run} lang="th" onChoose={vi.fn()} onReceipt={vi.fn()} />);
+    fireEvent.click(screen.getByTestId('voice-mic'));
+    fireEvent.click(await screen.findByRole('button', { name: 'หยุดฟัง' }));
+    expect(await screen.findByTestId('voice-use-recommended')).toBeTruthy();
+    expect(screen.getByTestId('voice-again')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'ใช้ทางเลือกนี้' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'ทำตามเดิม' })).toBeTruthy();
   });
 });

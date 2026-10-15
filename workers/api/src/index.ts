@@ -160,9 +160,15 @@ async function voiceTts(req: Request, env: AppEnv, ctx?: ExecutionContext): Prom
   return tts(env, resolveTts(body), ctx);
 }
 
+function sttLang(req: Request): 'th' | 'en' {
+  const query = new URL(req.url).searchParams.get('lang');
+  const header = req.headers.get('X-TopiaPause-Lang');
+  return (query || header || 'th').toLowerCase() === 'en' ? 'en' : 'th';
+}
+
 async function voiceStt(req: Request, env: AppEnv): Promise<Response> {
   const audio = await readAudio(req);
-  return json(await transcribe(env, audio));
+  return json(await transcribe(env, audio, sttLang(req)));
 }
 
 type Handler = (req: Request, env: AppEnv, ctx?: ExecutionContext) => Promise<Response> | Response;

@@ -249,7 +249,7 @@ A short reply from the pause screen (at most 6 seconds, about 300 KB). The body 
 
 Needs `Origin` and a session, same as TTS. Its rate limit is separate: 10 requests per minute per IP. It shares the daily paid cap with chat and TTS.
 
-Upstream is ElevenLabs `POST https://api.elevenlabs.io/v1/speech-to-text` with `model_id` `scribe_v2` ([create transcript](https://elevenlabs.io/docs/api-reference/speech-to-text/convert)). The Worker does not store the audio or the transcript and does not write either to logs. The action is keyword matching (`mapVoiceIntent`), not a model. `confirm` in the transcript maps to `counter_offer` only.
+Upstream is ElevenLabs `POST https://api.elevenlabs.io/v1/speech-to-text` with `model_id` `scribe_v2` ([create transcript](https://elevenlabs.io/docs/api-reference/speech-to-text/convert)). The client sends `?lang=th|en` or `X-TopiaPause-Lang` (default `th`), and the Worker sets `language_code` to `tha` or `eng`. The log records that code and `language_probability` only. The Worker does not store the audio or the transcript and does not write the transcript to logs. The action is keyword matching (`mapVoiceIntent`), not a model. `confirm` in the transcript maps to `counter_offer` only.
 
 ```json
 { "transcript": "เอาอันที่แนะนำ", "action": "counter_offer" }
