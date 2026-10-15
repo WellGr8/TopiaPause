@@ -63,6 +63,35 @@ function withThb(section: BreakdownSection, fx: FxRate[]): BreakdownSection {
   return { ...section, fx: { amount: convert(section.total.amount, rate), rate: rate.rate, asOf: rate.asOf, source: rate.source } };
 }
 
+/**
+ * Original − alternative, the same figure the "saved this month" hero sums. Positive: a `savings`
+ * section. Negative (the safer option costs more): an `extra` section showing what protection costs.
+ */
+function differenceSection(
+  original: { amount: Money; th: string; en: string },
+  alternative: { amount: Money; th: string; en: string },
+  extraLabel: { th: string; en: string },
+  amounts: Record<string, Money>,
+  fx: FxRate[],
+): BreakdownSection | undefined {
+  if (original.amount.currency !== alternative.amount.currency) return undefined;
+  const diff = sub(original.amount, alternative.amount);
+  amounts.difference = diff;
+  if (diff.minor === 0) return undefined;
+  const o = (op: BreakdownLine['op']) => L('original', original.th, original.en, original.amount, op);
+  const a = (op: BreakdownLine['op']) => L('alternative', alternative.th, alternative.en, alternative.amount, op);
+  if (diff.minor > 0) {
+    return withThb(
+      { key: 'savings', title: { th: 'ส่วนต่างจากที่ agent เลือก', en: "Difference from the agent's pick" }, lines: [o('add'), a('sub')], total: L('saved', 'ประหยัด', 'You save', diff, 'total') },
+      fx,
+    );
+  }
+  return withThb(
+    { key: 'extra', title: { th: 'ค่าความคุ้มครอง', en: 'What protection costs' }, lines: [a('add'), o('sub')], total: L('extra', extraLabel.th, extraLabel.en, money(-diff.minor, diff.currency), 'total') },
+    fx,
+  );
+}
+
 // ---------------- Subscription ----------------
 
 /** Price per month in the cap's currency: convert once (half-even), then split a year by 12 (half-even). */
@@ -163,36 +192,23 @@ export function subscriptionRules(intent: ActionIntent, p: SubscriptionProposal,
   metrics.counterTrialDays = best.trialDays;
   result.assumptions.push({ th: 'จะเตือนก่อนตัดเงินครั้งแรก', en: 'You get a reminder before the first charge.' });
 
-  // Savings = what leaves the account today: the agent's upfront charge minus the alternative's.
+  // `protected`: the agent's upfront charge that no longer leaves the account today.
   if (best.price.currency === p.price.currency) {
     const upfront = best.trialDays > 0 ? money(0, p.price.currency) : best.price;
-    const saved = sub(p.price, upfront);
-    if (saved.minor > 0) {
-      amounts.protected = saved;
-      const name = p.planName ?? p.planId;
-      const alt = proposal.planName ?? proposal.planId;
-      result.breakdown.push(
-        withThb(
-          {
-            key: 'savings',
-            title: { th: 'เงินที่ไม่ถูกตัดวันนี้', en: 'Not charged today' },
-            lines: [
-              L('agent', `${name} (จ่ายล่วงหน้า)`, `${name}, charged today`, p.price, 'add'),
-              L(
-                'alternative',
-                best.trialDays > 0 ? `${alt} ทดลองฟรี ${best.trialDays} วัน` : `${alt} วันนี้`,
-                best.trialDays > 0 ? `${alt}, ${best.trialDays}-day free trial` : `${alt}, charged today`,
-                upfront,
-                'sub',
-              ),
-            ],
-            total: L('saved', 'ไม่ถูกตัดวันนี้', 'Kept today', saved, 'total'),
-          },
-          fx,
-        ),
-      );
-    }
+    if (p.price.minor > upfront.minor) amounts.protected = sub(p.price, upfront);
   }
+  const name = p.planName ?? p.planId;
+  const alt = proposal.planName ?? proposal.planId;
+  const per = (i: 'month' | 'year') => (i === 'year' ? { th: 'ต่อปี', en: 'per year' } : { th: 'ต่อเดือน', en: 'per month' });
+  const trial = best.trialDays > 0 ? { th: ` หลังทดลองฟรี ${best.trialDays} วัน`, en: ` after a ${best.trialDays}-day free trial` } : { th: '', en: '' };
+  const section = differenceSection(
+    { amount: p.price, th: `${name} ${per(p.interval).th}`, en: `${name}, ${per(p.interval).en}` },
+    { amount: best.price, th: `${alt} ${per(best.interval).th}${trial.th}`, en: `${alt}, ${per(best.interval).en}${trial.en}` },
+    { th: 'จ่ายเพิ่ม', en: 'You pay extra' },
+    amounts,
+    fx,
+  );
+  if (section) result.breakdown.push(section);
   return result;
 }
 
@@ -258,27 +274,20 @@ export function stayRules(intent: ActionIntent, p: StayProposal, policy: UserPol
           proposal,
           diff: { hotel: { from: p.hotel, to: best.hotel }, total: { from: total, to: best.totalPrice }, refundable: { from: 'no', to: 'yes' } },
         };
+        // `protected`: the non-refundable total you would lose if plans change.
         amounts.protected = total;
-        const shown = fees && quoted ? quoted : total;
-        const lines = [L('shown', `${p.hotel} ราคาที่แสดง`, `${p.hotel}, price shown`, shown, 'add')];
-        if (fees) lines.push(L('fees', 'ภาษีและค่าธรรมเนียมที่ไม่ได้แสดง', 'Taxes & fees not shown', fees, 'add'));
-        const up = premium.minor >= 0;
-        lines.push(L('premium', `ส่วนต่างห้องยกเลิกฟรี (${up ? '+' : ''}${premiumPct}%)`, `Free-cancellation difference (${up ? '+' : ''}${premiumPct}%)`, money(Math.abs(premium.minor), cur), up ? 'add' : 'sub'));
-        breakdown.push(
-          withThb({ key: 'alternative', title: { th: 'ทางเลือกนี้รวมเป็น', en: 'How the alternative adds up' }, lines, total: L('alt', `${best.hotel} รวม`, `${best.hotel}, total`, best.totalPrice, 'total') }, fx),
-          withThb(
-            {
-              key: 'savings',
-              title: { th: 'ถ้าแผนเปลี่ยน', en: 'If your plans change' },
-              lines: [
-                L('agentLoss', `${p.hotel} คืนเงินไม่ได้`, `${p.hotel}, non-refundable`, total, 'add'),
-                L('altLoss', `${best.hotel} ยกเลิกฟรี`, `${best.hotel}, free cancellation`, money(0, cur), 'sub'),
-              ],
-              total: L('saved', 'เงินที่ไม่ต้องเสีย', 'Money you keep', total, 'total'),
-            },
-            fx,
-          ),
+        const section = differenceSection(
+          {
+            amount: total,
+            th: fees ? `${p.hotel} ยอดจริง (รวมค่าธรรมเนียมที่ไม่ได้แสดง)` : `${p.hotel} คืนเงินไม่ได้`,
+            en: fees ? `${p.hotel}, real total incl. hidden fees` : `${p.hotel}, non-refundable`,
+          },
+          { amount: best.totalPrice, th: `${best.hotel} ยกเลิกฟรี`, en: `${best.hotel}, free cancellation` },
+          { th: 'จ่ายเพิ่มเพื่อห้องยกเลิกฟรี', en: 'Extra for a refundable room' },
+          amounts,
+          fx,
         );
+        if (section) breakdown.push(section);
       }
     }
     findings.push({ ruleId: 'STAY_FLEXIBILITY', severity: 'pause', evidence, messageKey: 'stay_flexibility' });
@@ -286,10 +295,11 @@ export function stayRules(intent: ActionIntent, p: StayProposal, policy: UserPol
     const proposal: StayProposal = { ...p, proposalId: `${p.proposalId}-counter`, quotedPrice: total };
     counter = { proposal, diff: { shownPrice: { from: quoted, to: total } } };
     amounts.protected = fees;
+    amounts.difference = money(0, cur);
     breakdown.push(
       withThb(
         {
-          key: 'savings',
+          key: 'fees',
           title: { th: 'ค่าธรรมเนียมที่ซ่อนอยู่', en: 'Hidden fees, surfaced' },
           lines: [L('total', 'ยอดจริงรวมค่าธรรมเนียม', 'Real total with fees', total, 'add'), L('shown', 'ราคาที่ agent แสดง', 'Price the agent showed', quoted, 'sub')],
           total: L('fees', 'ค่าธรรมเนียมที่เห็นก่อนจ่าย', 'Fees you see before paying', fees, 'total'),
@@ -447,15 +457,16 @@ export function swapRules(intent: ActionIntent, p: TokenSwapProposal, policy: Us
       const parts = postTradeParts({ portfolio: B(V), holding: B(H), gas: B(p.gas), feePpm }, B(newAmount));
       metrics.counterSharePct = pctTenths(parts.numer, parts.denom);
     }
+    amounts.difference = sub(a, newAmount);
     if (concBreached) {
-      const kept = sub(a, newAmount);
+      const kept = amounts.difference;
       amounts.protected = kept;
       breakdown.push(
         withThb(
           {
             key: 'savings',
             title: { th: `ไม่เข้า ${p.toAsset} เกินเพดาน`, en: `Kept out of ${p.toAsset}` },
-            lines: [L('agent', 'agent จะ swap', 'Agent wanted to swap', a, 'add'), L('alternative', 'ทางเลือกที่ผ่านกฎ', 'Passes your rules', newAmount, 'sub')],
+            lines: [L('original', 'agent จะ swap', 'Agent wanted to swap', a, 'add'), L('alternative', 'ทางเลือกที่ผ่านกฎ', 'Passes your rules', newAmount, 'sub')],
             total: L('saved', `ยังอยู่ใน ${p.fromAsset}`, `Stays in ${p.fromAsset}`, kept, 'total'),
           },
           fx,

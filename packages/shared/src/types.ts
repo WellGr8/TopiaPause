@@ -162,7 +162,11 @@ export interface GuardVerdict {
   counterOffer?: CounterOffer;
   /** Non-money numbers only (percentages, days, minutes). */
   metrics: Record<string, number>;
-  /** Every money figure the verdict shows, exact. `protected` is what the counter-offer keeps safe. */
+  /**
+   * Every money figure the verdict shows, exact. With a counter-offer:
+   * `difference` = original − alternative (signed; negative when the safer option costs more),
+   * `protected` = money no longer at risk (non-refundable total, upfront charge, swap kept out).
+   */
   amounts: Record<string, Money>;
   /** Line items that reconcile to the shown alternative / savings to the minor unit. */
   breakdown: BreakdownSection[];
@@ -188,7 +192,8 @@ export interface BreakdownLine {
 
 /** Σ add − Σ sub === total, exactly. Optional `fx` shows the total in another currency at a stated rate. */
 export interface BreakdownSection {
-  key: 'alternative' | 'savings';
+  /** savings: difference > 0. extra: the safer option costs more. fees: same price, hidden fees surfaced. */
+  key: 'alternative' | 'savings' | 'extra' | 'fees';
   title: { th: string; en: string };
   lines: BreakdownLine[];
   total: BreakdownLine;

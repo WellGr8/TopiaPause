@@ -172,8 +172,12 @@ describe('subscription rules', () => {
     const cp = v.counterOffer!.proposal as SubscriptionProposal;
     expect(cp).toMatchObject({ interval: 'month', trialDays: 7, price: { minor: 29900, currency: 'THB' } });
     expect(v.counterOffer!.recheck).toBe('allow');
+    // Same figure as the "saved this month" hero: ฿3,990.00 − ฿299.00 = ฿3,691.00.
+    expect(v.amounts.difference).toEqual({ minor: 369100, currency: 'THB' });
     const saved = v.breakdown.find((s) => s.key === 'savings')!;
-    expect(saved.total.amount).toEqual({ minor: 399000, currency: 'THB' });
+    expect(saved.lines.map((l) => [l.op, l.amount.minor])).toEqual([['add', 399000], ['sub', 29900]]);
+    expect(saved.total.amount).toEqual(v.amounts.difference);
+    expect(v.amounts.protected).toEqual({ minor: 399000, currency: 'THB' });
   });
 
   it('T9 ongoing intent + monthly ฿299 -> allow', () => {
@@ -234,9 +238,19 @@ describe('stay rules', () => {
     const cp = v.counterOffer!.proposal as StayProposal;
     expect(cp).toMatchObject({ hotel: 'Asok Inn', refundable: true, totalPrice: { minor: 144500 } });
     expect(v.counterOffer!.recheck).toBe('allow');
-    const alt = v.breakdown.find((s) => s.key === 'alternative')!;
-    expect(alt.lines.map((l) => l.amount.minor)).toEqual([120000, 8400, 16100]);
-    expect(alt.total.amount.minor).toBe(144500);
+    // The refundable room costs more: difference −฿161.00 (as on the hero), shown as an extra, protecting ฿1,284.00.
+    expect(v.amounts.difference).toEqual({ minor: -16100, currency: 'THB' });
+    expect(v.amounts.protected).toEqual({ minor: 128400, currency: 'THB' });
+    expect(v.breakdown.map((s) => s.key)).toEqual(['extra']);
+    const extra = v.breakdown[0];
+    expect(extra.lines.map((l) => [l.op, l.amount.minor])).toEqual([['add', 144500], ['sub', 128400]]);
+    expect(extra.total).toMatchObject({ amount: { minor: 16100, currency: 'THB' }, label: { en: 'Extra for a refundable room' } });
+  });
+
+  it('hidden fees only (fixed plans): no price change, fees surfaced', () => {
+    const v = evaluate({ intent: { ...flexible, flexibilityNeeded: false }, proposal: stayProposal(), policy });
+    expect(v.amounts.difference).toEqual({ minor: 0, currency: 'THB' });
+    expect(v.breakdown.map((s) => [s.key, s.total.amount.minor])).toEqual([['fees', 8400]]);
   });
 
   it('T11 refundable premium 30% (> 15%) -> pause with no counter-offer, trade-off explained', () => {
@@ -259,7 +273,7 @@ describe('stay rules', () => {
     expect(evaluate({ intent: flexible, proposal: p, policy }).counterOffer).toBeUndefined();
   });
 
-  it('fixed plans (flexibilityNeeded=false) do not trigger STAY_FLEXIBILITY', () => {
+  it('fixed plans with no hidden fees (flexibilityNeeded=false) do not trigger STAY_FLEXIBILITY', () => {
     const p = { ...stayProposal(), quotedPrice: undefined };
     const v = evaluate({ intent: { ...flexible, flexibilityNeeded: false }, proposal: p, policy });
     expect(v.decision).toBe('allow');

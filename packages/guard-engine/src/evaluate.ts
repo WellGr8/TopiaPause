@@ -146,7 +146,7 @@ export function evaluate(input: EvaluateInput): GuardVerdict {
   let breakdown = r.breakdown;
   if (!counterOffer) {
     for (const k of ['counterExpiryMin', 'counterSharePct', 'counterTrialDays']) delete metrics[k];
-    for (const k of ['counterAmountIn', 'counterPrice', 'protected']) delete amounts[k];
+    for (const k of ['counterAmountIn', 'counterPrice', 'protected', 'difference']) delete amounts[k];
     breakdown = [];
   }
 

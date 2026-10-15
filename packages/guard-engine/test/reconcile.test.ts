@@ -7,6 +7,7 @@ import {
   stayProposal,
   subscriptionProposal,
   swapProposal,
+  type AgentProposal,
   type BreakdownSection,
   type GuardVerdict,
   type StayProposal,
@@ -39,11 +40,28 @@ function reconciles(s: BreakdownSection): void {
   }
 }
 
-function checkVerdict(v: GuardVerdict): void {
+const totalOf = (p: AgentProposal) => (p.kind === 'subscription' ? p.price : p.kind === 'stay' ? p.totalPrice : p.amountIn);
+
+function checkVerdict(v: GuardVerdict, original: AgentProposal): void {
   v.breakdown.forEach(reconciles);
+  if (!v.counterOffer) {
+    expect(v.breakdown).toEqual([]);
+    expect(v.amounts.difference).toBeUndefined();
+    return;
+  }
+  // The card's difference is the hero's "saved": original total − accepted alternative total.
+  const o = totalOf(original);
+  const a = totalOf(v.counterOffer.proposal);
+  if (o.currency !== a.currency) return;
+  expect(v.amounts.difference).toEqual(money(o.minor - a.minor, o.currency));
+  const d = v.amounts.difference!.minor;
   const saved = v.breakdown.find((s) => s.key === 'savings');
-  if (saved) expect(saved.total.amount).toEqual(v.amounts.protected);
-  if (!v.counterOffer) expect(v.breakdown).toEqual([]);
+  const extra = v.breakdown.find((s) => s.key === 'extra');
+  if (saved) expect(saved.total.amount.minor).toBe(d);
+  if (extra) expect(extra.total.amount.minor).toBe(-d);
+  if (d > 0) expect(saved).toBeDefined();
+  if (d < 0) expect(extra).toBeDefined();
+  if (d === 0) expect(saved ?? extra).toBeUndefined();
 }
 
 const N = 400;
@@ -63,7 +81,7 @@ describe('receipts reconcile to the minor unit', () => {
       p.portfolio = { total: money(V, 'USDT'), holdings: { 'TOKEN-X': money(H, 'USDT') }, balances: { USDT: money(B, 'USDT') } };
       const intent = { ...sceneIntent('crypto', 'once', 'en'), amount: money(a, 'USDT') };
       const v = evaluate({ intent, proposal: p, policy: DEFAULT_POLICY });
-      checkVerdict(v);
+      checkVerdict(v, p);
 
       const base = { portfolio: BigInt(V), holding: BigInt(H), gas: BigInt(p.gas.minor), feePpm: BigInt(p.feePpm), capPpm: 300_000n };
       const aMax = v.amounts.aMax;
@@ -93,7 +111,7 @@ describe('receipts reconcile to the minor unit', () => {
       p.totalPrice = money(quoted + fees, 'THB');
       p.catalogAlternatives = [{ hotel: 'Alt', totalPrice: money(quoted + fees + r(-20_000, 120_000), 'THB'), refundable: true }];
       const intent = { ...sceneIntent('stay', 'flexible', 'en'), flexibilityNeeded: r(0, 3) > 0 };
-      checkVerdict(evaluate({ intent, proposal: p, policy: DEFAULT_POLICY }));
+      checkVerdict(evaluate({ intent, proposal: p, policy: DEFAULT_POLICY }), p);
     }
   });
 
@@ -114,7 +132,7 @@ describe('receipts reconcile to the minor unit', () => {
         })),
       };
       const v = evaluate({ intent: sceneIntent('subscription', 'try', 'en'), proposal: p, policy: DEFAULT_POLICY });
-      checkVerdict(v);
+      checkVerdict(v, p);
       const cp = v.counterOffer?.proposal as SubscriptionProposal | undefined;
       if (cp) {
         const rate = DEFAULT_FX.find((x) => x.base === cp.price.currency && x.quote === 'THB');
