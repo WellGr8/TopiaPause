@@ -1,10 +1,5 @@
+import { CURRENCY_DECIMALS, MoneyError, divRound, toDecimal } from './money';
 import type { Currency, Lang, Money } from './types';
-
-export const CURRENCY_DECIMALS: Record<Currency, number> = {
-  THB: 2,
-  USD: 2,
-  USDT: 6,
-};
 
 /** en-US digit grouping for both languages (Thai uses Arabic numerals too). */
 export function fmtNumber(n: number, maxDecimals = 2, minDecimals = 0): string {
@@ -14,23 +9,32 @@ export function fmtNumber(n: number, maxDecimals = 2, minDecimals = 0): string {
   });
 }
 
-/** Floors to `decimals` so displayed amounts never overstate what is allowed. */
-export function floorTo(n: number, decimals: number): number {
-  const p = 10 ** decimals;
-  return Math.floor(n * p + 1e-9) / p;
+const group = (int: string) => int.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+/** Exact decimal text: whole amounts drop the fraction, otherwise `decimals` digits (trailing zeros trimmed if `trim`). */
+function decimalText(m: Money, decimals: number, trim: boolean): string {
+  const [int = '0', frac = ''] = toDecimal(m).replace('-', '').split('.');
+  let f = frac.slice(0, decimals);
+  if (/^0*$/.test(f)) f = '';
+  else if (trim) f = f.replace(/0+$/, '');
+  return `${m.minor < 0 ? '-' : ''}${group(int)}${f ? `.${f}` : ''}`;
 }
 
+/** Floors USDT to `decimals` places for display, so shown amounts never overstate what is allowed. */
+function floorDecimals(m: Money, decimals: number): Money {
+  const drop = 10n ** BigInt(CURRENCY_DECIMALS[m.currency] - decimals);
+  return { minor: Number(divRound(BigInt(m.minor), drop, 'floor') * drop), currency: m.currency };
+}
+
+const SYMBOL: Partial<Record<Currency, string>> = { THB: '฿', USD: '$' };
+
+/** ฿3,990 · ฿332.50 · $9.99 · 500 USDT · 200.42 USDT (precise: 200.420883 USDT; USDT is floored, never overstated). */
 export function fmtMoney(m: Money, opts: { precise?: boolean } = {}): string {
-  const { amount, currency } = m;
-  if (currency === 'THB') {
-    const isInt = Number.isInteger(amount);
-    return `฿${fmtNumber(amount, 2, isInt ? 0 : 2)}`;
-  }
-  if (currency === 'USD') {
-    return `$${fmtNumber(floorTo(amount, 2), 2, Number.isInteger(amount) ? 0 : 2)}`;
-  }
-  const shown = opts.precise ? amount : floorTo(amount, 2);
-  return `${fmtNumber(shown, opts.precise ? 6 : 2)} ${currency}`;
+  if (!Number.isSafeInteger(m.minor)) throw new MoneyError(`fmtMoney: bad minor ${String(m.minor)}`);
+  const sym = SYMBOL[m.currency];
+  if (sym) return `${sym}${decimalText(m, 2, false)}`;
+  const shown = opts.precise ? m : floorDecimals(m, 2);
+  return `${decimalText(shown, opts.precise ? 6 : 2, true)} ${m.currency}`;
 }
 
 export function fmtPct(pct: number): string {

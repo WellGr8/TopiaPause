@@ -1,13 +1,14 @@
 // Data contracts — mirrors docs/ARCHITECTURE.md §5.
-// Money amounts in contracts are in MAJOR units (e.g. 3990 THB, 200.420883 USDT).
-// The guard engine converts them to integer minor units before doing any math.
+// Money is always an integer of minor units (satang, cents, micro-USDT); see money.ts for
+// the rounding policy. Rates and percentages are not money and stay plain numbers.
 
 // ---- Money & common ----
 export type Lang = 'th' | 'en';
 export type Decision = 'allow' | 'pause' | 'block';
 export type Currency = 'THB' | 'USD' | 'USDT';
 export interface Money {
-  amount: number;
+  /** Integer minor units: 399000 THB = ฿3,990.00, 200420883 USDT = 200.420883 USDT. */
+  minor: number;
   currency: Currency;
 }
 
@@ -97,10 +98,11 @@ export interface TokenApproval {
   expirySec?: number;
 }
 
+/** Valued in USDT (USDT = $1 is a documented assumption). Balances only list assets the engine can spend. */
 export interface Portfolio {
-  totalUsd: number;
-  holdingsUsd: Record<string, number>;
-  balances: Record<string, number>;
+  total: Money;
+  holdings: Record<string, Money>;
+  balances: Record<string, Money>;
 }
 
 export interface TokenSwapProposal extends ProposalBase {
@@ -108,10 +110,10 @@ export interface TokenSwapProposal extends ProposalBase {
   fromAsset: string;
   toAsset: string;
   amountIn: Money;
-  /** f, e.g. 0.003 */
-  feeRate: number;
-  /** g, paid from a non-target asset */
-  gasUsd: number;
+  /** f in parts-per-million: 3000 = 0.3 % */
+  feePpm: number;
+  /** g, paid from a non-target asset, in the portfolio's valuation currency */
+  gas: Money;
   approval: TokenApproval;
   portfolio: Portfolio;
 }
@@ -130,7 +132,7 @@ export type RuleId =
   | 'LOW_CONFIDENCE'
   | 'UNLOCK_SOON';
 
-export type Evidence = Record<string, number | string | boolean>;
+export type Evidence = Record<string, number | string | boolean | Money>;
 
 export interface Finding {
   ruleId: RuleId;
@@ -144,7 +146,7 @@ export interface CounterOffer {
   proposal: AgentProposal;
   /** Must be 'allow' to be offered. */
   recheck: Decision;
-  diff: Record<string, { from: number | string; to: number | string }>;
+  diff: Record<string, { from: number | string | Money; to: number | string | Money }>;
 }
 
 export interface Explanation {
@@ -158,11 +160,83 @@ export interface GuardVerdict {
   decision: Decision;
   findings: Finding[];
   counterOffer?: CounterOffer;
+  /** Non-money numbers only (percentages, days, minutes). */
   metrics: Record<string, number>;
+  /** Every money figure the verdict shows, exact. `protected` is what the counter-offer keeps safe. */
+  amounts: Record<string, Money>;
+  /** Line items that reconcile to the shown alternative / savings to the minor unit. */
+  breakdown: BreakdownSection[];
+  /** Informational context (market data, injected instructions). Never changes the decision. */
+  notes: RiskNote[];
   assumptions: string[];
   explanation: Explanation;
   voiceText: { th: string; en: string; clipId?: string };
   engineVersion: string;
+  /** What the check cost to run. Set by the caller (Worker or browser), not by the pure engine. */
+  check?: CheckMeta;
+}
+
+// ---- Receipt breakdown ----
+export type BreakdownOp = 'add' | 'sub' | 'total';
+
+export interface BreakdownLine {
+  key: string;
+  label: { th: string; en: string };
+  amount: Money;
+  op: BreakdownOp;
+}
+
+/** Σ add − Σ sub === total, exactly. Optional `fx` shows the total in another currency at a stated rate. */
+export interface BreakdownSection {
+  key: 'alternative' | 'savings';
+  title: { th: string; en: string };
+  lines: BreakdownLine[];
+  total: BreakdownLine;
+  fx?: { amount: Money; rate: string; asOf: string; source: string };
+}
+
+// ---- Context notes ----
+export type DataSource = 'live' | 'cache' | 'recorded' | 'sample';
+
+export interface UnlockEvent {
+  /** Symbol the data is about (may be a real token mapped from a sandbox asset). */
+  symbol: string;
+  /** Sandbox asset this event is shown for, e.g. TOKEN-X -> ARB. */
+  asset: string;
+  unlockDate: string;
+  /** Cliff unlock value as % of market cap. */
+  valueToMarketCapPct: number;
+  cliffValueUsd?: number;
+}
+
+export interface MarketData {
+  unlocks: UnlockEvent[];
+  source: DataSource;
+  /** When the data was fetched or recorded. */
+  asOf: string;
+}
+
+export interface RiskNote {
+  kind: 'unlock' | 'injection';
+  severity: 'info' | 'warn';
+  text: { th: string; en: string };
+  source?: DataSource;
+  asOf?: string;
+}
+
+// ---- Cost meter ----
+export interface CheckMeta {
+  where: 'worker' | 'browser';
+  engine: 'rules';
+  llmCalls: number;
+  externalCalls: number;
+  cacheHit: boolean;
+  /** Age of external data used, in seconds; null when none was used. */
+  dataAge: number | null;
+  /** ESTIMATE, rounded up to the satang. */
+  estCostTHB_satang: number;
+  latencyMs: number;
+  estimate: true;
 }
 
 // ---- Receipt ----
@@ -210,6 +284,42 @@ export interface GuardCheckRequest {
   lang: Lang;
   intent?: ActionIntent;
   followUp?: string;
+}
+
+/** Decimal string ("3990.00") or integer minor units. */
+export type MoneyInput = { currency: Currency } & ({ value: string | number } | { minor: number });
+
+/** Agent-agnostic proposal any external agent can send to POST /api/guard/check. */
+export interface GenericGuardRequest {
+  agent: { name: string; version?: string };
+  /** What the user asked for, in their words. The only input that decides intent. */
+  intent: string;
+  action:
+    | {
+        type: 'subscribe';
+        merchant: string;
+        plan: string;
+        interval: 'month' | 'year';
+        autoRenew?: boolean;
+        trialDays?: number;
+      }
+    | { type: 'book'; hotel: string; refundable: boolean; freeCancelUntil?: string; shownPrice?: MoneyInput }
+    | {
+        type: 'swap';
+        from: Currency;
+        to: string;
+        approval: { type: 'exact' | 'unlimited'; amount?: MoneyInput; expirySec?: number; spender?: string };
+        feePpm?: number;
+        gas?: MoneyInput;
+        portfolio: { total: MoneyInput; holdings: Record<string, MoneyInput>; balances: Record<string, MoneyInput> };
+      };
+  amount: MoneyInput;
+  /** Options the agent saw but didn't pick; the guard can only counter-offer from these. */
+  alternatives?: Array<{ name: string; amount: MoneyInput; interval?: 'month' | 'year'; trialDays?: number; refundable?: boolean; freeCancelUntil?: string }>;
+  /** Text the agent read (web page, email). Never used for decisions; scanned for injected instructions. */
+  context?: { source?: string; text?: string };
+  policy?: UserPolicy;
+  lang?: Lang;
 }
 
 export interface ExecuteRequest {

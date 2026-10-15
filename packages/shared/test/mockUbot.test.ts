@@ -11,7 +11,7 @@ describe('scripted U-Bot (mock)', () => {
 
   it('extracts amount and "once" from free text', () => {
     const i = extractIntentMock('swap 300 usdt just once', 'crypto', 'en');
-    expect(i.amount?.amount).toBe(300);
+    expect(i.amount).toEqual({ minor: 300_000_000, currency: 'USDT' });
     expect(i.commitment).toBe('once');
     expect(i.confidence).toBeGreaterThanOrEqual(0.7);
   });

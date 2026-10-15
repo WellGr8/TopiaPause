@@ -1,4 +1,4 @@
-import type { CounterOffer, Explanation, Finding, GuardVerdict } from '@topiapause/shared';
+import { isMoney, toMajor, type CounterOffer, type Explanation, type Finding, type GuardVerdict, type Money } from '@topiapause/shared';
 
 // Number lock (§1 principle 2): an LLM explanation may only contain numbers the
 // engine produced. Anything else -> fall back to the deterministic template.
@@ -9,12 +9,19 @@ export function extractNumbers(text: string): number[] {
   return (text.match(NUMBER_RE) ?? []).map((s) => Number(s.replace(/,/g, ''))).filter(Number.isFinite);
 }
 
-export function allowedNumbers(v: { metrics: Record<string, number>; findings: Finding[]; counterOffer?: CounterOffer }): number[] {
+export function allowedNumbers(v: {
+  metrics: Record<string, number>;
+  amounts?: Record<string, Money>;
+  findings: Finding[];
+  counterOffer?: CounterOffer;
+}): number[] {
   const out: number[] = [];
   const push = (x: unknown) => {
     if (typeof x === 'number' && Number.isFinite(x)) out.push(Math.abs(x));
+    else if (isMoney(x)) out.push(Math.abs(toMajor(x)));
   };
   Object.values(v.metrics).forEach(push);
+  Object.values(v.amounts ?? {}).forEach(push);
   v.findings.forEach((f) => Object.values(f.evidence).forEach(push));
   if (v.counterOffer) {
     Object.values(v.counterOffer.diff).forEach((d) => {

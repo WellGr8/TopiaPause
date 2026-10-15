@@ -1,7 +1,7 @@
 import { fmtMoney, fmtNumber, fmtPct, fmtWeekday, pick } from './format';
+import { isMoney } from './money';
 import type {
   AgentProposal,
-  Currency,
   Evidence,
   Finding,
   GuardVerdict,
@@ -14,8 +14,10 @@ import type {
 
 const num = (e: Evidence, k: string): number => Number(e[k] ?? 0);
 const str = (e: Evidence, k: string): string => String(e[k] ?? '');
-const money = (e: Evidence, k: string, cur?: Currency) =>
-  fmtMoney({ amount: num(e, k), currency: (cur ?? (str(e, 'currency') as Currency)) || 'THB' });
+const money = (e: Evidence, k: string): string => {
+  const v = e[k];
+  return isMoney(v) ? fmtMoney(v) : '';
+};
 
 export const RULE_TITLES: Record<RuleId, { th: string; en: string }> = {
   SUB_COMMITMENT: { th: 'ผูกมัดนานกว่าที่ตั้งใจ', en: 'Longer commitment than you meant' },
@@ -47,8 +49,8 @@ export function findingDetail(f: Finding, lang: Lang): string {
     case 'SUB_OVER_CAP':
       return pick(
         lang,
-        `เฉลี่ย ${money(e, 'monthlyEquivalent')}/เดือน เกินงบ ${money(e, 'cap')}/เดือน`,
-        `Works out to ${money(e, 'monthlyEquivalent')}/month, above your ${money(e, 'cap')}/month cap.`,
+        `เฉลี่ย ${money(e, 'monthlyEquivalent')}/เดือน เกินงบ ${money(e, 'cap')}/เดือน${e.fxRate ? ` (คิดที่ ${str(e, 'fxRate')} บาท/${str(e, 'priceCurrency')})` : ''}`,
+        `Works out to ${money(e, 'monthlyEquivalent')}/month, above your ${money(e, 'cap')}/month cap${e.fxRate ? ` (at ฿${str(e, 'fxRate')} per ${str(e, 'priceCurrency')})` : ''}.`,
       );
     case 'STAY_FLEXIBILITY':
       return e.hasCounter
@@ -91,8 +93,8 @@ export function findingDetail(f: Finding, lang: Lang): string {
     case 'INSUFFICIENT_BALANCE':
       return pick(
         lang,
-        `ต้องใช้ ${fmtNumber(num(e, 'amountIn'))} ${str(e, 'asset')} แต่มีแค่ ${fmtNumber(num(e, 'balance'))}`,
-        `Needs ${fmtNumber(num(e, 'amountIn'))} ${str(e, 'asset')}, but you only have ${fmtNumber(num(e, 'balance'))}.`,
+        `ต้องใช้ ${money(e, 'amountIn')} แต่มีแค่ ${money(e, 'balance')}`,
+        `Needs ${money(e, 'amountIn')}, but you only have ${money(e, 'balance')}.`,
       );
     case 'INVALID_INPUT':
       return pick(lang, `ค่า ${str(e, 'field')} ไม่ถูกต้อง`, `The value of ${str(e, 'field')} is invalid.`);
@@ -172,6 +174,7 @@ interface TemplateInput {
   findings: Finding[];
   counterOffer?: GuardVerdict['counterOffer'];
   metrics: GuardVerdict['metrics'];
+  amounts: GuardVerdict['amounts'];
   proposal: AgentProposal;
 }
 
@@ -190,7 +193,7 @@ function counterSentence(input: TemplateInput, lang: Lang): string {
     case 'stay':
       return pick(lang, `ทางเลือกที่ตรงกว่าคือ ${describeCounter(p, lang)}`, `A better fit: ${describeCounter(p, lang)}.`);
     case 'token_swap': {
-      const amt = fmtMoney({ amount: m.counterAmountIn ?? p.amountIn.amount, currency: 'USD' });
+      const amt = fmtMoney(input.amounts.counterAmountIn ?? p.amountIn);
       return pick(
         lang,
         `ทางเลือกที่ผ่านกฎคือ ${amt} โดยอนุมัติแค่ ${amt} ครั้งเดียว ใช้ได้ ${fmtNumber(m.counterExpiryMin ?? 0)} นาที`,
@@ -257,8 +260,8 @@ export function buildWhyAnswer(verdict: GuardVerdict, lang: Lang): string {
     const capPct = num(e, 'capPct');
     return pick(
       lang,
-      `เพดาน ${fmtPct(capPct)} ของพอร์ต ${fmtMoney({ amount: num(e, 'portfolioUsd'), currency: 'USD' })} คือ ${fmtMoney({ amount: num(e, 'capUsd'), currency: 'USD' })} ตอนนี้คุณถือ ${str(e, 'asset')} อยู่ ${fmtMoney({ amount: num(e, 'holdingUsd'), currency: 'USD' })} จึงซื้อเพิ่มได้สูงสุด ${fmtMoney({ amount: num(e, 'aMax'), currency: 'USD' })} (คำนวณรวมค่าธรรมเนียม ${fmtPct(num(e, 'feePct'))} และค่า gas ${fmtMoney({ amount: num(e, 'gasUsd'), currency: 'USD' })} แล้ว)`,
-      `Your ${fmtPct(capPct)} cap on a ${fmtMoney({ amount: num(e, 'portfolioUsd'), currency: 'USD' })} portfolio is ${fmtMoney({ amount: num(e, 'capUsd'), currency: 'USD' })}. You already hold ${fmtMoney({ amount: num(e, 'holdingUsd'), currency: 'USD' })} of ${str(e, 'asset')}, so the most you can add is ${fmtMoney({ amount: num(e, 'aMax'), currency: 'USD' })} (after a ${fmtPct(num(e, 'feePct'))} fee and ${fmtMoney({ amount: num(e, 'gasUsd'), currency: 'USD' })} gas).`,
+      `เพดาน ${fmtPct(capPct)} ของพอร์ต ${money(e, 'portfolio')} คือ ${money(e, 'capValue')} ตอนนี้คุณถือ ${str(e, 'asset')} อยู่ ${money(e, 'holding')} จึงซื้อเพิ่มได้สูงสุด ${money(e, 'aMax')} (คำนวณรวมค่าธรรมเนียม ${fmtPct(num(e, 'feePct'))} และค่า gas ${money(e, 'gas')} แล้ว)`,
+      `Your ${fmtPct(capPct)} cap on a ${money(e, 'portfolio')} portfolio is ${money(e, 'capValue')}. You already hold ${money(e, 'holding')} of ${str(e, 'asset')}, so the most you can add is ${money(e, 'aMax')} (after a ${fmtPct(num(e, 'feePct'))} fee and ${money(e, 'gas')} gas).`,
     );
   }
   const sub = verdict.findings.find((f) => f.ruleId === 'SUB_OVER_CAP');

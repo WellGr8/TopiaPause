@@ -10,7 +10,7 @@
   |---|---|
   | Subscription | ฿3,990 → ฿332.50/month vs ฿300 cap → 7-day trial + ฿299 |
   | Stay | ฿1,200 shown / ฿1,284 total, non-refundable → Asok Inn ฿1,445, +฿161 (12.5%), free cancel until Thursday |
-  | Crypto | 45% vs 30% → $200, exact approval, 15 min, post-trade 30% |
+  | Crypto | 45% vs 30% → 200 USDT, exact approval, 15 min, post-trade 30% |
 
 ## Important: how the app picks a clip
 - `voice.ts` plays `/audio/<scene>-<lang>-<decision>.mp3` **only if** the manifest `text` equals the engine `voiceText` (after whitespace normalisation), or if `text` is omitted. Otherwise it falls back to browser speech.
@@ -22,7 +22,7 @@
 ## Field meanings
 | Field | Meaning |
 |---|---|
-| `display` | on-screen text, using the engine's formatting (฿3,990, $200, 45%) |
+| `display` | on-screen text, using the engine's formatting (฿3,990, 200 USDT, 45%) |
 | `spoken` | text to send to TTS, with numbers written as they should be read |
 | `tagged` | `spoken` + **OPTIONAL** Eleven v3 audio tags such as `[calm]`, `[warmly]`, `[thoughtful]`. Test them with your voice and strip them if they are read aloud or sound odd in Thai. Tags are voice- and context-dependent, and v3 does not support SSML breaks, so use `...` for pauses ([ElevenLabs best practices](https://elevenlabs.io/docs/overview/capabilities/text-to-speech/best-practices)). |
 | `est_seconds` | rough estimate (~14 Thai chars/s, ~2.8 English words/s). **Measure after generating.** |
@@ -126,7 +126,7 @@ Tone: calm, friendly, never alarmist. Polite particle "ครับ" (male perso
 | tagged (optional) | [calm] คุณบอกว่าแผนอาจเปลี่ยน... แต่ห้องที่ซิตี้เนสต์นี้ คืนเงินไม่ได้นะครับ [warmly] ถ้าจ่ายเพิ่มอีกร้อยหกสิบเอ็ดบาท จะได้อโศกอินน์ ราคารวมหนึ่งพันสี่ร้อยสี่สิบห้าบาท ยกเลิกฟรีได้ถึงวันพฤหัสบดีครับ | [calm] You said your plans may change... but this City Nest room is non-refundable. [warmly] For one hundred sixty-one baht more, you get Asok Inn at one thousand, four hundred forty-five baht total, with free cancellation until Thursday. |
 | est. seconds · file | 12.4 s · `stay-th-pause.mp3` | 12.9 s · `stay-en-pause.mp3` |
 
-## Scene 3: Swap 500 USDT → TOKEN-X (just once → 45% vs 30% cap + unlimited approval → $200 exact)
+## Scene 3: Swap 500 USDT → TOKEN-X (just once → 45% vs 30% cap + unlimited approval → 200 USDT exact)
 
 
 ### Warning (≤6 s target)
@@ -142,36 +142,36 @@ Tone: calm, friendly, never alarmist. Polite particle "ครับ" (male perso
 
 | | TH | EN |
 |---|---|---|
-| display | ทางที่ผ่านกฎคือ $200 อนุมัติแค่ $200 ครั้งเดียว ใช้ได้ 15 นาที | What passes your rules: $200, with a one-time exact approval of $200 for 15 minutes. |
-| spoken (TTS) | ทางที่ผ่านกฎคือ สองร้อยดอลลาร์ โดยอนุมัติแค่สองร้อยดอลลาร์ ครั้งเดียว ใช้ได้สิบห้านาทีครับ | What passes your rules is two hundred dollars, with a one-time approval of exactly two hundred dollars, valid for fifteen minutes. |
-| tagged (optional) | [warmly] ทางที่ผ่านกฎคือ สองร้อยดอลลาร์ โดยอนุมัติแค่สองร้อยดอลลาร์ ครั้งเดียว ใช้ได้สิบห้านาทีครับ | [warmly] What passes your rules is two hundred dollars, with a one-time approval of exactly two hundred dollars, valid for fifteen minutes. |
+| display | ทางที่ผ่านกฎคือ 200 USDT อนุมัติแค่ 200 USDT ครั้งเดียว ใช้ได้ 15 นาที | What passes your rules: 200 USDT, with a one-time exact approval of 200 USDT for 15 minutes. |
+| spoken (TTS) | ทางที่ผ่านกฎคือ สองร้อย ยูเอสดีที โดยอนุมัติแค่สองร้อย ยูเอสดีที ครั้งเดียว ใช้ได้สิบห้านาทีครับ | What passes your rules is two hundred USDT, with a one-time approval of exactly two hundred USDT, valid for fifteen minutes. |
+| tagged (optional) | [warmly] ทางที่ผ่านกฎคือ สองร้อย ยูเอสดีที โดยอนุมัติแค่สองร้อย ยูเอสดีที ครั้งเดียว ใช้ได้สิบห้านาทีครับ | [warmly] What passes your rules is two hundred USDT, with a one-time approval of exactly two hundred USDT, valid for fifteen minutes. |
 | est. seconds · file | 6.1 s · `crypto-th-counter.mp3` | 7.5 s · `crypto-en-counter.mp3` |
 
 ### Confirmation / receipt
 
 | | TH | EN |
 |---|---|---|
-| display | เรียบร้อยครับ แลก $200 แล้ว TOKEN-X อยู่ที่ 30% พอดี และไม่มีสิทธิ์ค้างไว้ (เดโม) | Done. Swapped $200. TOKEN-X is now exactly 30%, and no approval is left open (demo). |
-| spoken (TTS) | เรียบร้อยครับ แลกสองร้อยดอลลาร์แล้ว โทเคนเอ็กซ์อยู่ที่สามสิบเปอร์เซ็นต์พอดี และไม่มีสิทธิ์ใช้เงินค้างไว้ครับ | Done. Swapped two hundred dollars. TOKEN-X is now exactly thirty percent, and no approval is left open. |
-| tagged (optional) | [warmly] เรียบร้อยครับ แลกสองร้อยดอลลาร์แล้ว โทเคนเอ็กซ์อยู่ที่สามสิบเปอร์เซ็นต์พอดี และไม่มีสิทธิ์ใช้เงินค้างไว้ครับ | [warmly] Done. Swapped two hundred dollars. TOKEN-X is now exactly thirty percent, and no approval is left open. |
+| display | เรียบร้อยครับ แลก 200 USDT แล้ว TOKEN-X อยู่ที่ 30% พอดี และไม่มีสิทธิ์ค้างไว้ (เดโม) | Done. Swapped 200 USDT. TOKEN-X is now exactly 30%, and no approval is left open (demo). |
+| spoken (TTS) | เรียบร้อยครับ แลกสองร้อย ยูเอสดีทีแล้ว โทเคนเอ็กซ์อยู่ที่สามสิบเปอร์เซ็นต์พอดี และไม่มีสิทธิ์ใช้เงินค้างไว้ครับ | Done. Swapped two hundred USDT. TOKEN-X is now exactly thirty percent, and no approval is left open. |
+| tagged (optional) | [warmly] เรียบร้อยครับ แลกสองร้อย ยูเอสดีทีแล้ว โทเคนเอ็กซ์อยู่ที่สามสิบเปอร์เซ็นต์พอดี และไม่มีสิทธิ์ใช้เงินค้างไว้ครับ | [warmly] Done. Swapped two hundred USDT. TOKEN-X is now exactly thirty percent, and no approval is left open. |
 | est. seconds · file | 7.5 s · `crypto-th-confirm.mp3` | 6.1 s · `crypto-en-confirm.mp3` |
 
 ### Why (short)
 
 | | TH | EN |
 |---|---|---|
-| display | เพดาน 30% ของพอร์ต $2,000 คือ $600 คุณถืออยู่ $400 จึงเพิ่มได้สูงสุด $200 | A 30% cap on a $2,000 portfolio is $600. You hold $400, so the most you can add is $200. |
-| spoken (TTS) | เพดานสามสิบเปอร์เซ็นต์ของพอร์ตสองพันดอลลาร์ คือหกร้อยดอลลาร์ ตอนนี้คุณถืออยู่สี่ร้อยดอลลาร์ เลยเพิ่มได้อีกสูงสุดสองร้อยดอลลาร์ครับ | A thirty percent cap on a two thousand dollar portfolio is six hundred dollars. You already hold four hundred, so the most you can add is two hundred dollars. |
-| tagged (optional) | [thoughtful] เพดานสามสิบเปอร์เซ็นต์ของพอร์ตสองพันดอลลาร์ คือหกร้อยดอลลาร์... ตอนนี้คุณถืออยู่สี่ร้อยดอลลาร์ เลยเพิ่มได้อีกสูงสุดสองร้อยดอลลาร์ครับ | [thoughtful] A thirty percent cap on a two thousand dollar portfolio is six hundred dollars. You already hold four hundred... so the most you can add is two hundred dollars. |
+| display | เพดาน 30% ของพอร์ต 2,000 USDT คือ 600 USDT คุณถืออยู่ 400 USDT จึงเพิ่มได้สูงสุด 200 USDT | A 30% cap on a 2,000 USDT portfolio is 600 USDT. You hold 400 USDT, so the most you can add is 200 USDT. |
+| spoken (TTS) | เพดานสามสิบเปอร์เซ็นต์ของพอร์ตสองพัน ยูเอสดีที คือหกร้อย ยูเอสดีที ตอนนี้คุณถืออยู่สี่ร้อย ยูเอสดีที เลยเพิ่มได้อีกสูงสุดสองร้อย ยูเอสดีทีครับ | A thirty percent cap on a two thousand USDT portfolio is six hundred USDT. You already hold four hundred, so the most you can add is two hundred USDT. |
+| tagged (optional) | [thoughtful] เพดานสามสิบเปอร์เซ็นต์ของพอร์ตสองพัน ยูเอสดีที คือหกร้อย ยูเอสดีที... ตอนนี้คุณถืออยู่สี่ร้อย ยูเอสดีที เลยเพิ่มได้อีกสูงสุดสองร้อย ยูเอสดีทีครับ | [thoughtful] A thirty percent cap on a two thousand USDT portfolio is six hundred USDT. You already hold four hundred... so the most you can add is two hundred USDT. |
 | est. seconds · file | 9.1 s · `crypto-th-why.mp3` | 10.4 s · `crypto-en-why.mp3` |
 
 ### Combined PAUSE clip (matches the engine voiceText key)
 
 | | TH | EN |
 |---|---|---|
-| manifest `text` (= engine voiceText) | พอร์ตคุณจะมี TOKEN-X ถึง 45% เกินเพดาน 30% ที่ตั้งไว้ และ agent ขอสิทธิ์ใช้เงินแบบไม่จำกัด ทางเลือกที่ผ่านกฎคือ $200 โดยอนุมัติแค่ $200 ครั้งเดียว ใช้ได้ 15 นาที | Your TOKEN-X share would hit 45%, above your 30% cap, and the agent wants unlimited approval. The option that passes your rules is $200, with a one-time exact approval of $200 for 15 minutes. |
-| spoken (TTS) | เดี๋ยวครับ โทเคนเอ็กซ์จะเป็นสี่สิบห้าเปอร์เซ็นต์ เกินเพดานสามสิบ แถมขอสิทธิ์แบบไม่จำกัด ทางที่ผ่านกฎคือ สองร้อยดอลลาร์ โดยอนุมัติแค่สองร้อยดอลลาร์ ครั้งเดียว ใช้ได้สิบห้านาทีครับ | Hold on. TOKEN-X would hit forty-five percent, over your thirty percent cap, with unlimited approval. What passes your rules is two hundred dollars, with a one-time approval of exactly two hundred dollars, valid for fifteen minutes. |
-| tagged (optional) | [calm] เดี๋ยวครับ... โทเคนเอ็กซ์จะเป็นสี่สิบห้าเปอร์เซ็นต์ เกินเพดานสามสิบ แถมขอสิทธิ์แบบไม่จำกัด [warmly] ทางที่ผ่านกฎคือ สองร้อยดอลลาร์ โดยอนุมัติแค่สองร้อยดอลลาร์ ครั้งเดียว ใช้ได้สิบห้านาทีครับ | [calm] Hold on... TOKEN-X would hit forty-five percent, over your thirty percent cap, with unlimited approval. [warmly] What passes your rules is two hundred dollars, with a one-time approval of exactly two hundred dollars, valid for fifteen minutes. |
+| manifest `text` (= engine voiceText) | พอร์ตคุณจะมี TOKEN-X ถึง 45% เกินเพดาน 30% ที่ตั้งไว้ และ agent ขอสิทธิ์ใช้เงินแบบไม่จำกัด ทางเลือกที่ผ่านกฎคือ 200 USDT โดยอนุมัติแค่ 200 USDT ครั้งเดียว ใช้ได้ 15 นาที | Your TOKEN-X share would hit 45%, above your 30% cap, and the agent wants unlimited approval. The option that passes your rules is 200 USDT, with a one-time exact approval of 200 USDT for 15 minutes. |
+| spoken (TTS) | เดี๋ยวครับ โทเคนเอ็กซ์จะเป็นสี่สิบห้าเปอร์เซ็นต์ เกินเพดานสามสิบ แถมขอสิทธิ์แบบไม่จำกัด ทางที่ผ่านกฎคือ สองร้อย ยูเอสดีที โดยอนุมัติแค่สองร้อย ยูเอสดีที ครั้งเดียว ใช้ได้สิบห้านาทีครับ | Hold on. TOKEN-X would hit forty-five percent, over your thirty percent cap, with unlimited approval. What passes your rules is two hundred USDT, with a one-time approval of exactly two hundred USDT, valid for fifteen minutes. |
+| tagged (optional) | [calm] เดี๋ยวครับ... โทเคนเอ็กซ์จะเป็นสี่สิบห้าเปอร์เซ็นต์ เกินเพดานสามสิบ แถมขอสิทธิ์แบบไม่จำกัด [warmly] ทางที่ผ่านกฎคือ สองร้อย ยูเอสดีที โดยอนุมัติแค่สองร้อย ยูเอสดีที ครั้งเดียว ใช้ได้สิบห้านาทีครับ | [calm] Hold on... TOKEN-X would hit forty-five percent, over your thirty percent cap, with unlimited approval. [warmly] What passes your rules is two hundred USDT, with a one-time approval of exactly two hundred USDT, valid for fifteen minutes. |
 | est. seconds · file | 12.1 s · `crypto-th-pause.mp3` | 12.9 s · `crypto-en-pause.mp3` |
 
 
@@ -187,7 +187,7 @@ Tone: calm, friendly, never alarmist. Polite particle "ครับ" (male perso
 | ฿1,445 | หนึ่งพันสี่ร้อยสี่สิบห้าบาท |
 | 12.5% | สิบสองจุดห้าเปอร์เซ็นต์ |
 | 15% / 30% / 45% | สิบห้า / สามสิบ / สี่สิบห้าเปอร์เซ็นต์ |
-| $200 / $400 / $600 / $2,000 | สองร้อย / สี่ร้อย / หกร้อย / สองพันดอลลาร์ |
+| 200 / 400 / 600 / 2,000 USDT | สองร้อย / สี่ร้อย / หกร้อย / สองพัน ยูเอสดีที |
 | 7 วัน / 15 นาที | เจ็ดวัน / สิบห้านาที |
 
 Names: PixelPro → พิกเซลโปร · City Nest → ซิตี้เนสต์ · Asok Inn → อโศกอินน์ · TOKEN-X → โทเคนเอ็กซ์ · agent → เอเจนต์. If v3 mispronounces one, spell it out phonetically in `spoken` only.

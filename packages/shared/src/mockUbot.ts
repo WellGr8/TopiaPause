@@ -1,5 +1,6 @@
 import { SCENES, newId, sceneIntent } from './scenes';
-import type { ActionIntent, AgentProposal, Execution, Lang, SceneId, UBotAdapter } from './types';
+import { parseMoney, toDecimal } from './money';
+import type { ActionIntent, AgentProposal, Execution, Lang, Money, SceneId, UBotAdapter } from './types';
 
 // Scripted stand-in for U-Bot. It deliberately proposes the "trap" option for
 // each scene so the guard has something to catch. Intent extraction here is a
@@ -41,7 +42,7 @@ export function extractIntentMock(text: string, scene: SceneId, language: Lang):
   if (scene === 'crypto') {
     const amount = parseAmount(t);
     if (amount !== undefined) {
-      base.amount = { amount, currency: 'USDT' };
+      base.amount = amount;
       cues++;
     }
     if (has(t, 'once', 'one time', 'ครั้งเดียว')) {
@@ -53,11 +54,24 @@ export function extractIntentMock(text: string, scene: SceneId, language: Lang):
   return base;
 }
 
-function parseAmount(t: string): number | undefined {
-  const m = t.replace(/,/g, '').match(/(\d+(?:\.\d+)?)\s*(usdt|\$|ดอลลาร์)?/);
+function parseAmount(t: string): Money | undefined {
+  const m = t.replace(/,/g, '').match(/(\d+(?:\.\d{1,6})?)\s*(usdt|\$|ดอลลาร์)?/);
   if (!m) return undefined;
-  const n = Number(m[1]);
-  return Number.isFinite(n) ? n : undefined;
+  try {
+    return parseMoney(m[1]!, 'USDT');
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The guard's intent comes from the user's own words only, never from the agent.
+ * Preset demo messages map to their scene intent; anything else goes through the heuristic.
+ */
+export function deriveIntent(message: string, scene: SceneId, lang: Lang): ActionIntent {
+  const preset = SCENES[scene];
+  const exact = (['th', 'en'] as Lang[]).find((l) => preset.userText[l] === message);
+  return exact ? sceneIntent(scene, message, lang) : extractIntentMock(message, scene, lang);
 }
 
 export interface ScriptedTurn {
@@ -78,14 +92,12 @@ export function scriptedChat(input: { message: string; scene?: SceneId; lang: La
     };
   }
   const preset = SCENES[scene];
-  const intent = input.scene && input.message === preset.userText[input.lang]
-    ? sceneIntent(scene, input.message, input.lang)
-    : extractIntentMock(input.message, scene, input.lang);
-  const amount = scene === 'crypto' ? intent.amount?.amount : undefined;
-  const proposal = preset.buildProposal({ amount });
+  const intent = deriveIntent(input.message, scene, input.lang);
+  const amount = scene === 'crypto' ? intent.amount : undefined;
+  const proposal = preset.buildProposal({ amountMinor: amount?.minor });
   let reply = preset.reply[input.lang];
-  if (scene === 'crypto' && amount !== undefined && amount !== 500) {
-    reply = reply.replace(/500/g, String(amount));
+  if (amount && amount.minor !== 500_000_000) {
+    reply = reply.replace(/500/g, toDecimal(amount).replace(/\.?0+$/, ''));
   }
   return { reply, proposal, intent, scene };
 }

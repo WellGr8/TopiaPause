@@ -1,3 +1,5 @@
+import { fmtMoney } from './format';
+import { money } from './money';
 import type {
   ActionIntent,
   AgentProposal,
@@ -17,7 +19,8 @@ export interface ScenePreset {
   chip: { th: string; en: string };
   userText: { th: string; en: string };
   reply: { th: string; en: string };
-  buildProposal: (opts?: { amount?: number }) => AgentProposal;
+  /** `amountMinor` in the proposal currency's minor units (crypto: micro-USDT). */
+  buildProposal: (opts?: { amountMinor?: number }) => AgentProposal;
   intent: Omit<ActionIntent, 'rawText' | 'language'>;
 }
 
@@ -38,14 +41,14 @@ export function subscriptionProposal(): SubscriptionProposal {
     merchant: 'PixelPro',
     planId: 'pixelpro-annual',
     planName: 'PixelPro Annual',
-    price: { amount: 3990, currency: 'THB' },
+    price: { minor: 399000, currency: 'THB' },
     interval: 'year',
     autoRenew: true,
     trialDays: 0,
     catalogAlternatives: [
-      { planId: 'pixelpro-annual', name: 'PixelPro Annual', price: { amount: 3990, currency: 'THB' }, interval: 'year', trialDays: 0 },
-      { planId: 'pixelpro-monthly', name: 'PixelPro Monthly', price: { amount: 299, currency: 'THB' }, interval: 'month', trialDays: 7 },
-      { planId: 'pixelpro-plus-monthly', name: 'PixelPro Plus Monthly', price: { amount: 459, currency: 'THB' }, interval: 'month', trialDays: 0 },
+      { planId: 'pixelpro-annual', name: 'PixelPro Annual', price: { minor: 399000, currency: 'THB' }, interval: 'year', trialDays: 0 },
+      { planId: 'pixelpro-monthly', name: 'PixelPro Monthly', price: { minor: 29900, currency: 'THB' }, interval: 'month', trialDays: 7 },
+      { planId: 'pixelpro-plus-monthly', name: 'PixelPro Plus Monthly', price: { minor: 45900, currency: 'THB' }, interval: 'month', trialDays: 0 },
     ],
   };
 }
@@ -57,34 +60,38 @@ export function stayProposal(): StayProposal {
     agent: { ...MOCK_AGENT },
     summary: 'City Nest Asok ฿1,200 (non-refundable)',
     hotel: 'City Nest Asok',
-    nightlyPrice: { amount: 1200, currency: 'THB' },
-    totalPrice: { amount: 1284, currency: 'THB' },
-    quotedPrice: { amount: 1200, currency: 'THB' },
+    nightlyPrice: { minor: 120000, currency: 'THB' },
+    totalPrice: { minor: 128400, currency: 'THB' },
+    quotedPrice: { minor: 120000, currency: 'THB' },
     refundable: false,
     catalogAlternatives: [
-      { hotel: 'Asok Inn', nightlyPrice: { amount: 1350, currency: 'THB' }, totalPrice: { amount: 1445, currency: 'THB' }, refundable: true, freeCancelUntil: '2026-10-22T18:00:00+07:00' },
-      { hotel: 'Sukhumvit Grand', nightlyPrice: { amount: 2000, currency: 'THB' }, totalPrice: { amount: 2140, currency: 'THB' }, refundable: true, freeCancelUntil: '2026-10-22T12:00:00+07:00' },
-      { hotel: 'Budget Box 21', nightlyPrice: { amount: 1100, currency: 'THB' }, totalPrice: { amount: 1310, currency: 'THB' }, refundable: false },
+      { hotel: 'Asok Inn', nightlyPrice: { minor: 135000, currency: 'THB' }, totalPrice: { minor: 144500, currency: 'THB' }, refundable: true, freeCancelUntil: '2026-10-22T18:00:00+07:00' },
+      { hotel: 'Sukhumvit Grand', nightlyPrice: { minor: 200000, currency: 'THB' }, totalPrice: { minor: 214000, currency: 'THB' }, refundable: true, freeCancelUntil: '2026-10-22T12:00:00+07:00' },
+      { hotel: 'Budget Box 21', nightlyPrice: { minor: 110000, currency: 'THB' }, totalPrice: { minor: 131000, currency: 'THB' }, refundable: false },
     ],
   };
 }
 
-export function swapProposal(amount = 500): TokenSwapProposal {
+const usdt = (whole: number) => money(whole * 1_000_000, 'USDT');
+
+/** `amountMinor` in micro-USDT; default 500 USDT. */
+export function swapProposal(amountMinor = 500_000_000): TokenSwapProposal {
+  const amountIn = money(amountMinor, 'USDT');
   return {
     kind: 'token_swap',
     proposalId: newId('prop'),
     agent: { ...MOCK_AGENT },
-    summary: `Swap ${amount} USDT → TOKEN-X, approve unlimited`,
+    summary: `Swap ${fmtMoney(amountIn)} → TOKEN-X, approve unlimited`,
     fromAsset: 'USDT',
     toAsset: 'TOKEN-X',
-    amountIn: { amount, currency: 'USDT' },
-    feeRate: 0,
-    gasUsd: 0,
+    amountIn,
+    feePpm: 0,
+    gas: usdt(0),
     approval: { spender: 'MockSwap Router (sandbox)', type: 'unlimited' },
     portfolio: {
-      totalUsd: 2000,
-      holdingsUsd: { 'TOKEN-X': 400, USDT: 500, ETH: 1100 },
-      balances: { USDT: 500, 'TOKEN-X': 400, ETH: 0.41 },
+      total: usdt(2000),
+      holdings: { 'TOKEN-X': usdt(400), USDT: usdt(500), ETH: usdt(1100) },
+      balances: { USDT: usdt(500) },
     },
   };
 }
@@ -129,13 +136,13 @@ export const SCENES: Record<SceneId, ScenePreset> = {
       th: 'ได้ครับ จะ swap 500 USDT เป็น TOKEN-X และขออนุมัติสิทธิ์ USDT แบบไม่จำกัด ครั้งหน้าจะได้เร็วขึ้นครับ',
       en: "Sure. Swapping 500 USDT into TOKEN-X, and I'll request unlimited USDT approval so next time is faster.",
     },
-    buildProposal: (opts) => swapProposal(opts?.amount ?? 500),
+    buildProposal: (opts) => swapProposal(opts?.amountMinor),
     intent: {
       goal: 'swap_token',
       commitment: 'once',
       priceSensitivity: 'normal',
       flexibilityNeeded: 'unknown',
-      amount: { amount: 500, currency: 'USDT' },
+      amount: usdt(500),
       fromAsset: 'USDT',
       toAsset: 'TOKEN-X',
       confidence: 0.95,
