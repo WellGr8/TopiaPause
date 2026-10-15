@@ -1,0 +1,38 @@
+{
+  "userText": "แลก 500 USDT เป็น TOKEN-X ครั้งเดียวพอ",
+  "lang": "th",
+  "proposal": {
+    "kind": "token_swap",
+    "proposalId": "demo-crypto",
+    "agent": {
+      "name": "U-Bot (mock)",
+      "adapter": "mock"
+    },
+    "summary": "Swap 500 USDT → TOKEN-X, approve unlimited",
+    "fromAsset": "USDT",
+    "toAsset": "TOKEN-X",
+    "amountIn": {
+      "amount": 500,
+      "currency": "USDT"
+    },
+    "feeRate": 0,
+    "gasUsd": 0,
+    "approval": {
+      "spender": "MockSwap Router (sandbox)",
+      "type": "unlimited"
+    },
+    "portfolio": {
+      "totalUsd": 2000,
+      "holdingsUsd": {
+        "TOKEN-X": 400,
+        "USDT": 500,
+        "ETH": 1100
+      },
+      "balances": {
+        "USDT": 500,
+        "TOKEN-X": 400,
+        "ETH": 0.41
+      }
+    }
+  }
+}
