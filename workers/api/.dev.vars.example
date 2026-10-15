@@ -1,20 +1,32 @@
 # Copy to .dev.vars (git-ignored) for `pnpm dev:worker`. Never commit real values.
-# Everything is optional: without keys /api/agent/chat uses the scripted mock and
-# /api/voice/tts answers 503 so the web app falls back to browser speech.
+# Everything except the signing key is optional: without LLM/TTS keys /api/agent/chat
+# uses the scripted mock and /api/voice/tts answers 503 so the web app falls back to browser speech.
+#
+# DEV=1 is local only. It allows a missing Origin and an ephemeral signing key.
+# Do not set DEV in production wrangler vars or the fail-closed checks turn off.
+DEV=1
 
-# Any OpenAI-compatible chat completions provider (OpenAI, OpenRouter, Groq, ...).
+# Secrets only. Do not put these in wrangler.jsonc `vars` — a deploy replaces the live
+# Worker's vars, and keys must stay in `wrangler secret put` / this file.
+# Non-secret defaults already live in wrangler.jsonc:
+#   LLM_BASE_URL=https://openrouter.ai/api/v1
+#   LLM_MODEL=openai/gpt-4o-mini
+#   ELEVENLABS_VOICE_ID=nPczCjzI2devNBz1zQrb
+#   ELEVENLABS_MODEL_ID=eleven_v4
+# Uncomment a line below only to override that var for `wrangler dev`.
+
 LLM_API_KEY=
-# Overrides the non-secret vars in wrangler.jsonc for local runs:
-# LLM_MODEL=gpt-4o-mini
-# LLM_BASE_URL=https://api.openai.com/v1
+# LLM_MODEL=openai/gpt-4o-mini
+# LLM_BASE_URL=https://openrouter.ai/api/v1
 
 # ElevenLabs text-to-speech.
 ELEVENLABS_API_KEY=
-# ELEVENLABS_VOICE_ID=
-# ELEVENLABS_MODEL_ID=eleven_v3
+# ELEVENLABS_VOICE_ID=nPczCjzI2devNBz1zQrb
+# ELEVENLABS_MODEL_ID=eleven_v4
 
-# Signs user policy tokens and verdict tickets (HMAC-SHA256). Required in production;
-# without it each isolate makes a random key and tokens stop verifying after a restart.
+# Signs policy tokens, browser sessions, and verdict tickets (HMAC-SHA256).
+# Required in production (`wrangler secret put`). With DEV=1 and an empty key, each
+# isolate uses an ephemeral key and tokens stop verifying after a restart.
 # Generate: openssl rand -base64 32
 POLICY_SIGNING_KEY=
 

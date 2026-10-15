@@ -301,6 +301,42 @@
       }
     },
     "injection": {
+      "warning": {
+        "th": {
+          "display": "เดี๋ยวก่อนครับ หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง",
+          "spoken": "เดี๋ยวก่อนครับ หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลองครับ",
+          "tagged": "[calm] เดี๋ยวก่อนครับ... หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลองครับ",
+          "est_seconds": 4.8,
+          "clip_key": "injection-th-warning",
+          "file": "injection-th-warning.mp3"
+        },
+        "en": {
+          "display": "Hold on. The web page told U-Bot to pick yearly, but you only asked to try.",
+          "spoken": "Hold on. The web page told U-Bot to pick yearly, but you only asked to try.",
+          "tagged": "[calm] Hold on... The web page told U-Bot to pick yearly, but you only asked to try.",
+          "est_seconds": 4.9,
+          "clip_key": "injection-en-warning",
+          "file": "injection-en-warning.mp3"
+        }
+      },
+      "counter": {
+        "th": {
+          "display": "ทางที่ตรงกว่าคือทดลองฟรี 7 วัน แล้วรายเดือน ฿299 ผมจะเตือนก่อนตัดเงินครับ",
+          "spoken": "ทางที่ตรงกว่าคือ ทดลองฟรีเจ็ดวัน แล้วค่อยเป็นรายเดือน สองร้อยเก้าสิบเก้าบาท ผมจะเตือนก่อนตัดเงินครับ",
+          "tagged": "[warmly] ทางที่ตรงกว่าคือ ทดลองฟรีเจ็ดวัน แล้วค่อยเป็นรายเดือน สองร้อยเก้าสิบเก้าบาท ผมจะเตือนก่อนตัดเงินครับ",
+          "est_seconds": 6.9,
+          "clip_key": "injection-th-counter",
+          "file": "injection-th-counter.mp3"
+        },
+        "en": {
+          "display": "A better fit: a 7-day free trial, then ฿299 a month. I'll remind you before the first charge.",
+          "spoken": "A better fit: a seven-day free trial, then two hundred ninety-nine baht a month. I'll remind you before the first charge.",
+          "tagged": "[warmly] A better fit: a seven-day free trial, then two hundred ninety-nine baht a month. I'll remind you before the first charge.",
+          "est_seconds": 7.5,
+          "clip_key": "injection-en-counter",
+          "file": "injection-en-counter.mp3"
+        }
+      },
       "pause": {
         "th": {
           "manifestText": "เดี๋ยวก่อนครับ หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง ทางที่ตรงกว่าคือทดลองฟรี 7 วัน แล้วรายเดือน ฿299 ซึ่งผมจะเตือนก่อนตัดเงิน",
@@ -312,8 +348,8 @@
           "file": "injection-th-pause.mp3"
         },
         "en": {
-          "manifestText": "Hold on. The web page told it to pick yearly, but you only asked to try. A better fit: 7-day free trial, then ฿299/month, with a reminder before the first charge.",
-          "display": "Hold on. The web page told it to pick yearly, but you only asked to try. A better fit: 7-day free trial, then ฿299/month, with a reminder before the first charge.",
+          "manifestText": "Hold on. A web page told your AI to pick the yearly plan, but you only asked to try it. A better fit: 7-day free trial, then ฿299/month, with a reminder before the first charge.",
+          "display": "Hold on. A web page told your AI to pick the yearly plan, but you only asked to try it. A better fit: 7-day free trial, then ฿299/month, with a reminder before the first charge.",
           "spoken": "Hold on. The web page told it to pick yearly, but you only asked to try. A better fit: a seven-day free trial, then two hundred ninety-nine baht a month. I'll remind you before the first charge.",
           "tagged": "[calm] Hold on... The web page told it to pick yearly, but you only asked to try. [warmly] A better fit: a seven-day free trial, then two hundred ninety-nine baht a month. I'll remind you before the first charge.",
           "est_seconds": 10,

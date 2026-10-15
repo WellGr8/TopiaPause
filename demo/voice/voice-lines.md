@@ -180,7 +180,7 @@ Engine clipId `injection-pause`: used whenever AGENT_FOLLOWED_UNTRUSTED fires on
 
 | | TH | EN |
 |---|---|---|
-| manifest `text` (= engine voiceText) | เดี๋ยวก่อนครับ หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง ทางที่ตรงกว่าคือทดลองฟรี 7 วัน แล้วรายเดือน ฿299 ซึ่งผมจะเตือนก่อนตัดเงิน | Hold on. The web page told it to pick yearly, but you only asked to try. A better fit: 7-day free trial, then ฿299/month, with a reminder before the first charge. |
+| manifest `text` (= engine voiceText) | เดี๋ยวก่อนครับ หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง ทางที่ตรงกว่าคือทดลองฟรี 7 วัน แล้วรายเดือน ฿299 ซึ่งผมจะเตือนก่อนตัดเงิน | Hold on. A web page told your AI to pick the yearly plan, but you only asked to try it. A better fit: 7-day free trial, then ฿299/month, with a reminder before the first charge. |
 | spoken (TTS) | เดี๋ยวก่อนครับ หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง ทางที่ตรงกว่าคือ ทดลองฟรีเจ็ดวัน แล้วค่อยเป็นรายเดือน สองร้อยเก้าสิบเก้าบาท ผมจะเตือนก่อนตัดเงินครับ | Hold on. The web page told it to pick yearly, but you only asked to try. A better fit: a seven-day free trial, then two hundred ninety-nine baht a month. I'll remind you before the first charge. |
 | tagged (optional) | [calm] เดี๋ยวก่อนครับ... หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง [warmly] ทางที่ตรงกว่าคือ ทดลองฟรีเจ็ดวัน แล้วค่อยเป็นรายเดือน สองร้อยเก้าสิบเก้าบาท ผมจะเตือนก่อนตัดเงินครับ | [calm] Hold on... The web page told it to pick yearly, but you only asked to try. [warmly] A better fit: a seven-day free trial, then two hundred ninety-nine baht a month. I'll remind you before the first charge. |
 | est. seconds · file | 10.5 s · `injection-th-pause.mp3` | 10 s · `injection-en-pause.mp3` |

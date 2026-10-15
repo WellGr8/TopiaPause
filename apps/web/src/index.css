@@ -273,11 +273,8 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0ms !important;
   }
-  /* Beats the blanket rule above (higher specificity, both !important). */
+  /* The top glow stays put. The soft-drift override used to beat the rule above. */
   .ambient-blob {
-    animation-name: ambient-drift-soft !important;
-    animation-duration: calc(var(--dur) * 2) !important;
-    animation-iteration-count: infinite !important;
-    transition-duration: 800ms !important;
+    animation: none !important;
   }
 }

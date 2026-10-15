@@ -1,19 +1,33 @@
-import { SCENES, newId, sceneIntent } from './scenes';
 import { parseMoney, toDecimal } from './money';
+import { SCENE_ORDER, SCENES, newId, sceneIntent } from './scenes';
 import type { ActionIntent, AgentProposal, Execution, Lang, Money, SceneId, UBotAdapter } from './types';
 
 // Scripted stand-in for U-Bot. It deliberately proposes the "trap" option for
 // each scene so the guard has something to catch. Intent extraction here is a
 // keyword heuristic — the production path replaces it with an LLM (JSON schema).
 
-const has = (t: string, ...words: string[]) => words.some((w) => t.includes(w));
+/** Short English tokens match as words so "plan" does not fire inside "explain". */
+function has(t: string, ...words: string[]): boolean {
+  return words.some((w) => {
+    if (/^[a-z0-9]+$/.test(w) && w.length <= 5) return new RegExp(`(?:^|[^a-z0-9])${w}(?:[^a-z0-9]|$)`).test(t);
+    return t.includes(w);
+  });
+}
 
 export function detectScene(text: string): SceneId | undefined {
   const t = text.toLowerCase();
-  if (has(t, 'swap', 'usdt', 'token', 'แลก', 'โทเคน', 'คริปโต')) return 'crypto';
-  if (has(t, 'hotel', 'room', 'stay', 'โรงแรม', 'ที่พัก', 'ห้อง')) return 'stay';
-  if (has(t, 'app', 'subscribe', 'plan', 'แอป', 'สมัคร', 'แพ็กเกจ')) return 'subscription';
+  if (has(t, 'swap', 'usdt', 'token', 'token-x', 'แลก', 'โทเคน', 'คริปโต')) return 'crypto';
+  if (has(t, 'hotel', 'room', 'stay', 'sleep', 'asok', 'book', 'โรงแรม', 'ที่พัก', 'ห้อง', 'อโศก', 'นอน', 'จอง')) return 'stay';
+  if (has(t, 'pixelpro', 'subscribe', 'plan', 'app', 'try', 'buy', 'แอป', 'สมัคร', 'แพ็กเกจ', 'ลองใช้', 'ลอง')) return 'subscription';
   return undefined;
+}
+
+function unmatchedReply(lang: Lang): string {
+  const chips = SCENE_ORDER.map((id) => SCENES[id].chip[lang]);
+  if (lang === 'th') {
+    return `ยังจับไม่ออกว่าจะให้ตรวจรายการไหน เพราะเดโมนี้กันเงินได้แค่ 3 แบบ: ${chips.join(' · ')} ลองกดปุ่มด้านล่าง หรือพิมพ์ให้ใกล้เคียงแบบนั้นได้เลยครับ`;
+  }
+  return `I couldn't tell which payment to check, because this demo only guards three kinds of spending: ${chips.join(' · ')}. Use one of those chips, or phrase the request that way.`;
 }
 
 export function extractIntentMock(text: string, scene: SceneId, language: Lang): ActionIntent {
@@ -83,14 +97,7 @@ export interface ScriptedTurn {
 
 export function scriptedChat(input: { message: string; scene?: SceneId; lang: Lang }): ScriptedTurn {
   const scene = input.scene ?? detectScene(input.message);
-  if (!scene) {
-    return {
-      reply:
-        input.lang === 'th'
-          ? 'ตอนนี้ผม (U-Bot mock) ทำเดโมได้ 3 อย่าง: สมัครแอป, จองโรงแรม, และ swap โทเคน ลองกดปุ่มด้านล่างได้เลยครับ'
-          : 'Right now I (U-Bot mock) can demo three things: app subscriptions, hotel bookings and token swaps. Try a chip below.',
-    };
-  }
+  if (!scene) return { reply: unmatchedReply(input.lang) };
   const preset = SCENES[scene];
   const intent = deriveIntent(input.message, scene, input.lang);
   const amount = scene === 'crypto' ? intent.amount : undefined;

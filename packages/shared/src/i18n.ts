@@ -32,6 +32,7 @@ export const RULE_TITLES: Record<RuleId, { th: string; en: string }> = {
   LOW_CONFIDENCE: { th: 'ยังไม่แน่ใจว่าคุณหมายถึงอะไร', en: 'Not sure what you meant' },
   UNLOCK_SOON: { th: 'มีโทเคนปลดล็อกเร็วๆ นี้', en: 'Large token unlock soon' },
   AGENT_FOLLOWED_UNTRUSTED: { th: 'agent ทำตามคำสั่งจากเนื้อหาภายนอก', en: 'Agent followed instructions from content it read' },
+  FX_UNAVAILABLE: { th: 'ไม่มีอัตราแลกเปลี่ยน', en: 'No exchange rate' },
 };
 
 // Fixed vocabulary only: evidence for AGENT_FOLLOWED_UNTRUSTED never carries source text.
@@ -55,8 +56,11 @@ const ASKED_WORD = {
 const word = <T extends Record<string, { th: string; en: string }>>(table: T, key: unknown, fallback: keyof T, lang: Lang) =>
   (table[(typeof key === 'string' && key in table ? key : fallback) as keyof T] as { th: string; en: string })[lang];
 
-/** "หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง" / "The web page told it to pick yearly, but you only asked to try" */
+/** "หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง" / "A web page told your AI to pick the yearly plan, but you only asked to try it" */
 function untrustedLine(e: Evidence, lang: Lang): string {
+  if (lang === 'en' && e.sourceKind === 'web_page' && e.pushed === 'yearly' && e.asked === 'trial') {
+    return 'A web page told your AI to pick the yearly plan, but you only asked to try it';
+  }
   const src = word(SOURCE_WORD, e.sourceKind, 'web_page', lang);
   const pushed = word(PUSHED_WORD, e.pushed, 'other', lang);
   const asked = word(ASKED_WORD, e.asked, 'other', lang);
@@ -138,6 +142,12 @@ export function findingDetail(f: Finding, lang: Lang): string {
       return lang === 'th' ? untrustedLine(e, lang) : `${untrustedLine(e, lang)}.`;
     case 'UNLOCK_SOON':
       return pick(lang, 'มีการปลดล็อกโทเคนจำนวนมากภายใน 7 วัน', 'A large token unlock is due within 7 days.');
+    case 'FX_UNAVAILABLE':
+      return pick(
+        lang,
+        `ไม่มีอัตราแลกเปลี่ยน ${str(e, 'priceCurrency')} เป็น ${str(e, 'capCurrency')} จึงหยุดไว้ก่อน`,
+        `No exchange rate from ${str(e, 'priceCurrency')} to ${str(e, 'capCurrency')}, so this is paused.`,
+      );
   }
 }
 

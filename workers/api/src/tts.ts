@@ -1,9 +1,9 @@
-import { HttpError, log, type AppEnv } from './http';
+import { chargePaid, HttpError, log, type AppEnv } from './http';
 
 // ElevenLabs text-to-speech proxy. The key stays on the Worker; the browser only sees
 // audio/mpeg. Responses are cached by (voice, model, text) so stage rehearsals don't burn credits.
 
-const DEFAULT_MODEL = 'eleven_v3';
+const DEFAULT_MODEL = 'eleven_v4';
 const OUTPUT = 'mp3_44100_128';
 
 export function ttsConfigured(env: AppEnv): boolean {
@@ -21,6 +21,7 @@ export async function tts(env: AppEnv, text: string, ctx?: ExecutionContext): Pr
     const missing = [!env.ELEVENLABS_API_KEY && 'ELEVENLABS_API_KEY', !env.ELEVENLABS_VOICE_ID && 'ELEVENLABS_VOICE_ID'].filter(Boolean).join(', ');
     throw new HttpError(503, 'tts_unavailable', `ElevenLabs is not configured (missing ${missing}). Use browser speech instead.`);
   }
+  if (!chargePaid(env)) throw new HttpError(503, 'spend_cap', 'Daily voice and chat limit reached. Use browser speech.');
   const voice = env.ELEVENLABS_VOICE_ID;
   const model = env.ELEVENLABS_MODEL_ID || DEFAULT_MODEL;
   const cache = typeof caches !== 'undefined' ? caches.default : undefined;

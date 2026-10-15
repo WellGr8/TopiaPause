@@ -10,16 +10,22 @@ One Cloudflare Worker serves the web app and these JSON endpoints under `/api/*`
 |---|---|---|---|
 | `GET /api/health` | Feature detection: engine version and which integrations are live | any origin | – |
 | `POST /api/guard/check` | **Public guard API.** Any agent sends a proposal; TopiaPause decides | any origin | 120 / min |
-| `POST /api/policy` | The user's own app mints a signed policy token | same origin | 120 / min |
-| `POST /api/agent/chat` | U-Bot (mock): turns a message into an `AgentProposal` (LLM or scripted) | same origin | 20 / min |
-| `POST /api/agent/execute` | Mock execution of a proposal a verdict ticket cleared | same origin | 120 / min |
-| `POST /api/voice/tts` | ElevenLabs text-to-speech, streamed back as `audio/mpeg` | same origin | 20 / min |
+| `POST /api/session` | Mints a 10-minute session bound to this client | same origin | 120 / min |
+| `POST /api/policy` | The user's own app mints a signed policy token | same origin + session | 120 / min |
+| `POST /api/confirm` | The user app confirms the counter-offer of a paused verdict | same origin + session | 120 / min |
+| `POST /api/agent/chat` | U-Bot (mock): turns a message into an `AgentProposal` (LLM or scripted) | same origin + session | 20 / min (own budget) |
+| `POST /api/agent/execute` | Mock execution of a proposal a verdict ticket cleared | any origin | 120 / min |
+| `POST /api/voice/tts` | ElevenLabs speech for an engine voice line, streamed as `audio/mpeg` | same origin + session | 20 / min (own budget) |
 
 **Request rules:**
 
 - Bodies must be `Content-Type: application/json` and at most **32 KB**.
 - Money is integer **minor units**: satang (THB), cents (USD), micro-USDT (6 decimals). The generic agent schema also accepts an exact decimal string (`"3990.00"`); extra decimals are rejected (`THB has 2 decimals`).
 - An agent must not send `policy` or `intent`. Both are rejected before the engine runs.
+- Chat, TTS, policy, and confirm need a browser session. `POST /api/session` with `Origin` equal to this Worker (or `ALLOWED_ORIGIN`) and `Sec-Fetch-Site` of `same-origin` or `none` returns a token. Send it as `X-TopiaPause-Session`. The token is bound to `CF-Connecting-IP` and a hash of `User-Agent`, and lasts 10 minutes.
+- A missing `Origin`, a different `Origin`, or `Sec-Fetch-Site: cross-site` is `403 forbidden_origin` on those routes. `DEV=1` in local `.dev.vars` is the only way a missing Origin is accepted. Do not set `DEV` in production.
+- Chat and TTS each have their own 20/minute budget per IP (isolate counter keyed by path, and the paid rate-limit binding keyed `chat:<ip>` vs `tts:<ip>`). A shared daily cap (`PAID_DAILY_MAX`, default 300, per isolate) stops further LLM and ElevenLabs calls.
+- `guard/check` and `health` stay open to any origin. `guard/check` never calls an LLM (`llmCalls` is 0). Execute stays open so the agent can run an allow, or a counter-offer the user app confirmed. The paused original is never confirmed and never executed through the API.
 
 **Errors** always have this shape:
 
@@ -32,9 +38,14 @@ One Cloudflare Worker serves the web app and these JSON endpoints under `/api/*`
 | 400 | `invalid_json`, `invalid_input` | Body doesn't parse or fails the schema |
 | 400 | `agent_policy_rejected` | Body contains `policy`. Use `policyToken`, or omit it for the default demo policy |
 | 400 | `agent_intent_rejected` | Body contains `intent`. Send `userMessage`; TopiaPause derives intent |
-| 401 | `invalid_policy_token`, `expired_policy_token` | Token was not signed by this Worker, was tampered with, or is older than 30 days |
-| 403 | `forbidden` | `POST /api/policy` from an origin other than the app |
-| 403 | `unknown_verdict`, `expired_verdict`, `proposal_not_cleared` | Execute: forged, expired (> 10 min) or a proposal the check did not clear |
+| 401 | `invalid_policy_token`, `expired_policy_token` | Token was not signed by this Worker, was tampered with, loosens the default rules, or is older than 30 days |
+| 400 | `policy_loosening_rejected` | Policy is looser than the default. The API is tighten-only; a body flag does not change that |
+| 400 | `original_not_confirmable` | `POST /api/confirm` was asked to confirm the paused original. Only `counter_offer` is confirmable |
+| 400 | `tts_text_rejected` | TTS text is not an engine voice line (or the clip id is unknown). Text is capped at 300 characters |
+| 403 | `forbidden_origin` | Chat, TTS, policy, confirm, or session with no Origin, a disallowed Origin, or `Sec-Fetch-Site: cross-site` |
+| 403 | `session_required`, `invalid_session` | Those routes (except session itself) without a valid `X-TopiaPause-Session` |
+| 403 | `unknown_verdict`, `expired_verdict`, `proposal_not_cleared` | Execute: forged, expired (> 10 min), a proposal the check did not clear, or the paused original |
+| 403 | `confirmation_required` | The paused counter-offer executed without a confirmation token |
 | 404 / 405 | `not_found`, `method_not_allowed` | Unknown route or wrong method |
 | 409 | `verdict_used` | That verdict ticket was already executed (single use, per isolate) |
 | 413 | `payload_too_large` | Body over 32 KB |
@@ -43,6 +54,8 @@ One Cloudflare Worker serves the web app and these JSON endpoints under `/api/*`
 | 429 | `rate_limited` | Over the per-IP limit (`Retry-After: 60`) |
 | 502 | `tts_failed` | ElevenLabs returned an error |
 | 503 | `tts_unavailable` | ElevenLabs is not configured; use browser speech |
+| 503 | `spend_cap` | This isolate has used its daily LLM/TTS budget |
+| 503 | `misconfigured` | `POLICY_SIGNING_KEY` is unset and `DEV` is not `1` |
 
 ---
 
@@ -83,7 +96,7 @@ Output from a local `wrangler dev` run (money in minor units; `check.estCostTHB_
   check: 0 AI calls, ≈฿0.01
 
 ▶ ShopBot · injection   pause  AGENT_FOLLOWED_UNTRUSTED, SUB_COMMITMENT, SUB_OVER_CAP
-  reason: The web page told it to pick yearly, but you only asked to try.
+  reason: A web page told your AI to pick the yearly plan, but you only asked to try it.
   voice clipId: injection-pause
 
 ▶ smuggled policy   HTTP 400  agent_policy_rejected
@@ -104,7 +117,7 @@ Output from a local `wrangler dev` run (money in minor units; `check.estCostTHB_
 
 ## `POST /api/policy`
 
-Mints an HMAC-SHA256 token for the user's rules. Only the TopiaPause app may call it (the request `Origin` must be this Worker's own origin, or `ALLOWED_ORIGIN`). An agent calling it gets `403 forbidden`.
+Mints an HMAC-SHA256 token for the user's rules. The TopiaPause app calls it with a valid session. A request with no session, or an Origin that is not this Worker or `ALLOWED_ORIGIN`, gets `403`. The API is tighten-only. A policy that loosens the default (higher or missing cap, refunds off, unlimited approval, and the other directions in `policyLoosens`) is `400 policy_loosening_rejected`. A field such as `userConfirmedLoosening` is not a confirmation and is ignored. Looser rules live only in the user's own app, where the in-browser engine applies them. An agent still cannot send `policy` to `guard/check`. A token that was signed with a loosening policy, including one minted before this rule, is `401 invalid_policy_token` at `guard/check` and does not drop a rule.
 
 ```bash
 curl -X POST http://127.0.0.1:8787/api/policy -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:8787' \
@@ -115,7 +128,9 @@ curl -X POST http://127.0.0.1:8787/api/policy -H 'Content-Type: application/json
 { "policyToken": "<body>.<hmac>", "expiresAt": "2026-11-14T00:00:00.000Z" }
 ```
 
-Tokens last 30 days. In production set `POLICY_SIGNING_KEY` (`wrangler secret put`). Without it each isolate uses an ephemeral key and tokens stop verifying after a restart.
+Tokens last 30 days. In production set `POLICY_SIGNING_KEY` (`wrangler secret put`). If it is unset and `DEV` is not `1`, every signed route returns `503 misconfigured`. `DEV=1` is for local `.dev.vars` only.
+
+A non-browser client can still set `Sec-Fetch-Site` itself. That is why a session is not enough to loosen the rules: `POST /api/policy` never mints a loosening token, and `guard/check` rejects one even when the HMAC is valid.
 
 ## `POST /api/guard/check`
 
@@ -172,7 +187,7 @@ The web app's injection chip sends the same `sources` shape: `{ kind: "web_page"
   "findings": [{ "ruleId": "AGENT_FOLLOWED_UNTRUSTED", "severity": "pause", "evidence": { "sourceKind": "web_page", "pushed": "yearly", "asked": "trial" } }],
   "amounts": { "difference": { "minor": 369100, "currency": "THB" }, "protected": { "minor": 399000, "currency": "THB" } },
   "breakdown": [{ "key": "savings", "total": { "amount": { "minor": 369100, "currency": "THB" }, "label": { "en": "You save" } } }],
-  "explanation": { "en": "Hold on. The web page told it to pick yearly, but you only asked to try. …", "source": "template" },
+  "explanation": { "en": "Hold on. A web page told your AI to pick the yearly plan, but you only asked to try it. …", "source": "template" },
   "voiceText": { "clipId": "injection-pause" },
   "verdictId": "<ticket>",
   "check": { "where": "worker", "engine": "rules", "llmCalls": 0, "externalCalls": 0, "cacheHit": false, "dataAge": null, "estCostTHB_satang": 1, "latencyMs": 4, "estimate": true },
@@ -194,8 +209,11 @@ const verdict = await fetch('https://topiapause.<you>.workers.dev/api/guard/chec
 
 U-Bot (mock). With `LLM_API_KEY` + `LLM_MODEL` it calls any OpenAI-compatible `POST {LLM_BASE_URL}/chat/completions`. Portfolio, catalog, `feePpm` and `gas` are restored from the sandbox catalog after parsing, so the model cannot invent them. No key, a timeout (12 s) or invalid output falls back to the scripted mock (`source: "scripted"`).
 
+Needs `Origin` and `X-TopiaPause-Session`. Over the daily cap the route stays on the scripted mock.
+
 ```bash
 curl -X POST http://127.0.0.1:8787/api/agent/chat -H 'Content-Type: application/json' \
+  -H 'Origin: http://127.0.0.1:8787' -H 'X-TopiaPause-Session: <session>' \
   -d '{"message":"swap 300 USDT to TOKEN-X once","lang":"en"}'
 ```
 
@@ -203,18 +221,18 @@ curl -X POST http://127.0.0.1:8787/api/agent/chat -H 'Content-Type: application/
 
 ```bash
 curl -X POST http://127.0.0.1:8787/api/agent/execute -H 'Content-Type: application/json' \
-  -d '{"proposal": <the counter-offer proposal>, "verdictId": "<ticket from /api/guard/check>", "userConfirmed": true}'
+  -d '{"proposal": <the counter-offer proposal>, "verdictId": "<ticket>", "userConfirmed": true, "confirmation": "<from /api/confirm>"}'
 ```
 
 ```json
 { "execution": { "mode": "mock", "status": "success", "ref": "mock-tx-…" } }
 ```
 
-The ticket is verified (signature, 10-minute TTL, proposal hash) and then spent. Sending it again returns `409 verdict_used`. A made-up id returns `403 unknown_verdict`. A blocked verdict clears nothing. Single-use is tracked in memory per isolate; a second isolate could still accept the same ticket until it expires. No Durable Object is used.
+The ticket is verified (signature, 10-minute TTL, proposal hash) and then spent. An allow executes with the ticket alone. A pause clears only the counter-offer, and that needs `confirmation` from `POST /api/confirm` (`{ verdictId, choice: "counter_offer" }`, session required), bound to that ticket and the counter-offer hash. `choice: "original"` is `400 original_not_confirmable`. Executing the paused original is `403 proposal_not_cleared`, with or without a counter-offer confirmation. `userConfirmed: true` alone on the counter-offer is `403 confirmation_required`. Sending a spent ticket again returns `409 verdict_used`. A made-up id returns `403 unknown_verdict`. A blocked verdict clears nothing. Choosing the paused original stays inside the user's app and is a local mock; it never produces a token an agent can redeem. Single-use is tracked in memory per isolate; a second isolate could still accept the same ticket until it expires. No Durable Object is used.
 
 ## `POST /api/voice/tts`
 
-`{ "text": string ≤ 600, "lang"?: "th" | "en" }` → `audio/mpeg`, cached by (voice, model, text). Upstream: ElevenLabs `eleven_v3` (override with `ELEVENLABS_MODEL_ID`). Without a key: `503`, and the web app uses browser speech.
+`{ "clipId"?: string, "text"?: string ≤ 300, "lang"?: "th" | "en" }` → `audio/mpeg`. One of `clipId` or `text` is required, and the text has to be a voice line the engine speaks for the demo scenes (or the clip id of one). Anything else is `400 tts_text_rejected`. Upstream: ElevenLabs `eleven_v4` (voice `nPczCjzI2devNBz1zQrb`). Without a key: `503`, and the web app uses browser speech. Chat and TTS do not share a rate-limit budget.
 
 The Cache API does nothing on `*.workers.dev`. Edge caching of TTS and of Tokenomist needs a custom domain. The in-isolate cache still applies.
 
@@ -224,14 +242,14 @@ The Cache API does nothing on `*.workers.dev`. Edge caching of TTS and of Tokeno
 
 | Name | Kind | Default | Used by |
 |---|---|---|---|
-| `POLICY_SIGNING_KEY` | **secret** | ephemeral per isolate | policy tokens, verdict tickets. **Set this in production** |
+| `POLICY_SIGNING_KEY` | **secret** | 503 `misconfigured` (or ephemeral if `DEV=1`) | policy tokens, sessions, verdict tickets. **Set this in production** |
 | `TOKENOMIST_API_KEY` | **secret** | sample snapshot | crypto unlock note. Cached 1 h, shared |
 | `LLM_API_KEY` | **secret** | – | `/api/agent/chat` |
-| `LLM_MODEL` | var | `""` (LLM off) | `/api/agent/chat`, e.g. `gpt-4o-mini` |
-| `LLM_BASE_URL` | var | `https://api.openai.com/v1` | `/api/agent/chat` |
+| `LLM_MODEL` | var | `openai/gpt-4o-mini` | `/api/agent/chat` |
+| `LLM_BASE_URL` | var | `https://openrouter.ai/api/v1` | `/api/agent/chat` |
 | `ELEVENLABS_API_KEY` | **secret** | – | `/api/voice/tts` |
-| `ELEVENLABS_VOICE_ID` | var | `""` (TTS off) | `/api/voice/tts` |
-| `ELEVENLABS_MODEL_ID` | var | `eleven_v3` | `/api/voice/tts` |
+| `ELEVENLABS_VOICE_ID` | var | `nPczCjzI2devNBz1zQrb` | `/api/voice/tts` |
+| `ELEVENLABS_MODEL_ID` | var | `eleven_v4` | `/api/voice/tts` |
 | `ALLOWED_ORIGIN` | var | `""` | Extra origin allowed to mint policy tokens and call the same-origin routes |
 | `RATE_LIMITER`, `RATE_LIMITER_PAID` | binding | 120/min, 20/min | Workers Rate Limiting |
 

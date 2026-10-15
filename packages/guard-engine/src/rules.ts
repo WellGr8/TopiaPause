@@ -147,6 +147,12 @@ export function subscriptionRules(intent: ActionIntent, p: SubscriptionProposal,
       });
     }
   } else if (cap) {
+    findings.push({
+      ruleId: 'FX_UNAVAILABLE',
+      severity: 'pause',
+      evidence: { priceCurrency: p.price.currency, capCurrency: cap.currency },
+      messageKey: 'fx_unavailable',
+    });
     assumptions.push({ th: `ไม่มีอัตราแลกเปลี่ยน ${p.price.currency}→${cap.currency} จึงไม่ได้เทียบงบ`, en: `No ${p.price.currency}→${cap.currency} rate, so the cap was not applied.` });
   }
 

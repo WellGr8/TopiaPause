@@ -14,6 +14,7 @@
     "preview": "pnpm --filter @topiapause/web preview",
     "typecheck": "pnpm -r typecheck && tsc -p scripts",
     "test": "pnpm -r test",
+    "test:e2e": "pnpm --filter @topiapause/web test:e2e",
     "deploy": "pnpm build && pnpm --filter @topiapause/api run deploy",
     "voice:pregen": "node --experimental-strip-types --no-warnings=ExperimentalWarning scripts/pregen-voice.ts",
     "agent:demo": "node --experimental-strip-types --no-warnings=ExperimentalWarning scripts/agent-demo.ts"

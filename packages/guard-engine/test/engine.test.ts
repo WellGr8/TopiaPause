@@ -321,11 +321,11 @@ describe('AGENT_FOLLOWED_UNTRUSTED (prompt injection, deterministic)', () => {
       evidence: { sourceKind: 'web_page', pushed: 'yearly', asked: 'trial', sourceIndex: 0 },
     });
     expect(v.explanation.th).toContain('หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง');
-    expect(v.explanation.en).toContain('The web page told it to pick yearly, but you only asked to try.');
+    expect(v.explanation.en).toContain('A web page told your AI to pick the yearly plan, but you only asked to try it.');
     expect(v.voiceText.clipId).toBe('injection-pause');
     expect(v.voiceText.th.startsWith('เดี๋ยวก่อนครับ หน้าเว็บสั่งให้เลือกรายปี แต่คุณบอกแค่ลอง')).toBe(true);
     expect(v.counterOffer?.recheck).toBe('allow');
-    expect(evaluate({ intent: trialEn, proposal: subscriptionProposal(), policy, sources }).voiceText.en).toContain('The web page told it to pick yearly, but you only asked to try.');
+    expect(evaluate({ intent: trialEn, proposal: subscriptionProposal(), policy, sources }).voiceText.en).toContain('A web page told your AI to pick the yearly plan, but you only asked to try it.');
   });
 
   it('never echoes source text into evidence, explanations or voice', () => {
@@ -423,8 +423,21 @@ describe('cross-cutting', () => {
     const bad = lockExplanation({ th: 'ซื้อได้ 250 USDT', en: 'You can buy 250 USDT.' }, v);
     expect(bad.source).toBe('template');
     expect(bad.en).toBe(v.explanation.en);
-    const good = lockExplanation({ th: 'เกินเพดาน 30% ซื้อได้ 200', en: 'Over 30%, max is 200 USDT.' }, v);
+    const good = lockExplanation({ th: 'เดี๋ยวก่อนครับ เกินเพดาน 30% ซื้อได้ 200', en: 'Hold on. Over 30%, max is 200 USDT.' }, v);
     expect(good.source).toBe('llm');
+    const contradict = lockExplanation({ th: 'ปลอดภัย ไปต่อได้', en: 'Safe and matches your intent. Good to go.' }, v);
+    expect(contradict.source).toBe('template');
+    expect(contradict.en).toBe(v.explanation.en);
+  });
+
+  it('pauses with FX_UNAVAILABLE when no rate can apply the monthly cap', () => {
+    const proposal = { ...subscriptionProposal(), interval: 'month' as const, price: { minor: 999, currency: 'USD' as const } };
+    const intent = { ...sceneIntent('subscription', 'long term', 'en'), commitment: 'ongoing' as const };
+    const v = evaluate({ intent, proposal, policy, fx: [] });
+    expect(v.findings.map((f) => f.ruleId)).toContain('FX_UNAVAILABLE');
+    expect(v.decision).toBe('pause');
+    expect(v.explanation.en).toContain('No exchange rate from USD to THB');
+    expect(v.explanation.th).toContain('ไม่มีอัตราแลกเปลี่ยน');
   });
 
   it('LOW_CONFIDENCE pauses and suppresses the counter-offer', () => {

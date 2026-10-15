@@ -1,5 +1,6 @@
 import { DEFAULT_POLICY, SCENE_ORDER, SCENES, sceneIntent, subscriptionProposal, type Lang } from '@topiapause/shared';
 import { describe, expect, it } from 'vitest';
+import manifest from '../../../apps/web/public/audio/manifest.json';
 import voiceLines from '../../../demo/voice/voice-lines.json';
 import { evaluate } from '../src';
 
@@ -42,6 +43,39 @@ describe('demo/voice/voice-lines.json', () => {
       expect(lines.scenes.injection?.pause?.[lang]?.manifestText).toBe(v.voiceText[lang]);
     });
   }
+
+  it('injection warning and counter keys exist in the committed audio manifest', () => {
+    const clips = (manifest as { clips: Record<string, { file: string; text: string }> }).clips;
+    for (const lang of LANGS) {
+      for (const line of ['warning', 'counter'] as const) {
+        const key = `injection-${lang}-${line}`;
+        expect(lines.scenes.injection?.[line]?.[lang]?.clip_key).toBe(key);
+        expect(clips[key]?.file).toBe(`${key}.mp3`);
+      }
+    }
+  });
+
+  it('subscription and stay clips match the engine voiceText; crypto and injection-en fall back when the recording text differs', () => {
+    const clips = (manifest as { clips: Record<string, { text: string }> }).clips;
+    const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
+    for (const scene of ['subscription', 'stay'] as const) {
+      for (const lang of LANGS) {
+        const preset = SCENES[scene];
+        const v = evaluate({ intent: sceneIntent(scene, preset.userText[lang], lang), proposal: preset.buildProposal(), policy: DEFAULT_POLICY });
+        expect(norm(clips[`${scene}-${lang}-warning`]!.text)).toBe(norm(v.voiceText[lang]));
+        expect(norm(clips[`${scene}-${lang}-counter`]!.text)).toBe(norm(v.voiceText[lang]));
+      }
+    }
+    const crypto = evaluate({
+      intent: sceneIntent('crypto', SCENES.crypto.userText.en, 'en'),
+      proposal: SCENES.crypto.buildProposal(),
+      policy: DEFAULT_POLICY,
+    });
+    expect(clips['crypto-en-warning']!.text).toContain('$200');
+    expect(clips['crypto-en-warning']!.text).not.toBe(crypto.voiceText.en);
+    expect(clips['injection-en-warning']!.text).toContain('U-Bot');
+    expect(clips['injection-en-warning']!.text).not.toBe(lines.scenes.injection?.pause?.en?.manifestText);
+  });
 
   it('every line has spoken text and a clip key that matches its file name', () => {
     for (const [scene, byLine] of Object.entries(lines.scenes)) {

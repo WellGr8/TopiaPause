@@ -1,12 +1,13 @@
 import { describeProposal, findingDetail, findingTitle, type Lang } from '@topiapause/shared';
-import { Play } from 'lucide-react';
+import { Play, ShieldAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { t } from '../copy';
 import { verdictFor } from '../lib/guard';
+import { cardLine } from '../lib/savings';
 import { approvedLine, offerOf, reasonLine, sortedFindings } from '../lib/summary';
 import { speak, speakClip, stopVoice } from '../lib/voice';
 import type { GuardRun } from '../state';
-import { CostMeter, ReceiptSections, RiskNotes, outcomeLine } from './GuardReceipt';
+import { CostMeter, ReceiptSections, RiskNotes } from './GuardReceipt';
 import { Button, Card, Status, TextButton, WaveStrip, Waveform, cx } from './ui';
 
 type Voice = 'idle' | 'speaking' | 'blocked';
@@ -72,8 +73,11 @@ export function GuardianCard({
 }) {
   const verdict = useMemo(() => verdictFor(run, lang), [run, lang]);
   const offer = offerOf(verdict, lang);
-  const voice = useVoice(run, verdict.voiceText[lang], lang, verdict.voiceText.clipId);
-  const confirming = useConfirmClip(run, verdict.voiceText[lang], lang, verdict.voiceText.clipId);
+  const injected = Boolean(run.injectedFrom);
+  const voiceText = injected ? t(lang, verdict.counterOffer ? 'injVoice' : 'injVoiceNoCounter') : verdict.voiceText[lang];
+  const clipId = injected ? (verdict.counterOffer ? 'injection-pause' : undefined) : verdict.voiceText.clipId;
+  const voice = useVoice(run, voiceText, lang, clipId);
+  const confirming = useConfirmClip(run, voiceText, lang, injected ? undefined : clipId);
   const [open, setOpen] = useState(false);
   const choose = (choice: 'counter_offer' | 'original' | 'cancel') => {
     stopVoice();
@@ -93,7 +97,7 @@ export function GuardianCard({
 
   if (run.stage === 'rechecking' || run.stage === 'done') {
     const chosen = run.choice === 'counter_offer' ? verdict.counterOffer?.proposal : run.choice === 'original' ? run.proposal : undefined;
-    const outcome = run.choice === 'counter_offer' ? outcomeLine(verdict, lang) : undefined;
+    const outcome = run.choice === 'counter_offer' ? cardLine(run.proposal, verdict, lang) : undefined;
     const status =
       run.stage === 'rechecking'
         ? t(lang, 'rechecking')
@@ -148,9 +152,16 @@ export function GuardianCard({
     <Card as="article" className="animate-enter overflow-hidden" aria-label={t(lang, 'guard')} data-guard={run.stage} data-decision={decision} data-voice={voice.state}>
       <WaveStrip className="rounded-none" still={!thinking} />
       <div className="px-5 pb-2 pt-4">
+        {injected && (
+          <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-block">
+            <ShieldAlert size={15} className="shrink-0" aria-hidden="true" />
+            {t(lang, 'injNote')}
+          </p>
+        )}
         <div className="flex items-start gap-3">
           <h3 className="flex-1 text-[19px] font-semibold leading-snug">
-            <Status decision={decision} lang={lang} /> <span className="text-muted">—</span> {reasonLine(verdict, run.proposal, lang)}
+            <Status decision={decision} lang={lang} /> <span className="text-muted">—</span>{' '}
+            {injected ? t(lang, 'injReason') : reasonLine(verdict, run.proposal, lang)}
           </h3>
           <button
             type="button"

@@ -58,11 +58,11 @@ let generation = 0;
 
 const ttsCache = new Map<string, string>();
 
-async function ttsUrl(text: string, lang: Lang): Promise<string | null> {
-  const key = `${lang}|${text}`;
+async function ttsUrl(text: string, lang: Lang, clipId?: string): Promise<string | null> {
+  const key = `${lang}|${clipId ?? ''}|${text}`;
   const hit = ttsCache.get(key);
   if (hit) return hit;
-  const blob = await apiTts(text, lang);
+  const blob = await apiTts(text, lang, clipId);
   if (!blob) return null;
   const url = URL.createObjectURL(blob);
   ttsCache.set(key, url);
@@ -128,7 +128,7 @@ export async function speak(input: { text: string; lang: Lang; clipId?: string }
     ? ((await clipUrls(input.clipId, input.lang, input.text, ['warning', 'counter'])) ?? (await clipUrls(input.clipId, input.lang, input.text, ['pause'])))
     : null;
   if (gen !== generation) return;
-  const urls = clips ?? [await ttsUrl(input.text, input.lang)].filter((u): u is string => Boolean(u));
+  const urls = clips ?? [await ttsUrl(input.text, input.lang, input.clipId)].filter((u): u is string => Boolean(u));
   if (gen !== generation) return;
   if (urls.length && (await playSequence(urls, ev, gen))) return;
   if (gen !== generation) return;

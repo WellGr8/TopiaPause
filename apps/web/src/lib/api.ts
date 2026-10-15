@@ -1,12 +1,13 @@
-import type {
-  AgentChatResponse,
-  AgentProposal,
-  Execution,
-  GuardVerdict,
-  Lang,
-  SceneId,
-  UntrustedSource,
-  UserPolicy,
+import {
+  policyLoosens,
+  type AgentChatResponse,
+  type AgentProposal,
+  type Execution,
+  type GuardVerdict,
+  type Lang,
+  type SceneId,
+  type UntrustedSource,
+  type UserPolicy,
 } from '@topiapause/shared';
 
 // Talks to the Worker API when it is reachable (feature-detected via /api/health).
@@ -33,11 +34,27 @@ export function apiHealth(): Promise<Health | null> {
   return healthPromise;
 }
 
-async function post<T>(path: string, body: unknown, timeoutMs = 8000): Promise<T | null> {
+let sessionPromise: Promise<string | null> | undefined;
+
+/** One short-lived token for this tab. Chat, TTS, policy, and confirm send it back. */
+function appSession(): Promise<string | null> {
+  sessionPromise ??= post<{ session: string }>('/api/session', {}, 8000, false)
+    .then((r) => r?.session ?? null)
+    .catch(() => null);
+  return sessionPromise;
+}
+
+async function post<T>(path: string, body: unknown, timeoutMs = 8000, session = false): Promise<T | null> {
   try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (session) {
+      const token = await appSession();
+      if (!token) return null;
+      headers['X-TopiaPause-Session'] = token;
+    }
     const r = await fetch(path, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -51,7 +68,7 @@ export type ChatTurn = AgentChatResponse & { scene?: SceneId };
 
 export async function apiChat(input: { message: string; scene?: SceneId; lang: Lang }): Promise<ChatTurn | null> {
   if (!(await apiHealth())) return null;
-  return post<ChatTurn>('/api/agent/chat', { sessionId: 'web', ...input }, 15_000);
+  return post<ChatTurn>('/api/agent/chat', { sessionId: 'web', ...input }, 15_000, true);
 }
 
 // The user's rules travel as a token the Worker signed for this app, never as raw policy:
@@ -59,10 +76,12 @@ export async function apiChat(input: { message: string; scene?: SceneId; lang: L
 const policyTokens = new Map<string, Promise<string | null>>();
 
 function policyToken(policy: UserPolicy): Promise<string | null> {
+  // Looser rules stay in this tab and run through the in-browser engine. The API is tighten-only.
+  if (policyLoosens(policy)) return Promise.resolve(null);
   const key = JSON.stringify(policy);
   let t = policyTokens.get(key);
   if (!t) {
-    t = post<{ policyToken: string }>('/api/policy', { policy }).then((r) => r?.policyToken ?? null);
+    t = post<{ policyToken: string }>('/api/policy', { policy }, 8000, true).then((r) => r?.policyToken ?? null);
     policyTokens.set(key, t);
   }
   return t;
@@ -74,6 +93,7 @@ export async function apiGuardCheck(input: {
   proposal: AgentProposal;
   policy: UserPolicy;
   lang: Lang;
+  /** Untrusted context the agent read (e.g. a web page); the engine checks whether the proposal followed it. */
   sources?: UntrustedSource[];
 }): Promise<GuardVerdict | null> {
   if (!(await apiHealth())) return null;
@@ -83,21 +103,36 @@ export async function apiGuardCheck(input: {
   return post<GuardVerdict>('/api/guard/check', { ...rest, policyToken: token });
 }
 
-export async function apiExecute(proposal: AgentProposal, verdictId: string): Promise<Execution | null> {
+export async function apiExecute(proposal: AgentProposal, verdictId: string, choice: 'original' | 'counter_offer'): Promise<Execution | null> {
   if (!(await apiHealth())) return null;
-  const r = await post<{ execution: Execution }>('/api/agent/execute', { proposal, verdictId, userConfirmed: true });
+  // The API confirms only a counter-offer. An allow executes on the verdict ticket alone.
+  // Choosing the paused original returns null here, and the app finishes it as a local mock.
+  let confirmation: string | undefined;
+  if (choice === 'counter_offer') {
+    const conf = await post<{ confirmation: string }>('/api/confirm', { verdictId, choice: 'counter_offer' }, 8000, true);
+    if (!conf?.confirmation) return null;
+    confirmation = conf.confirmation;
+  }
+  const r = await post<{ execution: Execution }>('/api/agent/execute', {
+    proposal,
+    verdictId,
+    userConfirmed: true,
+    ...(confirmation ? { confirmation } : {}),
+  });
   return r?.execution ?? null;
 }
 
 /** ElevenLabs audio from the Worker, or null so the caller uses browser speech. */
-export async function apiTts(text: string, lang: Lang): Promise<Blob | null> {
+export async function apiTts(text: string, lang: Lang, clipId?: string): Promise<Blob | null> {
   const h = await apiHealth();
   if (!h || h.tts !== 'elevenlabs') return null;
+  const token = await appSession();
+  if (!token) return null;
   try {
     const r = await fetch('/api/voice/tts', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, lang }),
+      headers: { 'Content-Type': 'application/json', 'X-TopiaPause-Session': token },
+      body: JSON.stringify(clipId ? { clipId, lang } : { text, lang }),
       signal: AbortSignal.timeout(15_000),
     });
     return r.ok && (r.headers.get('Content-Type') ?? '').startsWith('audio/') ? await r.blob() : null;

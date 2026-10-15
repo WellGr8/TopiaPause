@@ -6,6 +6,8 @@
   "compatibility_flags": ["nodejs_compat"],
   // One Worker serves the SPA build and /api/* on a single URL (ARCHITECTURE §9, Option A).
   // Run `pnpm build` first so ../../apps/web/dist exists.
+  // The repo-root wrangler.jsonc is the same Worker for `wrangler deploy` from main.
+  // Keep the two files in step.
   "assets": {
     "directory": "../../apps/web/dist",
     "binding": "ASSETS",
@@ -25,10 +27,10 @@
   // Non-secret config only. Secrets (POLICY_SIGNING_KEY, LLM_API_KEY, ELEVENLABS_API_KEY, TOKENOMIST_API_KEY) go in .dev.vars
   // locally and `wrangler secret put <NAME>` (or the deploy workflow) in production.
   "vars": {
-    "LLM_BASE_URL": "https://api.openai.com/v1",
-    "LLM_MODEL": "",
-    "ELEVENLABS_VOICE_ID": "",
-    "ELEVENLABS_MODEL_ID": "eleven_v3",
+    "LLM_BASE_URL": "https://openrouter.ai/api/v1",
+    "LLM_MODEL": "openai/gpt-4o-mini",
+    "ELEVENLABS_VOICE_ID": "nPczCjzI2devNBz1zQrb",
+    "ELEVENLABS_MODEL_ID": "eleven_v4",
     "ALLOWED_ORIGIN": ""
   }
 }

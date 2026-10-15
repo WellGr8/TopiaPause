@@ -107,7 +107,15 @@ export const UserPolicy = z.object({
   unlockWarnPctOfCirculating: z.number().finite().min(0).max(100).optional(),
 });
 
-export const PolicyRequest = z.object({ policy: UserPolicy });
+export const PolicyRequest = z.object({
+  policy: UserPolicy,
+});
+
+export const ConfirmRequest = z.object({
+  verdictId: z.string().min(1).max(2000),
+  /** Only the counter-offer. The paused original is not confirmable through the API. */
+  choice: z.enum(['original', 'counter_offer']),
+});
 
 /** Untrusted content the agent read. Can only add a pause; never loosens a rule or the intent. */
 export const Sources = z
@@ -195,11 +203,22 @@ export const ExecuteRequest = z.object({
   proposal: AgentProposal,
   verdictId: z.string().min(1).max(2000),
   userConfirmed: z.literal(true),
+  /** Issued by POST /api/confirm. Required when the verdict paused. */
+  confirmation: z.string().min(1).max(2000).optional(),
 });
 
-export const TtsRequest = z.object({
-  text: z.string().trim().min(1).max(600),
-  lang: Lang.default('th'),
+export const TtsRequest = z
+  .object({
+    clipId: z.string().trim().min(1).max(80).optional(),
+    text: z.string().trim().min(1).max(300).optional(),
+    lang: Lang.default('th'),
+  })
+  .refine((b) => Boolean(b.clipId || b.text), { message: 'clipId or text is required' });
+
+/** Bilingual paraphrase of a guard explanation. The number lock still has to accept it. */
+export const ExplainDraft = z.object({
+  th: z.string().trim().min(1).max(800),
+  en: z.string().trim().min(1).max(800),
 });
 
 /** What the LLM-backed U-Bot must return. */

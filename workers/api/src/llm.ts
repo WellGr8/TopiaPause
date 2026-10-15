@@ -1,6 +1,7 @@
-import { SCENES, newId, type AgentProposal, type Lang, type SceneId } from '@topiapause/shared';
-import { LlmTurn } from './schemas';
-import { log, type AppEnv } from './http';
+import { allowedNumbers } from '@topiapause/guard-engine';
+import { SCENES, newId, type AgentProposal, type GuardVerdict, type Lang, type SceneId } from '@topiapause/shared';
+import { chargePaid, log, type AppEnv } from './http';
+import { ExplainDraft, LlmTurn } from './schemas';
 
 // LLM-powered mock U-Bot. Provider-agnostic: any OpenAI-compatible
 // /chat/completions endpoint with JSON output (OpenAI, OpenRouter, Groq, Together,
@@ -16,8 +17,9 @@ export interface LlmResult {
   proposal?: AgentProposal;
 }
 
-const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
+const DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
 const TIMEOUT_MS = 12_000;
+const EXPLAIN_TIMEOUT_MS = 8_000;
 
 export function llmConfigured(env: AppEnv): boolean {
   return Boolean(env.LLM_API_KEY && env.LLM_MODEL);
@@ -35,6 +37,7 @@ function systemPrompt(lang: Lang): string {
     'Like a real over-eager agent, keep the catalog defaults (annual plan, cheapest room, unlimited approval) even if they do not fit.',
     'The guard layer (TopiaPause) checks your proposal afterwards, so do not second-guess it.',
     `Reply language: ${lang === 'th' ? 'Thai' : 'English'}. "reply" is one or two short sentences that state what you are about to do, with the price.`,
+    'When the reply language is Thai, speak as a man: use ผม for yourself and end each sentence with ครับ. Never use ฉัน, ค่ะ or คะ.',
     'Return ONLY a JSON object: {"reply": string, "scene": "subscription" | "stay" | "crypto" | null, "proposal": <AgentProposal> | null}.',
     `Catalog: ${JSON.stringify(catalog)}`,
   ].join('\n');
@@ -56,6 +59,10 @@ function harden(scene: SceneId, p: AgentProposal): AgentProposal | undefined {
 /** Returns null on any failure so the caller can fall back to the scripted mock. */
 export async function llmChat(env: AppEnv, input: { message: string; lang: Lang; scene?: SceneId }): Promise<LlmResult | null> {
   if (!llmConfigured(env)) return null;
+  if (!chargePaid(env)) {
+    log({ message: 'paid daily cap', kind: 'llm' });
+    return null;
+  }
   const base = (env.LLM_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
   const started = Date.now();
   try {
@@ -93,5 +100,58 @@ export async function llmChat(env: AppEnv, input: { message: string; lang: Lang;
   } catch (e) {
     log({ message: 'llm failed', error: e instanceof Error ? e.name : String(e), ms: Date.now() - started });
     return null;
+  }
+}
+
+/**
+ * Optional paraphrase of the engine explanation. Returns undefined when no key is
+ * set or the call fails; the caller runs the result through the number lock.
+ */
+export async function llmExplain(env: AppEnv, verdict: GuardVerdict): Promise<{ th: string; en: string } | undefined> {
+  if (!llmConfigured(env)) return undefined;
+  const numbers = [...new Set(allowedNumbers(verdict).map((n) => String(n)))].slice(0, 40);
+  const base = (env.LLM_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
+  try {
+    const res = await fetch(`${base}/chat/completions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env.LLM_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: env.LLM_MODEL,
+        temperature: 0,
+        max_tokens: 400,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: [
+              'Paraphrase a guard decision in Thai (th) and English (en).',
+              `The decision is ${verdict.decision}. Do not change it.`,
+              verdict.decision === 'pause' ? 'Start the Thai line with เดี๋ยวก่อน and the English line with "Hold on".' : '',
+              verdict.decision === 'block' ? 'Say the action is blocked (หยุดรายการนี้ / blocked).' : '',
+              verdict.decision === 'allow' ? 'Say it matches what the user meant (ตรงกับที่คุณตั้งใจ / Good to go).' : '',
+              'Do not call a paused or blocked action safe, and do not say good to go unless the decision is allow.',
+              'Do not include hotel, plan, merchant, or asset names.',
+              `Use only numbers from this list. Any other number is rejected: ${numbers.join(', ') || '(none)'}`,
+              'Return only JSON {"th":"...","en":"..."}.',
+            ]
+              .filter(Boolean)
+              .join('\n'),
+          },
+          { role: 'user', content: `Rules: ${verdict.findings.map((f) => f.ruleId).join(', ') || 'none'}` },
+        ],
+      }),
+      signal: AbortSignal.timeout(EXPLAIN_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      log({ message: 'llm explain http error', status: res.status });
+      return undefined;
+    }
+    const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const content = data.choices?.[0]?.message?.content ?? '';
+    const parsed = ExplainDraft.safeParse(JSON.parse(content.replace(/^```(?:json)?\s*|\s*```$/g, '')));
+    return parsed.success ? { th: parsed.data.th, en: parsed.data.en } : undefined;
+  } catch (e) {
+    log({ message: 'llm explain failed', error: e instanceof Error ? e.name : String(e) });
+    return undefined;
   }
 }

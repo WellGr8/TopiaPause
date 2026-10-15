@@ -7,8 +7,10 @@ import shopInjection from '../../../scripts/demo/injection.json';
 import shopStay from '../../../scripts/demo/stay.json';
 import shopSubscription from '../../../scripts/demo/subscription.json';
 import worker from '../src/index';
-import type { AppEnv } from '../src/http';
+import { resetIsolateRateLimit, type AppEnv } from '../src/http';
+import { llmExplain } from '../src/llm';
 import { resetTokenomistCache } from '../src/tokenomist';
+import { voiceLine } from '../src/voiceAllow';
 
 const assetFetch = vi.fn(async () => new Response('<!doctype html>', { headers: { 'Content-Type': 'text/html' } }));
 const ORIGIN = 'https://topiapause.test';
@@ -48,15 +50,42 @@ const check = async (body: unknown, env?: AppEnv) => {
 };
 const scene = (id: SceneId, lang: 'th' | 'en' = 'th') => ({ userMessage: SCENES[id].userText[lang], proposal: SCENES[id].buildProposal({}) as AgentProposal, lang });
 
+async function session(env: AppEnv = makeEnv(), headers: Record<string, string> = {}): Promise<string> {
+  const res = await call('/api/session', { json: {}, headers: { Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin', ...headers } }, env);
+  expect(res.status).toBe(200);
+  return ((await res.json()) as V).session as string;
+}
+
+async function appHeaders(env: AppEnv = makeEnv(), extra: Record<string, string> = {}): Promise<Record<string, string>> {
+  const token = await session(env, extra);
+  return { Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin', 'X-TopiaPause-Session': token, ...extra };
+}
+
 async function mint(policy: UserPolicy, env?: AppEnv): Promise<string> {
-  const res = await call('/api/policy', { json: { policy }, headers: { Origin: ORIGIN } }, env);
+  const headers = await appHeaders(env ?? makeEnv());
+  const res = await call('/api/policy', { json: { policy }, headers }, env);
   expect(res.status).toBe(200);
   return ((await res.json()) as V).policyToken;
+}
+
+/** A cryptographically valid policy token whose rules are looser than the default. The API must still reject it. */
+async function signedLooseningToken(policy: UserPolicy, secret = 'test-signing-key'): Promise<string> {
+  const enc = new TextEncoder();
+  const b64url = (bytes: Uint8Array) => {
+    let s = '';
+    for (const b of bytes) s += String.fromCharCode(b);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  };
+  const body = b64url(enc.encode(JSON.stringify({ v: 1, policy, exp: Math.floor(Date.now() / 1000) + 3600, loosening: true })));
+  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(`policy|${body}`)));
+  return `${body}.${b64url(mac)}`;
 }
 
 beforeEach(() => {
   vi.spyOn(console, 'log').mockImplementation(() => {});
   resetTokenomistCache();
+  resetIsolateRateLimit();
 });
 
 afterEach(() => {
@@ -70,6 +99,8 @@ describe('GET /api/health', () => {
     const res = await call('/api/health');
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ok: true, llm: 'scripted', tts: 'unavailable', agent: 'U-Bot (mock)', marketData: 'sample' });
+    expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
+    expect(res.headers.get('Referrer-Policy')).toBe('no-referrer');
   });
   it('never leaks secrets', async () => {
     const env = makeEnv({ LLM_API_KEY: 'sk-secret', LLM_MODEL: 'm', ELEVENLABS_API_KEY: 'xi-secret', ELEVENLABS_VOICE_ID: 'v', TOKENOMIST_API_KEY: 'tk-secret', POLICY_SIGNING_KEY: 'hmac-secret' });
@@ -151,6 +182,28 @@ describe('POST /api/guard/check', () => {
     expect((await call('/api/guard/check', { json: big })).status).toBe(413);
   });
 
+  it('never calls the LLM, even when a key is set, and llmCalls stays 0', async () => {
+    const fetchMock = vi.fn(async () => Response.json({ choices: [{ message: { content: '{"th":"ราคา 99999","en":"The price is 99999."}' } }] }));
+    vi.stubGlobal('fetch', fetchMock);
+    const env = makeEnv({ LLM_API_KEY: 'sk-test', LLM_MODEL: 'test-model' });
+    const { res, v } = await check({ ...scene('crypto'), lang: 'en' }, env);
+    expect(res.status).toBe(200);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(v.check.llmCalls).toBe(0);
+    expect(v.explanation.source).toBe('template');
+    expect(v.explanation.en).not.toContain('99999');
+    expect(JSON.stringify(v)).not.toContain('sk-test');
+  });
+
+  it('fails closed when POLICY_SIGNING_KEY is unset, unless DEV=1', async () => {
+    const missing = makeEnv({ POLICY_SIGNING_KEY: undefined });
+    const res = await call('/api/guard/check', { json: scene('stay') }, missing);
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as V).error.code).toBe('misconfigured');
+    const dev = makeEnv({ POLICY_SIGNING_KEY: undefined, DEV: '1' });
+    expect((await call('/api/guard/check', { json: scene('stay') }, dev)).status).toBe(200);
+  });
+
   it('rate-limits per client', async () => {
     const env = makeEnv({ RATE_LIMITER: { limit: async () => ({ success: false }) } });
     const res = await call('/api/guard/check', { json: scene('stay') }, env);
@@ -194,7 +247,8 @@ describe('policy and intent are user-owned (the agent cannot relax them)', () =>
       expect(res.status).toBe(401);
       expect(v.error.code).toBe('invalid_policy_token');
     }
-    const other = await mint(permissive, makeEnv({ POLICY_SIGNING_KEY: 'someone-elses-key' }));
+    const tighter = { ...DEFAULT_POLICY, monthlySubscriptionCap: { minor: 10000, currency: 'THB' as const } };
+    const other = await mint(tighter, makeEnv({ POLICY_SIGNING_KEY: 'someone-elses-key' }));
     expect((await check({ ...scene('crypto'), policyToken: other })).res.status).toBe(401);
   });
 
@@ -214,9 +268,26 @@ describe('policy and intent are user-owned (the agent cannot relax them)', () =>
     expect(v.error.code).toBe('expired_policy_token');
   });
 
-  it('only the user app (same origin) can mint policy tokens', async () => {
+  it('only the user app (same origin, with a session) can mint policy tokens', async () => {
     expect((await call('/api/policy', { json: { policy: permissive }, headers: { Origin: 'https://agent.example' } })).status).toBe(403);
     expect((await call('/api/policy', { json: { policy: permissive } })).status).toBe(403);
+    const spoofed = await call('/api/policy', { json: { policy: DEFAULT_POLICY }, headers: { Origin: ORIGIN } });
+    expect(spoofed.status).toBe(403);
+    expect(((await spoofed.json()) as V).error.code).toBe('session_required');
+  });
+
+  it('ATTACK: a scripted session cannot mint a looser policy, even with userConfirmedLoosening', async () => {
+    const headers = await appHeaders();
+    const rejected = await call('/api/policy', { json: { policy: permissive, userConfirmedLoosening: true }, headers });
+    expect(rejected.status).toBe(400);
+    expect(((await rejected.json()) as V).error.code).toBe('policy_loosening_rejected');
+    const token = await signedLooseningToken(permissive);
+    const loosened = await check({ ...scene('crypto'), policyToken: token });
+    expect(loosened.res.status).toBe(401);
+    expect(loosened.v.error.code).toBe('invalid_policy_token');
+    expect(loosened.v.decision).toBeUndefined();
+    const { v } = await check(scene('crypto'));
+    expect(v.findings.map((f: V) => f.ruleId)).toEqual(expect.arrayContaining(['CONC_CAP', 'APPROVAL_SCOPE', 'APPROVAL_EXPIRY']));
   });
 
   it('intent comes from the user message: "just try" pauses an annual plan whatever the agent claims', async () => {
@@ -227,7 +298,15 @@ describe('policy and intent are user-owned (the agent cannot relax them)', () =>
 });
 
 describe('POST /api/agent/execute (verdict tickets)', () => {
-  const exec = (proposal: unknown, verdictId: string) => call('/api/agent/execute', { json: { proposal, verdictId, userConfirmed: true } });
+  const exec = (proposal: unknown, verdictId: string, confirmation?: string) =>
+    call('/api/agent/execute', { json: { proposal, verdictId, userConfirmed: true, ...(confirmation ? { confirmation } : {}) } });
+
+  async function confirmed(verdictId: string, choice: 'original' | 'counter_offer' = 'counter_offer') {
+    const headers = await appHeaders();
+    const res = await call('/api/confirm', { json: { verdictId, choice }, headers });
+    expect(res.status).toBe(200);
+    return ((await res.json()) as V).confirmation as string;
+  }
 
   it('requires explicit confirmation', async () => {
     const res = await call('/api/agent/execute', { json: { proposal: scene('stay').proposal, verdictId: 'v1' } });
@@ -242,14 +321,47 @@ describe('POST /api/agent/execute (verdict tickets)', () => {
     }
   });
 
-  it('executes the cleared counter-offer once; a reuse is 409', async () => {
+  it('rejects a paused execute that only asserts userConfirmed', async () => {
     const { v } = await check(scene('crypto'));
     const res = await exec(v.counterOffer.proposal, v.verdictId);
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as V).error.code).toBe('confirmation_required');
+  });
+
+  it('ATTACK: a scripted session cannot confirm or execute the paused original', async () => {
+    const s = scene('crypto');
+    const { v } = await check(s);
+    expect(v.decision).toBe('pause');
+    const headers = await appHeaders();
+    const confirm = await call('/api/confirm', { json: { verdictId: v.verdictId, choice: 'original' }, headers });
+    expect(confirm.status).toBe(400);
+    expect(((await confirm.json()) as V).error.code).toBe('original_not_confirmable');
+    const executed = await exec(s.proposal, v.verdictId);
+    expect(executed.status).toBe(403);
+    expect(((await executed.json()) as V).error.code).toBe('proposal_not_cleared');
+    const confirmation = await confirmed(v.verdictId);
+    const swapped = await exec(s.proposal, v.verdictId, confirmation);
+    expect(swapped.status).toBe(403);
+    expect(((await swapped.json()) as V).error.code).toBe('proposal_not_cleared');
+  });
+
+  it('executes the cleared counter-offer once after the user confirms; a reuse is 409', async () => {
+    const { v } = await check(scene('crypto'));
+    const confirmation = await confirmed(v.verdictId);
+    const res = await exec(v.counterOffer.proposal, v.verdictId, confirmation);
     expect(res.status).toBe(200);
     expect(((await res.json()) as V).execution).toMatchObject({ mode: 'mock', status: 'success' });
-    const again = await exec(v.counterOffer.proposal, v.verdictId);
+    const again = await exec(v.counterOffer.proposal, v.verdictId, confirmation);
     expect(again.status).toBe(409);
     expect(((await again.json()) as V).error.code).toBe('verdict_used');
+  });
+
+  it('an allow verdict executes without a confirmation token', async () => {
+    const proposal = { ...SCENES.subscription.buildProposal({}), planId: 'pixelpro-monthly', planName: 'PixelPro Monthly', price: { minor: 29900, currency: 'THB' }, interval: 'month', trialDays: 7 };
+    const { v } = await check({ userMessage: 'I want to try the PixelPro photo app', proposal, lang: 'en' });
+    expect(v.decision).toBe('allow');
+    const res = await exec(proposal, v.verdictId);
+    expect(res.status).toBe(200);
   });
 
   it('rejects a proposal the verdict did not cover (agent swaps in a bigger amount)', async () => {
@@ -296,7 +408,7 @@ describe('any-agent generic schema (ShopBot fixtures in scripts/demo/)', () => {
     const { v } = await check(shopInjection);
     expect(v.decision).toBe('pause');
     expect(v.findings[0]).toMatchObject({ ruleId: 'AGENT_FOLLOWED_UNTRUSTED', evidence: { sourceKind: 'web_page', pushed: 'yearly', asked: 'trial' } });
-    expect(v.explanation.en).toContain('The web page told it to pick yearly, but you only asked to try.');
+    expect(v.explanation.en).toContain('A web page told your AI to pick the yearly plan, but you only asked to try it.');
     expect(v.voiceText.clipId).toBe('injection-pause');
     expect(JSON.stringify([v.findings, v.explanation, v.voiceText, v.notes])).not.toContain('AI assistants');
     const { sources: _s, ...without } = shopInjection;
@@ -376,7 +488,8 @@ describe('Tokenomist unlock data (crypto risk note)', () => {
 
 describe('POST /api/agent/chat', () => {
   it('falls back to the scripted mock without an LLM key', async () => {
-    const res = await call('/api/agent/chat', { json: { message: SCENES.subscription.userText.th, scene: 'subscription', lang: 'th' } });
+    const headers = await appHeaders();
+    const res = await call('/api/agent/chat', { json: { message: SCENES.subscription.userText.th, scene: 'subscription', lang: 'th' }, headers });
     const body = (await res.json()) as V;
     expect(body.source).toBe('scripted');
     expect(body.proposal.kind).toBe('subscription');
@@ -392,7 +505,8 @@ describe('POST /api/agent/chat', () => {
     );
     vi.stubGlobal('fetch', fetchMock);
     const env = makeEnv({ LLM_API_KEY: 'sk-test', LLM_MODEL: 'test-model' });
-    const res = await call('/api/agent/chat', { json: { message: 'swap 300 USDT to TOKEN-X once', lang: 'en' } }, env);
+    const headers = await appHeaders(env);
+    const res = await call('/api/agent/chat', { json: { message: 'swap 300 USDT to TOKEN-X once', lang: 'en' }, headers }, env);
     const body = (await res.json()) as V;
     expect(body.source).toBe('llm');
     expect(body.proposal.amountIn).toEqual({ minor: 300_000_000, currency: 'USDT' });
@@ -401,52 +515,147 @@ describe('POST /api/agent/chat', () => {
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe('https://llm.example/v1/chat/completions');
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer sk-test');
-    expect(JSON.parse(String(init.body))).toMatchObject({ model: 'test-model', response_format: { type: 'json_object' } });
+    const sent = JSON.parse(String(init.body));
+    expect(sent).toMatchObject({ model: 'test-model', response_format: { type: 'json_object' } });
+    const system = sent.messages[0].content as string;
+    expect(system).toContain('use ผม');
+    expect(system).toContain('ครับ');
+    expect(system).toContain('Never use ฉัน, ค่ะ or คะ');
     expect(JSON.stringify(body)).not.toContain('sk-test');
   });
 
   it('falls back when the LLM returns junk', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json({ choices: [{ message: { content: '{"reply": 5}' } }] })));
     const env = makeEnv({ LLM_API_KEY: 'sk-test', LLM_MODEL: 'test-model' });
-    const res = await call('/api/agent/chat', { json: { message: SCENES.stay.userText.en, lang: 'en' } }, env);
+    const headers = await appHeaders(env);
+    const res = await call('/api/agent/chat', { json: { message: SCENES.stay.userText.en, lang: 'en' }, headers }, env);
     const body = (await res.json()) as V;
     expect(body.source).toBe('scripted');
     expect(body.proposal.kind).toBe('stay');
   });
 
-  it('uses the paid rate limit bucket', async () => {
-    const env = makeEnv({ RATE_LIMITER_PAID: { limit: async () => ({ success: false }) } });
-    expect((await call('/api/agent/chat', { json: { message: 'hi', lang: 'en' } }, env)).status).toBe(429);
+  it('uses a separate paid rate limit key for chat and for tts', async () => {
+    const seen: string[] = [];
+    const env = makeEnv({
+      RATE_LIMITER_PAID: {
+        limit: async ({ key }: { key: string }) => {
+          seen.push(key);
+          return { success: false };
+        },
+      },
+    });
+    const headers = await appHeaders(env);
+    expect((await call('/api/agent/chat', { json: { message: 'hi', lang: 'en' }, headers }, env)).status).toBe(429);
+    expect((await call('/api/voice/tts', { json: { clipId: 'subscription-pause', lang: 'th' }, headers }, env)).status).toBe(429);
+    expect(seen).toEqual(['chat:local', 'tts:local']);
+  });
+
+  it('gives chat and tts separate in-isolate budgets per IP', async () => {
+    const ip = { 'CF-Connecting-IP': '203.0.113.9' };
+    const headers = await appHeaders(makeEnv(), ip);
+    for (let i = 0; i < 20; i++) {
+      expect((await call('/api/agent/chat', { json: { message: 'hi', lang: 'en' }, headers })).status).toBe(200);
+    }
+    const blocked = await call('/api/agent/chat', { json: { message: 'hi', lang: 'en' }, headers });
+    expect(blocked.status).toBe(429);
+    expect((await blocked.json<Record<string, any>>()).error.code).toBe('rate_limited');
+    expect(blocked.headers.get('Retry-After')).toBe('60');
+    const tts = await call('/api/voice/tts', { json: { text: 'not a guard line', lang: 'en' }, headers });
+    expect(tts.status).toBe(400);
+    expect(((await tts.json()) as V).error.code).toBe('tts_text_rejected');
+  });
+
+  it('stops upstream LLM calls after PAID_DAILY_MAX and keeps the scripted reply', async () => {
+    const fetchMock = vi.fn(async () => Response.json({ choices: [{ message: { content: JSON.stringify({ reply: 'Swapping now.', scene: null }) } }] }));
+    vi.stubGlobal('fetch', fetchMock);
+    const env = makeEnv({ LLM_API_KEY: 'sk-test', LLM_MODEL: 'test-model', PAID_DAILY_MAX: '1' });
+    const headers = await appHeaders(env);
+    const first = await call('/api/agent/chat', { json: { message: 'swap 300 USDT to TOKEN-X once', lang: 'en' }, headers }, env);
+    expect(((await first.json()) as V).source).toBe('llm');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const second = await call('/api/agent/chat', { json: { message: 'what is the weather', lang: 'en' }, headers }, env);
+    expect(((await second.json()) as V).source).toBe('scripted');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('matches natural phrasing without an LLM key', async () => {
+    const cases = [
+      ['I want to try PixelPro', 'en', 'subscription'],
+      ['Book me somewhere to sleep near Asok tonight', 'en', 'stay'],
+      ['ลองใช้ PixelPro หน่อย', 'th', 'subscription'],
+    ] as const;
+    const headers = await appHeaders();
+    for (const [message, lang, scene] of cases) {
+      const res = await call('/api/agent/chat', { json: { message, lang }, headers });
+      expect(res.status).toBe(200);
+      const body = await res.json<Record<string, any>>();
+      expect(body.source).toBe('scripted');
+      expect(body.scene).toBe(scene);
+      expect(body.proposal).toBeTruthy();
+    }
+  });
+
+  it('names the three chips when free text matches nothing', async () => {
+    const headers = await appHeaders();
+    const res = await call('/api/agent/chat', { json: { message: 'what is the weather', lang: 'en' }, headers });
+    const body = await res.json<Record<string, any>>();
+    expect(body.proposal).toBeUndefined();
+    expect(body.reply).toContain('Try PixelPro app');
+    expect(body.reply).toContain('Cheap hotel near Asok');
+    expect(body.reply).toContain('Swap 500 USDT once');
   });
 });
 
 describe('POST /api/voice/tts', () => {
+  it('rejects arbitrary text', async () => {
+    const headers = await appHeaders();
+    const res = await call('/api/voice/tts', { json: { text: 'สวัสดี', lang: 'th' }, headers });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as V).error.code).toBe('tts_text_rejected');
+  });
+
   it('answers 503 with a clear message when ElevenLabs is not configured', async () => {
-    const res = await call('/api/voice/tts', { json: { text: 'สวัสดี', lang: 'th' } });
+    const headers = await appHeaders();
+    const res = await call('/api/voice/tts', { json: { clipId: 'subscription-pause', lang: 'th' }, headers });
     expect(res.status).toBe(503);
     const body = (await res.json()) as V;
     expect(body.error.code).toBe('tts_unavailable');
     expect(body.error.message).toContain('ELEVENLABS_API_KEY');
   });
 
-  it('streams mp3 from ElevenLabs with the server-side key and eleven_v3', async () => {
+  it('streams mp3 from ElevenLabs for an engine voice line', async () => {
     const fetchMock = vi.fn(async (_url: string, _init: RequestInit) => new Response(new Uint8Array([0xff, 0xfb, 0x90]), { headers: { 'Content-Type': 'audio/mpeg' } }));
     vi.stubGlobal('fetch', fetchMock);
     const env = makeEnv({ ELEVENLABS_API_KEY: 'xi-test', ELEVENLABS_VOICE_ID: 'voice123' });
-    const res = await call('/api/voice/tts', { json: { text: 'หยุดก่อนครับ', lang: 'th' } }, env);
+    const headers = await appHeaders(env);
+    const line = voiceLine('subscription-pause', 'th');
+    expect(line).toBeTruthy();
+    const res = await call('/api/voice/tts', { json: { clipId: 'subscription-pause', lang: 'th' }, headers }, env);
     expect(res.status).toBe(200);
     expect(res.headers.get('Content-Type')).toBe('audio/mpeg');
     expect(new Uint8Array(await res.arrayBuffer())).toEqual(new Uint8Array([0xff, 0xfb, 0x90]));
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toContain('/v1/text-to-speech/voice123');
     expect((init.headers as Record<string, string>)['xi-api-key']).toBe('xi-test');
-    expect(JSON.parse(String(init.body))).toEqual({ text: 'หยุดก่อนครับ', model_id: 'eleven_v3' });
+    expect(JSON.parse(String(init.body))).toEqual({ text: line, model_id: 'eleven_v3' });
   });
 
   it('returns 502 when ElevenLabs fails', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 401 })));
     const env = makeEnv({ ELEVENLABS_API_KEY: 'xi-test', ELEVENLABS_VOICE_ID: 'voice123' });
-    expect((await call('/api/voice/tts', { json: { text: 'hi', lang: 'en' } }, env)).status).toBe(502);
+    const headers = await appHeaders(env);
+    expect((await call('/api/voice/tts', { json: { clipId: 'stay-pause', lang: 'en' }, headers }, env)).status).toBe(502);
+  });
+
+  it('returns 503 spend_cap before calling ElevenLabs once the daily cap is spent', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const env = makeEnv({ ELEVENLABS_API_KEY: 'xi-test', ELEVENLABS_VOICE_ID: 'voice123', PAID_DAILY_MAX: '0' });
+    const headers = await appHeaders(env);
+    const res = await call('/api/voice/tts', { json: { clipId: 'crypto-pause', lang: 'en' }, headers }, env);
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as V).error.code).toBe('spend_cap');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
@@ -455,9 +664,62 @@ describe('routing', () => {
     expect((await call('/api/nope')).status).toBe(404);
     expect((await call('/api/guard/check')).status).toBe(405);
   });
-  it('keeps non-public routes same-origin', async () => {
+  it('rejects a cross-origin paid request instead of only hiding CORS', async () => {
     const res = await call('/api/agent/chat', { json: { message: 'hi', lang: 'en' }, headers: { Origin: 'https://evil.example' } });
+    expect(res.status).toBe(403);
+    expect((await res.json<Record<string, any>>()).error.code).toBe('forbidden_origin');
     expect(res.headers.get('Access-Control-Allow-Origin')).toBeNull();
+  });
+
+  it('rejects chat, tts, and policy with no Origin', async () => {
+    expect((await call('/api/agent/chat', { json: { message: 'hi', lang: 'en' } })).status).toBe(403);
+    expect((await call('/api/voice/tts', { json: { text: 'hi', lang: 'en' } })).status).toBe(403);
+    expect((await call('/api/policy', { json: { policy: DEFAULT_POLICY } })).status).toBe(403);
+  });
+
+  it('rejects Sec-Fetch-Site cross-site on paid routes', async () => {
+    const res = await call('/api/voice/tts', {
+      json: { clipId: 'subscription-pause', lang: 'th' },
+      headers: { Origin: 'https://topiapause.test', 'Sec-Fetch-Site': 'cross-site' },
+    });
+    expect(res.status).toBe(403);
+    expect((await res.json<Record<string, any>>()).error.code).toBe('forbidden_origin');
+  });
+
+  it('allows a paid route from the worker origin and from ALLOWED_ORIGIN when the session matches', async () => {
+    const headers = await appHeaders();
+    const same = await call('/api/agent/chat', { json: { message: 'hi', lang: 'en' }, headers });
+    expect(same.status).toBe(200);
+    const env = makeEnv({ ALLOWED_ORIGIN: 'https://app.example' });
+    const token = await session(env, { Origin: 'https://app.example' });
+    const extra = await call(
+      '/api/agent/chat',
+      { json: { message: 'hi', lang: 'en' }, headers: { Origin: 'https://app.example', 'X-TopiaPause-Session': token } },
+      env,
+    );
+    expect(extra.status).toBe(200);
+  });
+
+  it('llmExplain does not put agent-supplied names in the prompt', async () => {
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      void init;
+      return Response.json({ choices: [{ message: { content: '{"th":"เดี๋ยวก่อนครับ","en":"Hold on."}' } }] });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const s = scene('stay', 'en');
+    const verdict = evaluate({ intent: sceneIntent('stay', s.userMessage, 'en'), proposal: s.proposal, policy: DEFAULT_POLICY, lang: 'en' });
+    expect(verdict.explanation.en).toContain('Asok Inn');
+    await llmExplain(makeEnv({ LLM_API_KEY: 'sk-test', LLM_MODEL: 'test-model' }), { ...verdict, verdictId: 'v' });
+    const sent = JSON.stringify(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).messages);
+    expect(sent).not.toContain('Asok Inn');
+    expect(sent).not.toContain('City Nest');
+    expect(sent).toContain('STAY_FLEXIBILITY');
+  });
+
+  it('leaves the public guard API open to any origin', async () => {
+    const res = await call('/api/guard/check', { json: { ...scene('stay'), lang: 'th' }, headers: { Origin: 'https://evil.example' } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*');
   });
   it('serves the web app for non-API paths', async () => {
     const res = await call('/activity');
