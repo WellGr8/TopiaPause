@@ -12,7 +12,7 @@ One Cloudflare Worker serves the web app and these JSON endpoints under `/api/*`
 | `POST /api/guard/check` | **Public guard API.** Any agent sends a proposal; TopiaPause decides | any origin | 120 / min |
 | `POST /api/session` | Mints a 10-minute session bound to this client | same origin | 120 / min |
 | `POST /api/policy` | The user's own app mints a signed policy token | same origin + session | 120 / min |
-| `POST /api/confirm` | The user app confirms a paused verdict (`original` or `counter_offer`) | same origin + session | 120 / min |
+| `POST /api/confirm` | The user app confirms the counter-offer of a paused verdict | same origin + session | 120 / min |
 | `POST /api/agent/chat` | U-Bot (mock): turns a message into an `AgentProposal` (LLM or scripted) | same origin + session | 20 / min (own budget) |
 | `POST /api/agent/execute` | Mock execution of a proposal a verdict ticket cleared | any origin | 120 / min |
 | `POST /api/voice/tts` | ElevenLabs speech for an engine voice line, streamed as `audio/mpeg` | same origin + session | 20 / min (own budget) |
@@ -25,7 +25,7 @@ One Cloudflare Worker serves the web app and these JSON endpoints under `/api/*`
 - Chat, TTS, policy, and confirm need a browser session. `POST /api/session` with `Origin` equal to this Worker (or `ALLOWED_ORIGIN`) and `Sec-Fetch-Site` of `same-origin` or `none` returns a token. Send it as `X-TopiaPause-Session`. The token is bound to `CF-Connecting-IP` and a hash of `User-Agent`, and lasts 10 minutes.
 - A missing `Origin`, a different `Origin`, or `Sec-Fetch-Site: cross-site` is `403 forbidden_origin` on those routes. `DEV=1` in local `.dev.vars` is the only way a missing Origin is accepted. Do not set `DEV` in production.
 - Chat and TTS each have their own 20/minute budget per IP (isolate counter keyed by path, and the paid rate-limit binding keyed `chat:<ip>` vs `tts:<ip>`). A shared daily cap (`PAID_DAILY_MAX`, default 300, per isolate) stops further LLM and ElevenLabs calls.
-- `guard/check` and `health` stay open to any origin. `guard/check` never calls an LLM (`llmCalls` is 0). Execute stays open so the agent can run a proposal the user already confirmed; a pause also needs the confirmation token.
+- `guard/check` and `health` stay open to any origin. `guard/check` never calls an LLM (`llmCalls` is 0). Execute stays open so the agent can run an allow, or a counter-offer the user app confirmed. The paused original is never confirmed and never executed through the API.
 
 **Errors** always have this shape:
 
@@ -38,13 +38,14 @@ One Cloudflare Worker serves the web app and these JSON endpoints under `/api/*`
 | 400 | `invalid_json`, `invalid_input` | Body doesn't parse or fails the schema |
 | 400 | `agent_policy_rejected` | Body contains `policy`. Use `policyToken`, or omit it for the default demo policy |
 | 400 | `agent_intent_rejected` | Body contains `intent`. Send `userMessage`; TopiaPause derives intent |
-| 401 | `invalid_policy_token`, `expired_policy_token` | Token was not signed by this Worker, was tampered with, or is older than 30 days |
-| 400 | `policy_loosening_rejected` | Policy is looser than the default and `userConfirmedLoosening` was not set |
+| 401 | `invalid_policy_token`, `expired_policy_token` | Token was not signed by this Worker, was tampered with, loosens the default rules, or is older than 30 days |
+| 400 | `policy_loosening_rejected` | Policy is looser than the default. The API is tighten-only; a body flag does not change that |
+| 400 | `original_not_confirmable` | `POST /api/confirm` was asked to confirm the paused original. Only `counter_offer` is confirmable |
 | 400 | `tts_text_rejected` | TTS text is not an engine voice line (or the clip id is unknown). Text is capped at 300 characters |
 | 403 | `forbidden_origin` | Chat, TTS, policy, confirm, or session with no Origin, a disallowed Origin, or `Sec-Fetch-Site: cross-site` |
 | 403 | `session_required`, `invalid_session` | Those routes (except session itself) without a valid `X-TopiaPause-Session` |
-| 403 | `unknown_verdict`, `expired_verdict`, `proposal_not_cleared` | Execute: forged, expired (> 10 min) or a proposal the check did not clear |
-| 403 | `confirmation_required` | A paused verdict executed with only `userConfirmed: true` |
+| 403 | `unknown_verdict`, `expired_verdict`, `proposal_not_cleared` | Execute: forged, expired (> 10 min), a proposal the check did not clear, or the paused original |
+| 403 | `confirmation_required` | The paused counter-offer executed without a confirmation token |
 | 404 / 405 | `not_found`, `method_not_allowed` | Unknown route or wrong method |
 | 409 | `verdict_used` | That verdict ticket was already executed (single use, per isolate) |
 | 413 | `payload_too_large` | Body over 32 KB |
@@ -116,7 +117,7 @@ Output from a local `wrangler dev` run (money in minor units; `check.estCostTHB_
 
 ## `POST /api/policy`
 
-Mints an HMAC-SHA256 token for the user's rules. The TopiaPause app calls it with a valid session. A request with no session, or an Origin that is not this Worker or `ALLOWED_ORIGIN`, gets `403`. A policy that loosens the default (higher or missing cap, refunds off, unlimited approval, and the other directions in `policyLoosens`) is rejected with `400 policy_loosening_rejected` unless the body sets `userConfirmedLoosening: true`. That flag is stored inside the HMAC. An agent still cannot send `policy` to `guard/check`.
+Mints an HMAC-SHA256 token for the user's rules. The TopiaPause app calls it with a valid session. A request with no session, or an Origin that is not this Worker or `ALLOWED_ORIGIN`, gets `403`. The API is tighten-only. A policy that loosens the default (higher or missing cap, refunds off, unlimited approval, and the other directions in `policyLoosens`) is `400 policy_loosening_rejected`. A field such as `userConfirmedLoosening` is not a confirmation and is ignored. Looser rules live only in the user's own app, where the in-browser engine applies them. An agent still cannot send `policy` to `guard/check`. A token that was signed with a loosening policy, including one minted before this rule, is `401 invalid_policy_token` at `guard/check` and does not drop a rule.
 
 ```bash
 curl -X POST http://127.0.0.1:8787/api/policy -H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:8787' \
@@ -129,7 +130,7 @@ curl -X POST http://127.0.0.1:8787/api/policy -H 'Content-Type: application/json
 
 Tokens last 30 days. In production set `POLICY_SIGNING_KEY` (`wrangler secret put`). If it is unset and `DEV` is not `1`, every signed route returns `503 misconfigured`. `DEV=1` is for local `.dev.vars` only.
 
-A non-browser client can still set `Sec-Fetch-Site` itself. The check closes the Origin-only mint. Loosening also needs the signed user-confirm flag.
+A non-browser client can still set `Sec-Fetch-Site` itself. That is why a session is not enough to loosen the rules: `POST /api/policy` never mints a loosening token, and `guard/check` rejects one even when the HMAC is valid.
 
 ## `POST /api/guard/check`
 
@@ -227,7 +228,7 @@ curl -X POST http://127.0.0.1:8787/api/agent/execute -H 'Content-Type: applicati
 { "execution": { "mode": "mock", "status": "success", "ref": "mock-tx-…" } }
 ```
 
-The ticket is verified (signature, 10-minute TTL, proposal hash) and then spent. A pause also needs `confirmation` from `POST /api/confirm` (`{ verdictId, choice }`, session required), bound to that ticket and the chosen proposal. `userConfirmed: true` alone is `403 confirmation_required`. An allow verdict does not need it. Sending a spent ticket again returns `409 verdict_used`. A made-up id returns `403 unknown_verdict`. A blocked verdict clears nothing. Single-use is tracked in memory per isolate; a second isolate could still accept the same ticket until it expires. No Durable Object is used.
+The ticket is verified (signature, 10-minute TTL, proposal hash) and then spent. An allow executes with the ticket alone. A pause clears only the counter-offer, and that needs `confirmation` from `POST /api/confirm` (`{ verdictId, choice: "counter_offer" }`, session required), bound to that ticket and the counter-offer hash. `choice: "original"` is `400 original_not_confirmable`. Executing the paused original is `403 proposal_not_cleared`, with or without a counter-offer confirmation. `userConfirmed: true` alone on the counter-offer is `403 confirmation_required`. Sending a spent ticket again returns `409 verdict_used`. A made-up id returns `403 unknown_verdict`. A blocked verdict clears nothing. Choosing the paused original stays inside the user's app and is a local mock; it never produces a token an agent can redeem. Single-use is tracked in memory per isolate; a second isolate could still accept the same ticket until it expires. No Durable Object is used.
 
 ## `POST /api/voice/tts`
 

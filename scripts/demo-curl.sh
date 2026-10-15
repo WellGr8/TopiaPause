@@ -106,4 +106,47 @@ replay, replay_body = post("/api/agent/execute", {"proposal": proposal, "verdict
 print(f"replay HTTP {replay} {replay_body.get('error', {}).get('code')}")
 forged, forged_body = post("/api/agent/execute", {"proposal": proposal, "verdictId": "v-forged", "userConfirmed": True})
 print(f"forged HTTP {forged} {forged_body.get('error', {}).get('code')}")
+
+print("\n▶ bypass: looser policy with userConfirmedLoosening, then confirm+execute the paused original")
+loose = {
+    "requireRefundableWhenFlexible": False,
+    "maxRefundablePremiumPct": 1000,
+    "tokenConcentrationCaps": {"TOKEN-X": 1},
+    "approvalMode": "allow_unlimited",
+    "oneTimeApprovalMaxExpirySec": 31536000,
+}
+pol_status, pol = post("/api/policy", {"policy": loose, "userConfirmedLoosening": True}, app)
+print(f"policy loosening HTTP {pol_status} {pol.get('error', {}).get('code')}")
+original = {
+    "kind": "token_swap",
+    "proposalId": "prop-bypass-original",
+    "agent": {"name": "U-Bot", "adapter": "mock"},
+    "summary": "Swap 500.000000 USDT → TOKEN-X, approve unlimited",
+    "fromAsset": "USDT",
+    "toAsset": "TOKEN-X",
+    "amountIn": {"minor": 500000000, "currency": "USDT"},
+    "feePpm": 0,
+    "gas": {"minor": 0, "currency": "USDT"},
+    "approval": {"spender": "MockSwap Router (sandbox)", "type": "unlimited"},
+    "portfolio": {
+        "total": {"minor": 2000000000, "currency": "USDT"},
+        "holdings": {
+            "TOKEN-X": {"minor": 400000000, "currency": "USDT"},
+            "USDT": {"minor": 500000000, "currency": "USDT"},
+            "ETH": {"minor": 1100000000, "currency": "USDT"},
+        },
+        "balances": {"USDT": {"minor": 500000000, "currency": "USDT"}},
+    },
+}
+paused_status, paused = post("/api/guard/check", {
+    "userMessage": "Swap 500 USDT into TOKEN-X, just this once.",
+    "proposal": original,
+    "lang": "en",
+})
+print(f"paused original check HTTP {paused_status} {paused.get('decision')}")
+vid2 = paused["verdictId"]
+orig_conf_status, orig_conf = post("/api/confirm", {"verdictId": vid2, "choice": "original"}, app)
+print(f"confirm original HTTP {orig_conf_status} {orig_conf.get('error', {}).get('code')}")
+orig_exec_status, orig_exec = post("/api/agent/execute", {"proposal": original, "verdictId": vid2, "userConfirmed": True})
+print(f"execute original HTTP {orig_exec_status} {orig_exec.get('error', {}).get('code')}")
 PY

@@ -76,13 +76,12 @@ export async function apiChat(input: { message: string; scene?: SceneId; lang: L
 const policyTokens = new Map<string, Promise<string | null>>();
 
 function policyToken(policy: UserPolicy): Promise<string | null> {
+  // Looser rules stay in this tab and run through the in-browser engine. The API is tighten-only.
+  if (policyLoosens(policy)) return Promise.resolve(null);
   const key = JSON.stringify(policy);
   let t = policyTokens.get(key);
   if (!t) {
-    const loosening = policyLoosens(policy);
-    t = post<{ policyToken: string }>('/api/policy', { policy, ...(loosening ? { userConfirmedLoosening: true } : {}) }, 8000, true).then(
-      (r) => r?.policyToken ?? null,
-    );
+    t = post<{ policyToken: string }>('/api/policy', { policy }, 8000, true).then((r) => r?.policyToken ?? null);
     policyTokens.set(key, t);
   }
   return t;
@@ -106,9 +105,20 @@ export async function apiGuardCheck(input: {
 
 export async function apiExecute(proposal: AgentProposal, verdictId: string, choice: 'original' | 'counter_offer'): Promise<Execution | null> {
   if (!(await apiHealth())) return null;
-  const conf = await post<{ confirmation: string }>('/api/confirm', { verdictId, choice }, 8000, true);
-  if (!conf?.confirmation) return null;
-  const r = await post<{ execution: Execution }>('/api/agent/execute', { proposal, verdictId, userConfirmed: true, confirmation: conf.confirmation });
+  // The API confirms only a counter-offer. An allow executes on the verdict ticket alone.
+  // Choosing the paused original returns null here, and the app finishes it as a local mock.
+  let confirmation: string | undefined;
+  if (choice === 'counter_offer') {
+    const conf = await post<{ confirmation: string }>('/api/confirm', { verdictId, choice: 'counter_offer' }, 8000, true);
+    if (!conf?.confirmation) return null;
+    confirmation = conf.confirmation;
+  }
+  const r = await post<{ execution: Execution }>('/api/agent/execute', {
+    proposal,
+    verdictId,
+    userConfirmed: true,
+    ...(confirmation ? { confirmation } : {}),
+  });
   return r?.execution ?? null;
 }
 

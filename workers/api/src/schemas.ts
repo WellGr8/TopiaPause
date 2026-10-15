@@ -109,12 +109,11 @@ export const UserPolicy = z.object({
 
 export const PolicyRequest = z.object({
   policy: UserPolicy,
-  /** Required when the policy is looser than the default. The app sets this only after the user confirms. */
-  userConfirmedLoosening: z.literal(true).optional(),
 });
 
 export const ConfirmRequest = z.object({
   verdictId: z.string().min(1).max(2000),
+  /** Only the counter-offer. The paused original is not confirmable through the API. */
   choice: z.enum(['original', 'counter_offer']),
 });
 

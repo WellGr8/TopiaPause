@@ -117,8 +117,9 @@ async function issueSession(req: Request, env: AppEnv): Promise<Response> {
 
 async function policyToken(req: Request, env: AppEnv): Promise<Response> {
   const body = await readBody(req, PolicyRequest);
-  if (policyLoosens(body.policy) && body.userConfirmedLoosening !== true) {
-    throw new HttpError(400, 'policy_loosening_rejected', 'A policy that loosens the default rules needs an explicit confirmation from the user');
+  // A body flag is not a user. Looser rules stay in the browser; this API only tightens.
+  if (policyLoosens(body.policy)) {
+    throw new HttpError(400, 'policy_loosening_rejected', 'The API only accepts a policy that is as strict as the default or stricter');
   }
   return json(await mintPolicyToken(env, body.policy));
 }

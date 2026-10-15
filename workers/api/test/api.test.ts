@@ -61,11 +61,25 @@ async function appHeaders(env: AppEnv = makeEnv(), extra: Record<string, string>
   return { Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin', 'X-TopiaPause-Session': token, ...extra };
 }
 
-async function mint(policy: UserPolicy, env?: AppEnv, extra: { userConfirmedLoosening?: true } = {}): Promise<string> {
+async function mint(policy: UserPolicy, env?: AppEnv): Promise<string> {
   const headers = await appHeaders(env ?? makeEnv());
-  const res = await call('/api/policy', { json: { policy, ...extra }, headers }, env);
+  const res = await call('/api/policy', { json: { policy }, headers }, env);
   expect(res.status).toBe(200);
   return ((await res.json()) as V).policyToken;
+}
+
+/** A cryptographically valid policy token whose rules are looser than the default. The API must still reject it. */
+async function signedLooseningToken(policy: UserPolicy, secret = 'test-signing-key'): Promise<string> {
+  const enc = new TextEncoder();
+  const b64url = (bytes: Uint8Array) => {
+    let s = '';
+    for (const b of bytes) s += String.fromCharCode(b);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  };
+  const body = b64url(enc.encode(JSON.stringify({ v: 1, policy, exp: Math.floor(Date.now() / 1000) + 3600, loosening: true })));
+  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(`policy|${body}`)));
+  return `${body}.${b64url(mac)}`;
 }
 
 beforeEach(() => {
@@ -233,7 +247,8 @@ describe('policy and intent are user-owned (the agent cannot relax them)', () =>
       expect(res.status).toBe(401);
       expect(v.error.code).toBe('invalid_policy_token');
     }
-    const other = await mint(permissive, makeEnv({ POLICY_SIGNING_KEY: 'someone-elses-key' }), { userConfirmedLoosening: true });
+    const tighter = { ...DEFAULT_POLICY, monthlySubscriptionCap: { minor: 10000, currency: 'THB' as const } };
+    const other = await mint(tighter, makeEnv({ POLICY_SIGNING_KEY: 'someone-elses-key' }));
     expect((await check({ ...scene('crypto'), policyToken: other })).res.status).toBe(401);
   });
 
@@ -261,14 +276,18 @@ describe('policy and intent are user-owned (the agent cannot relax them)', () =>
     expect(((await spoofed.json()) as V).error.code).toBe('session_required');
   });
 
-  it('rejects a loosening policy unless the user confirmed it', async () => {
+  it('ATTACK: a scripted session cannot mint a looser policy, even with userConfirmedLoosening', async () => {
     const headers = await appHeaders();
-    const rejected = await call('/api/policy', { json: { policy: permissive }, headers });
+    const rejected = await call('/api/policy', { json: { policy: permissive, userConfirmedLoosening: true }, headers });
     expect(rejected.status).toBe(400);
     expect(((await rejected.json()) as V).error.code).toBe('policy_loosening_rejected');
-    const token = await mint(permissive, undefined, { userConfirmedLoosening: true });
-    const { v } = await check({ ...scene('crypto'), policyToken: token });
-    expect(v.findings.map((f: V) => f.ruleId)).not.toContain('CONC_CAP');
+    const token = await signedLooseningToken(permissive);
+    const loosened = await check({ ...scene('crypto'), policyToken: token });
+    expect(loosened.res.status).toBe(401);
+    expect(loosened.v.error.code).toBe('invalid_policy_token');
+    expect(loosened.v.decision).toBeUndefined();
+    const { v } = await check(scene('crypto'));
+    expect(v.findings.map((f: V) => f.ruleId)).toEqual(expect.arrayContaining(['CONC_CAP', 'APPROVAL_SCOPE', 'APPROVAL_EXPIRY']));
   });
 
   it('intent comes from the user message: "just try" pauses an annual plan whatever the agent claims', async () => {
@@ -307,6 +326,23 @@ describe('POST /api/agent/execute (verdict tickets)', () => {
     const res = await exec(v.counterOffer.proposal, v.verdictId);
     expect(res.status).toBe(403);
     expect(((await res.json()) as V).error.code).toBe('confirmation_required');
+  });
+
+  it('ATTACK: a scripted session cannot confirm or execute the paused original', async () => {
+    const s = scene('crypto');
+    const { v } = await check(s);
+    expect(v.decision).toBe('pause');
+    const headers = await appHeaders();
+    const confirm = await call('/api/confirm', { json: { verdictId: v.verdictId, choice: 'original' }, headers });
+    expect(confirm.status).toBe(400);
+    expect(((await confirm.json()) as V).error.code).toBe('original_not_confirmable');
+    const executed = await exec(s.proposal, v.verdictId);
+    expect(executed.status).toBe(403);
+    expect(((await executed.json()) as V).error.code).toBe('proposal_not_cleared');
+    const confirmation = await confirmed(v.verdictId);
+    const swapped = await exec(s.proposal, v.verdictId, confirmation);
+    expect(swapped.status).toBe(403);
+    expect(((await swapped.json()) as V).error.code).toBe('proposal_not_cleared');
   });
 
   it('executes the cleared counter-offer once after the user confirms; a reuse is 409', async () => {

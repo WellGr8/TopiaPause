@@ -68,21 +68,23 @@ const nowSec = () => Math.floor(Date.now() / 1000);
 // ---------------- Policy tokens ----------------
 
 export async function mintPolicyToken(env: AppEnv, policy: UserPolicy): Promise<{ policyToken: string; expiresAt: string }> {
+  if (policyLoosens(policy)) {
+    throw new HttpError(400, 'policy_loosening_rejected', 'The API only accepts a policy that is as strict as the default or stricter');
+  }
   const exp = nowSec() + POLICY_TTL_SEC;
-  const loosening = policyLoosens(policy);
-  return { policyToken: await sign(env, 'policy', { v: 1, policy, exp, loosening }), expiresAt: new Date(exp * 1000).toISOString() };
+  return { policyToken: await sign(env, 'policy', { v: 1, policy, exp }), expiresAt: new Date(exp * 1000).toISOString() };
 }
 
-/** The user's policy from a signed token; no token means the default demo policy. */
+/** The user's policy from a signed token; no token means the default demo policy. A loosening policy is rejected even when the HMAC is valid. */
 export async function policyFrom(env: AppEnv, token: string | undefined): Promise<{ policy: UserPolicy; source: 'token' | 'default' }> {
   if (!token) return { policy: DEFAULT_POLICY, source: 'default' };
-  const payload = (await verify(env, 'policy', token)) as { v?: number; policy?: unknown; exp?: number; loosening?: boolean } | undefined;
+  const payload = (await verify(env, 'policy', token)) as { v?: number; policy?: unknown; exp?: number } | undefined;
   if (!payload || payload.v !== 1 || typeof payload.exp !== 'number') throw new HttpError(401, 'invalid_policy_token', 'Policy token is invalid or was not issued by TopiaPause');
   if (payload.exp < nowSec()) throw new HttpError(401, 'expired_policy_token', 'Policy token expired; ask the user app for a new one');
   const parsed = UserPolicySchema.safeParse(payload.policy);
   if (!parsed.success) throw new HttpError(401, 'invalid_policy_token', 'Policy token payload is invalid');
-  if (policyLoosens(parsed.data as UserPolicy) && payload.loosening !== true) {
-    throw new HttpError(401, 'invalid_policy_token', 'This policy token loosens the default rules without a user confirmation');
+  if (policyLoosens(parsed.data as UserPolicy)) {
+    throw new HttpError(401, 'invalid_policy_token', 'This policy token loosens the default rules; the API only accepts a tighter policy');
   }
   return { policy: parsed.data as UserPolicy, source: 'token' };
 }
@@ -150,12 +152,13 @@ async function readTicket(env: AppEnv, ticket: string): Promise<Ticket & { jti: 
   return payload as Ticket & { jti: string; exp: number; choices: NonNullable<Ticket['choices']> };
 }
 
-/** Pause verdicts list both proposals and require a user confirmation before execute. */
+/** An allow clears the original. A pause clears only the counter-offer, and that still needs a confirmation. */
 export async function issueTicket(env: AppEnv, verdict: GuardVerdict, original: AgentProposal): Promise<string> {
   const choices: { original?: string; counter_offer?: string } = {};
-  if (verdict.decision !== 'block') {
+  if (verdict.decision === 'allow') {
     choices.original = await proposalHash(original);
-    if (verdict.counterOffer) choices.counter_offer = await proposalHash(verdict.counterOffer.proposal);
+  } else if (verdict.decision === 'pause' && verdict.counterOffer) {
+    choices.counter_offer = await proposalHash(verdict.counterOffer.proposal);
   }
   return sign(env, 'verdict', {
     v: 2,
@@ -167,11 +170,14 @@ export async function issueTicket(env: AppEnv, verdict: GuardVerdict, original: 
 }
 
 export async function issueConfirmation(env: AppEnv, ticket: string, choice: 'original' | 'counter_offer'): Promise<string> {
+  if (choice !== 'counter_offer') {
+    throw new HttpError(400, 'original_not_confirmable', 'The API confirms only the counter-offer. The paused original is not an agent action.');
+  }
   const payload = await readTicket(env, ticket);
   const now = nowSec();
   if (payload.exp < now) throw new HttpError(403, 'expired_verdict', 'Verdict expired; run the guard check again');
-  const hash = payload.choices[choice];
-  if (!hash) throw new HttpError(400, 'invalid_input', 'This verdict has no such option');
+  const hash = payload.choices.counter_offer;
+  if (!hash) throw new HttpError(400, 'invalid_input', 'This verdict has no counter-offer to confirm');
   return sign(env, 'confirm', { v: 1, jti: payload.jti, choice, h: hash, exp: payload.exp });
 }
 
@@ -183,11 +189,14 @@ export async function redeemTicket(env: AppEnv, ticket: string, proposal: AgentP
   const now = nowSec();
   if (payload.exp < now) throw new HttpError(403, 'expired_verdict', 'Verdict expired; run the guard check again');
   const hash = await proposalHash(proposal);
+  if (payload.needsUser && hash !== payload.choices.counter_offer) {
+    throw new HttpError(403, 'proposal_not_cleared', 'A paused verdict only clears the counter-offer');
+  }
   if (!Object.values(payload.choices).includes(hash)) throw new HttpError(403, 'proposal_not_cleared', 'This proposal is not the one the guard checked');
   if (payload.needsUser) {
     const conf = confirmation ? ((await verify(env, 'confirm', confirmation)) as { v?: number; jti?: string; h?: string; exp?: number } | undefined) : undefined;
     if (!conf || conf.v !== 1 || conf.jti !== payload.jti || conf.h !== hash || typeof conf.exp !== 'number' || conf.exp < now) {
-      throw new HttpError(403, 'confirmation_required', 'A paused action needs a confirmation token from the user');
+      throw new HttpError(403, 'confirmation_required', 'A paused counter-offer needs a confirmation token from the user');
     }
   }
   for (const [k, exp] of used) if (exp < now) used.delete(k);
