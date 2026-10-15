@@ -12,9 +12,10 @@
     "dev:worker": "pnpm --filter @topiapause/api dev",
     "build": "pnpm --filter @topiapause/web build",
     "preview": "pnpm --filter @topiapause/web preview",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm -r typecheck && tsc -p scripts",
     "test": "pnpm -r test",
-    "deploy": "pnpm build && pnpm --filter @topiapause/api run deploy"
+    "deploy": "pnpm build && pnpm --filter @topiapause/api run deploy",
+    "voice:pregen": "node --experimental-strip-types --no-warnings=ExperimentalWarning scripts/pregen-voice.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

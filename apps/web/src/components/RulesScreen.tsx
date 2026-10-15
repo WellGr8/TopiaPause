@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import { t } from '../copy';
+import { apiHealth, type Health } from '../lib/api';
 import { useApp } from '../state';
 import { RuleRow, RulesEditor } from './RulesEditor';
 import { Card, TextButton, Toggle } from './ui';
@@ -6,6 +8,16 @@ import { Card, TextButton, Toggle } from './ui';
 export function RulesScreen() {
   const { state, dispatch } = useApp();
   const { lang } = state;
+  const [health, setHealth] = useState<Health | null | undefined>(undefined);
+  useEffect(() => {
+    void apiHealth().then(setHealth);
+  }, []);
+  const backend =
+    health === undefined
+      ? '…'
+      : health
+        ? [t(lang, 'backendApi'), t(lang, health.llm === 'llm' ? 'backendLlm' : 'backendScripted'), t(lang, health.tts === 'elevenlabs' ? 'backendVoice' : 'backendSpeech')].join(' · ')
+        : t(lang, 'backendBrowser');
   return (
     <div className="mx-auto w-full max-w-xl space-y-8 px-4 pb-8 pt-6">
       <Card>
@@ -32,6 +44,9 @@ export function RulesScreen() {
                   </button>
                 ))}
               </div>
+            </RuleRow>
+            <RuleRow title={t(lang, 'backend')} hint={backend}>
+              <span />
             </RuleRow>
             <RuleRow title={t(lang, 'darkMode')}>
               <Toggle label={t(lang, 'darkMode')} checked={state.theme === 'dark'} onChange={(v) => dispatch({ type: 'theme', theme: v ? 'dark' : 'light' })} />

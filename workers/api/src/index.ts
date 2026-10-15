@@ -1,155 +1,123 @@
-import { evaluate, lockExplanation } from '@topiapause/guard-engine';
+import { ENGINE_VERSION, evaluate, lockExplanation } from '@topiapause/guard-engine';
 import {
+  DEFAULT_POLICY,
   MockUBotAdapter,
-  extractIntentMock,
   detectScene,
-  type AgentChatRequest,
+  extractIntentMock,
+  scriptedChat,
   type AgentChatResponse,
-  type ApiError,
-  type ExecuteRequest,
   type ExecuteResponse,
-  type GuardCheckRequest,
   type GuardVerdict,
-  type Lang,
   type SceneId,
+  type UserPolicy,
 } from '@topiapause/shared';
+import { HttpError, corsHeaders, json, log, rateLimit, readBody, type AppEnv } from './http';
+import { llmChat, llmConfigured } from './llm';
+import { AgentChatRequest, ExecuteRequest, GuardCheckRequest, TtsRequest } from './schemas';
+import { tts, ttsConfigured } from './tts';
 
-// Thin API stubs (ARCHITECTURE §6). The guard check is real (same pure engine as the
-// web app). LLM, ElevenLabs and Tokenomist calls are TODO; without keys every route
-// answers with deterministic scripted responses so the demo never depends on them.
+// One Worker serves the built web app (static assets) and /api/*.
+// Guard check is the public API any agent can call; numbers only come from guard-engine.
 
-/** Optional secrets: set via `.dev.vars` locally or `wrangler secret put`. Absent = mock mode. */
-interface Secrets {
-  LLM_API_KEY?: string;
-  ELEVENLABS_API_KEY?: string;
-  TOKENOMIST_API_KEY?: string;
-}
-type AppEnv = Env & Secrets;
-
-const MAX_BODY = 32 * 1024;
 const ubot = new MockUBotAdapter();
+const SCENE_OF = { subscription: 'subscription', stay: 'stay', token_swap: 'crypto' } as const;
 
-function json(data: unknown, status: number, env: AppEnv, req: Request): Response {
-  return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', ...cors(env, req) } });
+function health(env: AppEnv): Response {
+  return json({
+    ok: true,
+    engineVersion: ENGINE_VERSION,
+    agent: ubot.label,
+    llm: llmConfigured(env) ? 'llm' : 'scripted',
+    tts: ttsConfigured(env) ? 'elevenlabs' : 'unavailable',
+  });
 }
 
-function fail(code: string, message: string, status: number, env: AppEnv, req: Request): Response {
-  const body: ApiError = { error: { code, message } };
-  return json(body, status, env, req);
-}
-
-function cors(env: AppEnv, req: Request): Record<string, string> {
-  const origin = req.headers.get('Origin');
-  if (!origin || !env.ALLOWED_ORIGIN || origin !== env.ALLOWED_ORIGIN) return {};
-  return {
-    'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    Vary: 'Origin',
-  };
-}
-
-async function readJson<T>(req: Request): Promise<T | null> {
-  const len = Number(req.headers.get('Content-Length') ?? 0);
-  if (len > MAX_BODY) return null;
-  try {
-    const text = await req.text();
-    if (text.length > MAX_BODY) return null;
-    return JSON.parse(text) as T;
-  } catch {
-    return null;
-  }
-}
-
-const isLang = (v: unknown): v is Lang => v === 'th' || v === 'en';
-const isScene = (v: unknown): v is SceneId => v === 'subscription' || v === 'stay' || v === 'crypto';
-const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
-
-async function chat(req: Request, env: AppEnv): Promise<Response> {
-  const body = await readJson<AgentChatRequest>(req);
-  if (!body || typeof body.message !== 'string' || !body.message.trim() || !isLang(body.lang)) {
-    return fail('invalid_input', 'Expected { sessionId, message, lang, scene?, policy }', 400, env, req);
-  }
-  if (body.scene !== undefined && !isScene(body.scene)) return fail('invalid_input', 'Unknown scene', 400, env, req);
-  // TODO(LLM): when env.LLM_API_KEY is set, plan with the hosted LLM (JSON schema) and validate against the scene catalog.
-  const turn = await ubot.chat({ sessionId: String(body.sessionId ?? ''), message: body.message, scene: body.scene, lang: body.lang });
-  const res: AgentChatResponse = { ...turn, source: 'scripted' };
-  return json(res, 200, env, req);
-}
-
-async function guardCheck(req: Request, env: AppEnv): Promise<Response> {
-  const body = await readJson<GuardCheckRequest>(req);
-  if (!body || typeof body.userText !== 'string' || !isObj(body.proposal) || !isObj(body.policy) || !isLang(body.lang)) {
-    return fail('invalid_input', 'Expected { userText, proposal, policy, lang, intent? }', 400, env, req);
-  }
-  const kind = (body.proposal as { kind?: unknown }).kind;
-  if (kind !== 'subscription' && kind !== 'stay' && kind !== 'token_swap') {
-    return fail('invalid_input', 'Unknown proposal kind', 400, env, req);
-  }
-  const scene: SceneId = kind === 'token_swap' ? 'crypto' : kind;
-  // TODO(LLM): extract ActionIntent with the LLM (schema-validated) when env.LLM_API_KEY is set.
+async function guardCheck(req: Request): Promise<Response> {
+  const body = await readBody(req, GuardCheckRequest);
+  const scene: SceneId = SCENE_OF[body.proposal.kind];
   const intent = body.intent ?? extractIntentMock(body.userText, detectScene(body.userText) ?? scene, body.lang);
+  const policy = (body.policy ?? DEFAULT_POLICY) as UserPolicy;
   let verdict: GuardVerdict;
   try {
-    verdict = evaluate({ intent, proposal: body.proposal, policy: body.policy, lang: body.lang });
+    verdict = evaluate({ intent, proposal: body.proposal, policy, lang: body.lang });
   } catch (e) {
-    console.error(JSON.stringify({ message: 'guard evaluate failed', error: e instanceof Error ? e.message : String(e) }));
-    return fail('invalid_input', 'Proposal or policy could not be evaluated', 400, env, req);
+    log({ message: 'guard evaluate failed', error: e instanceof Error ? e.message : String(e) });
+    throw new HttpError(422, 'unprocessable', 'Proposal or policy could not be evaluated');
   }
-  // TODO(LLM): ask the LLM to explain `verdict`; lockExplanation() rejects any number not produced by the engine.
+  // TODO(LLM explanation): pass an LLM draft here; lockExplanation rejects numbers the engine didn't produce.
   verdict = { ...verdict, explanation: lockExplanation(undefined, verdict) };
-  return json(verdict, 200, env, req);
+  log({ message: 'guard check', kind: body.proposal.kind, decision: verdict.decision, findings: verdict.findings.map((f) => f.ruleId) });
+  return json(verdict);
 }
 
-async function execute(req: Request, env: AppEnv): Promise<Response> {
-  const body = await readJson<ExecuteRequest>(req);
-  if (!body || !isObj(body.proposal) || typeof body.verdictId !== 'string' || body.userConfirmed !== true) {
-    return fail('confirmation_required', 'Execution needs { proposal, verdictId, userConfirmed: true }', 400, env, req);
+async function agentChat(req: Request, env: AppEnv): Promise<Response> {
+  const body = await readBody(req, AgentChatRequest);
+  const llm = await llmChat(env, body);
+  if (llm) {
+    const scene = llm.scene;
+    const scripted = scene ? scriptedChat({ message: body.message, scene: body.scene ?? scene, lang: body.lang }) : undefined;
+    const intent = scene ? (scripted?.intent ?? extractIntentMock(body.message, scene, body.lang)) : undefined;
+    const res: AgentChatResponse & { scene?: SceneId } = { reply: llm.reply, proposal: llm.proposal, intent, scene, source: 'llm' };
+    return json(res);
   }
-  const res: ExecuteResponse = { execution: await ubot.execute(body) };
-  return json(res, 200, env, req);
+  const turn = scriptedChat(body);
+  const res: AgentChatResponse & { scene?: SceneId } = { reply: turn.reply, proposal: turn.proposal, intent: turn.intent, scene: turn.scene, source: 'scripted' };
+  return json(res);
 }
 
-function notImplemented(feature: string, env: AppEnv, req: Request): Response {
-  return fail('not_implemented', `${feature} is a TODO stub. The web app falls back to pre-generated clips / browser speech.`, 501, env, req);
+async function execute(req: Request): Promise<Response> {
+  const body = await readBody(req, ExecuteRequest);
+  const res: ExecuteResponse = { execution: await ubot.execute(body) };
+  return json(res);
+}
+
+async function voiceTts(req: Request, env: AppEnv, ctx?: ExecutionContext): Promise<Response> {
+  const body = await readBody(req, TtsRequest);
+  return tts(env, body.text, ctx);
+}
+
+type Handler = (req: Request, env: AppEnv, ctx?: ExecutionContext) => Promise<Response> | Response;
+
+const ROUTES: Record<string, { handler: Handler; bucket?: 'api' | 'paid' }> = {
+  'GET /api/health': { handler: (_r, env) => health(env) },
+  'POST /api/guard/check': { handler: guardCheck, bucket: 'api' },
+  'POST /api/agent/chat': { handler: agentChat, bucket: 'paid' },
+  'POST /api/agent/execute': { handler: execute, bucket: 'api' },
+  'POST /api/voice/tts': { handler: voiceTts, bucket: 'paid' },
+};
+
+export async function handleApi(req: Request, env: AppEnv, ctx?: ExecutionContext): Promise<Response> {
+  const url = new URL(req.url);
+  const cors = corsHeaders(req, env, url.pathname);
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+
+  const started = Date.now();
+  let res: Response;
+  try {
+    const route = ROUTES[`${req.method} ${url.pathname}`];
+    if (!route) {
+      const known = Object.keys(ROUTES).some((k) => k.endsWith(` ${url.pathname}`));
+      throw known ? new HttpError(405, 'method_not_allowed', 'Method not allowed') : new HttpError(404, 'not_found', 'Unknown API route');
+    }
+    if (route.bucket) await rateLimit(route.bucket === 'paid' ? env.RATE_LIMITER_PAID : env.RATE_LIMITER, req, route.bucket);
+    res = await route.handler(req, env, ctx);
+  } catch (e) {
+    if (e instanceof HttpError) res = e.toResponse();
+    else {
+      log({ message: 'unhandled error', path: url.pathname, error: e instanceof Error ? e.message : String(e) });
+      res = new HttpError(500, 'internal', 'Internal error').toResponse();
+    }
+  }
+  log({ message: 'api request', method: req.method, path: url.pathname, status: res.status, ms: Date.now() - started });
+  const out = new Response(res.body, res);
+  for (const [k, v] of Object.entries(cors)) out.headers.set(k, v);
+  return out;
 }
 
 export default {
-  async fetch(req: Request, env: AppEnv): Promise<Response> {
+  async fetch(req, env, ctx): Promise<Response> {
     const url = new URL(req.url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(req);
-    if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors(env, req) });
-
-    const route = `${req.method} ${url.pathname}`;
-    console.log(JSON.stringify({ message: 'api request', route }));
-    switch (route) {
-      case 'GET /api/health':
-        return json(
-          {
-            ok: true,
-            adapter: ubot.label,
-            mode: { llm: env.LLM_API_KEY ? 'configured (TODO)' : 'scripted', tts: env.ELEVENLABS_API_KEY ? 'configured (TODO)' : 'browser-fallback' },
-          },
-          200,
-          env,
-          req,
-        );
-      case 'POST /api/agent/chat':
-        return chat(req, env);
-      case 'POST /api/guard/check':
-        return guardCheck(req, env);
-      case 'POST /api/agent/execute':
-        return execute(req, env);
-      case 'POST /api/voice/tts':
-        // TODO(ElevenLabs): POST https://api.elevenlabs.io/v1/text-to-speech/{voice_id} with xi-api-key = env.ELEVENLABS_API_KEY,
-        // model_id = TH: env.ELEVENLABS_MODEL_TH (Eleven v3, id to verify) / EN: env.ELEVENLABS_MODEL_EN; max 400 chars, cache by hash.
-        return notImplemented('ElevenLabs TTS', env, req);
-      case 'POST /api/voice/stt':
-        return notImplemented('ElevenLabs Scribe STT', env, req);
-      case 'GET /api/market/unlocks':
-        return notImplemented('Tokenomist unlocks', env, req);
-      default:
-        return fail('not_found', 'Unknown API route', 404, env, req);
-    }
+    return handleApi(req, env, ctx);
   },
 } satisfies ExportedHandler<AppEnv>;

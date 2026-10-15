@@ -3,11 +3,13 @@ import type { GuardVerdict, Lang } from '@topiapause/shared';
 import type { GuardRun } from '../state';
 
 // The browser runs the same pure guard-engine the Worker uses, so every number
-// shown in the demo is engine output (no network needed on stage).
+// shown in the demo is engine output, with or without the API.
 
 const cache = new Map<string, GuardVerdict>();
 
-export function verdictFor(run: Pick<GuardRun, 'runId' | 'intent' | 'proposal' | 'policy'>, lang: Lang): GuardVerdict {
+export function verdictFor(run: Pick<GuardRun, 'runId' | 'intent' | 'proposal' | 'policy' | 'verdict' | 'verdictLang'>, lang: Lang): GuardVerdict {
+  // Server verdicts come from the same engine; other languages are re-derived locally (same numbers, localized assumptions).
+  if (run.verdict && run.verdictLang === lang) return run.verdict;
   const key = `${run.runId}|${lang}`;
   let v = cache.get(key);
   if (!v) {

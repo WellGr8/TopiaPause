@@ -1,0 +1,55 @@
+{
+  "userText": "ช่วยสมัครแอปแต่งรูป PixelPro ให้หน่อย อยากลองดู",
+  "lang": "th",
+  "proposal": {
+    "kind": "subscription",
+    "proposalId": "demo-subscription",
+    "agent": {
+      "name": "U-Bot (mock)",
+      "adapter": "mock"
+    },
+    "summary": "PixelPro Annual ฿3,990/year, auto-renew",
+    "merchant": "PixelPro",
+    "planId": "pixelpro-annual",
+    "planName": "PixelPro Annual",
+    "price": {
+      "amount": 3990,
+      "currency": "THB"
+    },
+    "interval": "year",
+    "autoRenew": true,
+    "trialDays": 0,
+    "catalogAlternatives": [
+      {
+        "planId": "pixelpro-annual",
+        "name": "PixelPro Annual",
+        "price": {
+          "amount": 3990,
+          "currency": "THB"
+        },
+        "interval": "year",
+        "trialDays": 0
+      },
+      {
+        "planId": "pixelpro-monthly",
+        "name": "PixelPro Monthly",
+        "price": {
+          "amount": 299,
+          "currency": "THB"
+        },
+        "interval": "month",
+        "trialDays": 7
+      },
+      {
+        "planId": "pixelpro-plus-monthly",
+        "name": "PixelPro Plus Monthly",
+        "price": {
+          "amount": 459,
+          "currency": "THB"
+        },
+        "interval": "month",
+        "trialDays": 0
+      }
+    ]
+  }
+}

@@ -3,6 +3,7 @@ import {
   type ActionIntent,
   type AgentProposal,
   type Decision,
+  type GuardVerdict,
   type Lang,
   type Receipt,
   type SceneId,
@@ -28,6 +29,11 @@ export interface GuardRun {
   choice?: UserChoice;
   receiptId?: string;
   protectedAmount?: number;
+  /** Verdict from POST /api/guard/check (server-side guard-engine), if the API answered. */
+  verdict?: GuardVerdict;
+  verdictLang?: Lang;
+  guardSource?: 'api' | 'browser';
+  agentSource?: 'llm' | 'scripted';
 }
 
 export type ChatItem =

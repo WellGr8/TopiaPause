@@ -68,10 +68,12 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for diagrams, data contracts an
 |---|---|
 | Guard engine (`packages/guard-engine`): all rules, precedence, `a_max`, counter-offer, re-check, number lock | **Real.** Pure TS with 31 Vitest tests. The web app and the Worker run the same code. |
 | Numbers on screen (prices, %, `a_max`, money protected) | **Real engine output.** Nothing is hard-coded in the UI. |
-| U-Bot | **Mock.** Scripted replies and fixed scene catalogs (`packages/shared/src/scenes.ts`). Intent extraction is a keyword heuristic. |
-| LLM (planner, intent extraction, explainer) | **Not wired.** TODO stubs in `workers/api`. Explanations come from number-locked TH/EN templates. |
-| Voice | Plays a pre-generated clip from `demo/audio` if one exists (none committed yet), otherwise the browser's `speechSynthesis`. The ElevenLabs proxy `/api/voice/tts` is a TODO stub (returns 501). |
-| Execution and receipts | **Mock** (`mode: 'mock'`, sandbox ref). No wallet, no payment. |
+| Worker API (`workers/api`) | **Real.** `POST /api/guard/check` runs the engine server-side with zod validation, CORS, per-IP rate limits and a 32 KB body cap. 24 Vitest handler tests. See [docs/API.md](docs/API.md). |
+| U-Bot | **Mock agent.** `POST /api/agent/chat` asks an OpenAI-compatible LLM to play the over-eager agent (JSON output) when `LLM_API_KEY` + `LLM_MODEL` are set; prices and portfolio are always restored from the fixed scene catalogs. Without a key: scripted replies. Intent extraction is a deterministic keyword heuristic either way. |
+| Explanations | Number-locked TH/EN templates. The LLM never writes a number the user sees. |
+| Voice | Pre-generated ElevenLabs clips from `pnpm voice:pregen` (none committed yet) → live `POST /api/voice/tts` (edge-cached, needs `ELEVENLABS_API_KEY` + `ELEVENLABS_VOICE_ID`) → browser `speechSynthesis`. |
+| Execution and receipts | **Mock** (`POST /api/agent/execute`, `mode: 'mock'`, sandbox ref). No wallet, no payment. |
+| Web ↔ API | The web app feature-detects `/api/health`. With the Worker it calls the API (Rules → "Backend" shows which path is live); on plain Vite or offline it runs the same engine in the browser. |
 | Persistence | `localStorage` only (rules, activity, language, theme). |
 
 ## Stack
@@ -84,10 +86,12 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for diagrams, data contracts an
 
 ```
 apps/web/              chat UI, guard card, re-check, activity + receipts, onboarding (runs fully in-browser)
-workers/api/           Cloudflare Worker: serves apps/web/dist + /api/* (thin stubs, real guard check)
+workers/api/           Cloudflare Worker: serves apps/web/dist + /api/* (guard check, LLM chat, TTS, mock execute)
+scripts/               demo-curl.sh + guard/check payloads for the 3 stage scenes
 packages/guard-engine/ deterministic rules + a_max + number lock (+ tests)
 packages/shared/       types (ARCHITECTURE §5), TH/EN templates, scene catalogs, scripted U-Bot
-demo/audio/            pre-generated voice clips + manifest.json (placeholder)
+demo/voice/            voice lines (display / spoken / tagged) for the 3 scenes
+apps/web/public/audio/ pre-generated clips + manifest.json (empty until `pnpm voice:pregen`)
 docs/                  architecture, Thai summary, research, diagrams
 ```
 
@@ -109,12 +113,33 @@ pnpm build                                   # builds apps/web/dist
 cp workers/api/.dev.vars.example workers/api/.dev.vars   # optional, all keys may stay empty
 pnpm dev:worker                              # wrangler dev on http://localhost:8787
 curl -s localhost:8787/api/health
+./scripts/demo-curl.sh                       # the 3 scenes through POST /api/guard/check
 ```
+
+To keep Vite hot reload but use the Worker API: `TOPIAPAUSE_API=http://127.0.0.1:8787 pnpm dev`.
+
+## Voice clips (optional, recommended for the stage)
+
+The voice lines for the 3 scenes are in [`demo/voice/voice-lines.md`](demo/voice/voice-lines.md) (and `.json`). `display` is the on-screen text, `spoken` has numbers written out for natural Thai, and `tagged` adds optional Eleven v3 audio tags.
+
+```bash
+export ELEVENLABS_API_KEY=...  ELEVENLABS_VOICE_ID=...   # or put them in workers/api/.dev.vars
+pnpm voice:pregen --dry-run      # list the 30 clips and character count (no key needed)
+pnpm voice:pregen                # writes apps/web/public/audio/*.mp3 + manifest.json (model eleven_v3)
+pnpm voice:pregen --tagged       # use the tagged text instead
+pnpm voice:pregen --only=crypto-th --force   # regenerate a subset
+```
+
+- Options: `ELEVENLABS_VOICE_ID_TH` / `ELEVENLABS_VOICE_ID_EN` override the voice per language, and `ELEVENLABS_MODEL_ID` overrides the model.
+- Existing clips are skipped unless the voice, model or text field changed, or you pass `--force`.
+- Without a key the script prints a note and exits 0.
+
+In the guard card, the app plays `warning` then `counter` when the card appears (or the combined `pause` clip), and `confirm` after the counter-offer's receipt. Every clip's manifest `text` is the engine's `voiceText` for that scene and language. If a policy change makes the engine say different numbers, the clips are skipped and live TTS or browser speech reads the real text. A Vitest test checks that `voice-lines.json` still matches the engine. Commit the generated `apps/web/public/audio` files once you're happy with the voice.
 
 ## Test and typecheck
 
 ```bash
-pnpm test           # Vitest: guard-engine (T1–T13 from ARCHITECTURE §10) + shared
+pnpm test           # Vitest: guard-engine (T1–T13 from ARCHITECTURE §10), shared, Worker API handlers
 pnpm typecheck      # tsc across all workspaces
 pnpm --filter @topiapause/guard-engine test   # engine only
 ```
@@ -127,27 +152,50 @@ Key `a_max` cases (V = $2,000, H = $400, B = 500 USDT, cap 30%):
 | fee 0.3% | $200.420883 (≈ $200.42; floored to 6 decimals per §5.2, the spec's 200.420884 is the rounded value) |
 | gas $2 | $199.40 |
 
-## Deploy (Cloudflare Workers, Option A)
+## Deploy (one Cloudflare Worker: SPA + API)
+
+`workers/api/wrangler.jsonc` deploys a single Worker named `topiapause` that serves `apps/web/dist` as static assets (SPA fallback) and runs the Worker only for `/api/*`. Rate limiting uses Workers Rate Limiting bindings, so no KV or D1 has to be created.
+
+### Automatic (GitHub Actions, push to `main`)
+
+1. **Cloudflare API token:** Cloudflare dashboard → My Profile → API Tokens → Create Token → template **"Edit Cloudflare Workers"** → your account → Create. Copy the token.
+2. **Account ID:** Cloudflare dashboard → Workers & Pages → copy the Account ID from the right sidebar.
+3. **GitHub secrets:** repo → Settings → Secrets and variables → Actions → New repository secret:
+   - `CLOUDFLARE_API_TOKEN` (required)
+   - `CLOUDFLARE_ACCOUNT_ID` (required)
+   - `LLM_API_KEY` (optional, enables the LLM agent)
+   - `ELEVENLABS_API_KEY` (optional, enables ElevenLabs voice)
+4. **Non-secret config:** set `LLM_MODEL` (e.g. `gpt-4o-mini`), `LLM_BASE_URL` (only if not OpenAI) and `ELEVENLABS_VOICE_ID` in the `vars` block of `workers/api/wrangler.jsonc`. `ELEVENLABS_MODEL_ID` defaults to `eleven_v3`.
+5. Push or merge to `main`. `.github/workflows/deploy.yml` runs typecheck + tests, then `pnpm run deploy`, then syncs the optional secrets with `wrangler secret put`. If the two Cloudflare secrets are missing, the job logs a notice and skips; it doesn't fail.
+6. **Optional smoke test:** add the repository *variable* `TOPIAPAUSE_URL` (e.g. `https://topiapause.<subdomain>.workers.dev`). After each deploy the workflow curls `/api/health` and runs `scripts/demo-curl.sh` against it.
+
+You can also run it by hand from Actions → Deploy → Run workflow.
+
+### Manual (from your machine)
 
 ```bash
-pnpm deploy                      # = pnpm build && wrangler deploy (from workers/api)
-```
-
-Optional secrets, set once per Worker. Without them, every route answers in scripted mock mode:
-
-```bash
+pnpm install
+npx wrangler login                 # or export CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID
+pnpm run deploy                    # = pnpm build && wrangler deploy (in workers/api)
 cd workers/api
-npx wrangler secret put LLM_API_KEY
-npx wrangler secret put ELEVENLABS_API_KEY
-npx wrangler secret put TOKENOMIST_API_KEY   # optional
+npx wrangler secret put LLM_API_KEY          # optional
+npx wrangler secret put ELEVENLABS_API_KEY   # optional
+cd ../.. && ./scripts/demo-curl.sh https://topiapause.<subdomain>.workers.dev
 ```
 
-Non-secret vars (`LLM_MODEL`, `ELEVENLABS_VOICE_TH/EN`, `ELEVENLABS_MODEL_TH/EN`, `ALLOWED_ORIGIN`) live in `workers/api/wrangler.jsonc`. Never commit `.dev.vars` and never put secrets in `VITE_*`. After editing bindings, run `pnpm --filter @topiapause/api types`.
+Use `pnpm run deploy`, not `pnpm deploy`: `pnpm deploy` is a built-in pnpm command with a different meaning.
+
+### Keys
+
+- Secrets live only in Worker secrets (production) or `workers/api/.dev.vars` (local, gitignored; start from `.dev.vars.example`). They are never bundled into the web app, never put in `VITE_*`, and never returned by any endpoint. `/api/health` only reports `llm: "llm" | "scripted"` and `tts: "elevenlabs" | "unavailable"`.
+- Without any key, every route still works: scripted U-Bot, browser speech, real guard engine.
+- If the web app is served from another origin, set `ALLOWED_ORIGIN` for chat, TTS and execute. `guard/check` and `health` are open to any origin.
+- After editing bindings, run `pnpm --filter @topiapause/api types`.
 
 ## Open questions (need a mentor or account check)
 
 - **Real U-Bot API**: does U-topia expose one (API, webhook, sandbox)? If yes, add a `RealUBotAdapter` that implements `UBotAdapter` in `packages/shared/src/types.ts`; the guard check must still run before `execute()`.
-- **Eleven v3 model id**: Thai needs Eleven v3. `ELEVENLABS_MODEL_TH` defaults to `eleven_v3`, which still has to be verified (along with latency) on our account. Flash v2.5 (`eleven_flash_v2_5`) is English only.
+- **Eleven v3 model id**: Thai needs Eleven v3. `ELEVENLABS_MODEL_ID` defaults to `eleven_v3`, which still has to be verified (along with latency) on our account. Flash v2.5 (`eleven_flash_v2_5`) is English only.
 - Submission deadline (Fri 16 Oct 14:00 Bangkok) is unconfirmed.
 
 ## Limitations

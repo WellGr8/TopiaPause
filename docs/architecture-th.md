@@ -24,7 +24,7 @@ TopiaPause เป็น guard layer ชั้นที่สองของ AI a
 | **workers/api** | Cloudflare Worker เก็บ key, มี `UBotAdapter` (mock = LLM + catalog), proxy ไปยัง ElevenLabs และ Tokenomist |
 | **packages/guard-engine** | pure TS (ไม่มี I/O) รวม rules, สูตร a_max, precedence block > pause > allow, counter-offer, re-check และ unit tests |
 | **packages/shared** | types กลาง (UserPolicy, ActionIntent, AgentProposal, GuardVerdict, Receipt), JSON schema, template TH/EN |
-| **demo/audio** | คลิปเสียงไทยและอังกฤษที่สร้างไว้ล่วงหน้าด้วย ElevenLabs Eleven v3 |
+| **demo/voice** + **apps/web/public/audio** | คลิปเสียงไทยและอังกฤษที่สร้างไว้ล่วงหน้าด้วย ElevenLabs Eleven v3 |
 
 ## Flow (ฉาก "ครั้งเดียว")
 1. ผู้ใช้สั่ง
