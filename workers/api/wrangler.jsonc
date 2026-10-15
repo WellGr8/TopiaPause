@@ -20,6 +20,10 @@
     { "name": "RATE_LIMITER_PAID", "namespace_id": "4102", "simple": { "limit": 20, "period": 60 } },
     { "name": "RATE_LIMITER_STT", "namespace_id": "4103", "simple": { "limit": 10, "period": 60 } }
   ],
+  "durable_objects": {
+    "bindings": [{ "name": "VERDICT_LEDGER", "class_name": "VerdictLedger" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["VerdictLedger"] }],
   "observability": {
     "enabled": true,
     "logs": { "enabled": true, "head_sampling_rate": 1 },

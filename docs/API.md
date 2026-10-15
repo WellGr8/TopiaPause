@@ -48,7 +48,7 @@ One Cloudflare Worker serves the web app and these JSON endpoints under `/api/*`
 | 403 | `unknown_verdict`, `expired_verdict`, `proposal_not_cleared` | Execute: forged, expired (> 10 min), a proposal the check did not clear, or the paused original |
 | 403 | `confirmation_required` | The paused counter-offer executed without a confirmation token |
 | 404 / 405 | `not_found`, `method_not_allowed` | Unknown route or wrong method |
-| 409 | `verdict_used` | That verdict ticket was already executed (single use, per isolate) |
+| 409 | `verdict_used` | That verdict ticket was already executed (single use, stored in `VerdictLedger`) |
 | 413 | `payload_too_large` | JSON body over 32 KB, or speech-to-text audio over 300 KB |
 | 415 | `unsupported_media_type` | JSON route without `Content-Type: application/json`, or speech-to-text with a type outside the audio allowlist |
 | 422 | `unprocessable` | Valid shape, but the engine couldn't evaluate it |
@@ -59,6 +59,7 @@ One Cloudflare Worker serves the web app and these JSON endpoints under `/api/*`
 | 503 | `stt_unavailable` | Speech-to-text is not configured. Use the buttons |
 | 503 | `spend_cap` | This isolate has used its daily LLM/TTS/speech-to-text budget |
 | 503 | `misconfigured` | `POLICY_SIGNING_KEY` is unset and `DEV` is not `1` |
+| 503 | `ledger_unavailable` | `VERDICT_LEDGER` is missing, or the Durable Object call failed |
 
 ---
 
@@ -232,7 +233,9 @@ curl -X POST http://127.0.0.1:8787/api/agent/execute -H 'Content-Type: applicati
 { "execution": { "mode": "mock", "status": "success", "ref": "mock-tx-…" } }
 ```
 
-The ticket is verified (signature, 10-minute TTL, proposal hash) and then spent. An allow executes with the ticket alone. A pause clears only the counter-offer, and that needs `confirmation` from `POST /api/confirm` (`{ verdictId, choice: "counter_offer" }`, session required), bound to that ticket and the counter-offer hash. `choice: "original"` is `400 original_not_confirmable`. Executing the paused original is `403 proposal_not_cleared`, with or without a counter-offer confirmation. `userConfirmed: true` alone on the counter-offer is `403 confirmation_required`. Sending a spent ticket again returns `409 verdict_used`. A made-up id returns `403 unknown_verdict`. A blocked verdict clears nothing. Choosing the paused original stays inside the user's app and is a local mock; it never produces a token an agent can redeem. Single-use is tracked in memory per isolate; a second isolate could still accept the same ticket until it expires. No Durable Object is used.
+The ticket is verified (signature, 10-minute TTL, proposal hash) and then spent. An allow executes with the ticket alone. A pause clears only the counter-offer, and that needs `confirmation` from `POST /api/confirm` (`{ verdictId, choice: "counter_offer" }`, session required), bound to that ticket and the counter-offer hash. `choice: "original"` is `400 original_not_confirmable`. Executing the paused original is `403 proposal_not_cleared`, with or without a counter-offer confirmation. `userConfirmed: true` alone on the counter-offer is `403 confirmation_required`. Sending a spent ticket again returns `409 verdict_used`. A made-up id returns `403 unknown_verdict`. A blocked verdict clears nothing. Choosing the paused original stays inside the user's app and is a local mock; it never produces a token an agent can redeem.
+
+Single-use is a SQLite-backed `VerdictLedger` Durable Object, one object per ticket (`idFromName` of the ticket id). A check records the ticket as `issued`. Confirm moves a pause to `confirmed`. Execute moves it to `used`, and only the first consume succeeds. A pause consume requires `confirmed`; anything else is `403 confirmation_required` and the ticket stays unspent. Every isolate reads the same row, so a replay is `409 verdict_used` wherever it lands. An expired row is deleted on access, and an alarm at `expiresAt` deletes whatever is left. A missing `VERDICT_LEDGER` binding, or an error from the object, is `503 ledger_unavailable`. `DEV=1` in local `.dev.vars` is the only case that uses an in-process ledger, and only when the binding is absent.
 
 ## `POST /api/voice/tts`
 
@@ -270,6 +273,7 @@ Upstream is ElevenLabs `POST https://api.elevenlabs.io/v1/speech-to-text` with `
 | `ELEVENLABS_MODEL_ID` | var | `eleven_v4` | `/api/voice/tts` |
 | `ALLOWED_ORIGIN` | var | `""` | Extra origin allowed to mint policy tokens and call the same-origin routes |
 | `RATE_LIMITER`, `RATE_LIMITER_PAID`, `RATE_LIMITER_STT` | binding | 120/min, 20/min, 10/min | Workers Rate Limiting |
+| `VERDICT_LEDGER` | Durable Object | required | Single-use verdict tickets. Class `VerdictLedger`, migration `new_sqlite_classes`. `DEV=1` without the binding uses an in-process ledger |
 
 Secrets go in `workers/api/.dev.vars` locally (copy `.dev.vars.example`) and `wrangler secret put <NAME>` in production. They are never returned by any endpoint.
 

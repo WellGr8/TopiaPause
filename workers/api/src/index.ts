@@ -90,7 +90,7 @@ async function guardCheck(req: Request, env: AppEnv, ctx?: ExecutionContext): Pr
     externalCalls,
     cacheHit: market?.cacheHit ?? false,
     dataAge: market?.dataAge ?? null,
-    estCostTHB_satang: estimateCostThb({ workerRequests: 1, tokenomistCalls: externalCalls }).minor,
+    estCostTHB_satang: estimateCostThb({ workerRequests: 1, doRequests: 1, tokenomistCalls: externalCalls }).minor,
     latencyMs: Date.now() - started,
     estimate: true,
   };
@@ -211,6 +211,8 @@ export async function handleApi(req: Request, env: AppEnv, ctx?: ExecutionContex
   for (const [k, v] of Object.entries(cors)) out.headers.set(k, v);
   return out;
 }
+
+export { VerdictLedger } from './ledger';
 
 export default {
   async fetch(req, env, ctx): Promise<Response> {

@@ -15,6 +15,12 @@ export const COSTS = {
   tokenomistPerCall: 5_000_000n,
   /** Cloudflare Workers Paid: $0.30 per million requests beyond the included 10M. */
   workerPerRequest: 300n,
+  /**
+   * Cloudflare Durable Objects Paid: $0.15 per million requests after the included 1 million.
+   * Each RPC method call is one request.
+   * https://developers.cloudflare.com/durable-objects/platform/pricing/
+   */
+  doPerRequest: 150n,
   /** ElevenLabs voice is pre-generated once (scripts/pregen-voice.ts), so a check spends nothing on TTS. */
   ttsPerCheck: 0n,
   /**
@@ -32,6 +38,8 @@ export interface CostInput {
   workerRequests?: number;
   /** Speech-to-text replies. Not part of a guard check. */
   sttCalls?: number;
+  /** Durable Object RPC calls. A guard check issues one verdict ticket. */
+  doRequests?: number;
 }
 
 export function estimateNanoUsd(i: CostInput): bigint {
@@ -40,6 +48,7 @@ export function estimateNanoUsd(i: CostInput): bigint {
     BigInt(i.llmOutputTokens ?? 0) * COSTS.llmOutputPerToken +
     BigInt(i.tokenomistCalls ?? 0) * COSTS.tokenomistPerCall +
     BigInt(i.workerRequests ?? 0) * COSTS.workerPerRequest +
+    BigInt(i.doRequests ?? 0) * COSTS.doPerRequest +
     BigInt(i.sttCalls ?? 0) * COSTS.sttPerSixSec +
     COSTS.ttsPerCheck
   );
