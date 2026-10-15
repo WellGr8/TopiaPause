@@ -17,7 +17,7 @@ export function BottomNav() {
     <nav className="glass z-20 rounded-none border-x-0 border-b-0 pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label="Primary">
       <ul className="mx-auto grid max-w-md grid-cols-3">
         {ITEMS.map(({ screen, icon: Icon, label }) => {
-          const active = state.screen === screen;
+          const active = state.screen === screen || (screen === 'activity' && state.screen === 'receipt');
           return (
             <li key={screen}>
               <button
@@ -57,7 +57,7 @@ export function Sidebar() {
       <nav aria-label="Primary">
         <ul className="space-y-1">
           {ITEMS.map(({ screen, icon: Icon, label }) => {
-            const active = state.screen === screen;
+            const active = state.screen === screen || (screen === 'activity' && state.screen === 'receipt');
             return (
               <li key={screen}>
                 <button

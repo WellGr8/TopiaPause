@@ -1,5 +1,5 @@
 import { fmtMoney, type SceneId } from '@topiapause/shared';
-import { BedDouble, Coins, ShieldCheck, Sparkles, type LucideIcon } from 'lucide-react';
+import { BedDouble, ChevronRight, Coins, ShieldCheck, Sparkles, type LucideIcon } from 'lucide-react';
 import { CHOICE_LABEL, SCENE_TITLE, t } from '../copy';
 import { useApp } from '../state';
 import { formatTime } from './ReceiptCard';
@@ -77,25 +77,43 @@ export function ActivityScreen() {
               return (
                 <li key={a.id} className="anim-fade relative">
                   <span className={cx('absolute -left-6 top-5 h-[18px] w-[18px] rounded-full ring-4', NODE[a.decision])} aria-hidden="true" />
-                  <Glass className="flex items-center gap-3 p-3.5">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/80 text-azure dark:bg-white/10 dark:text-sky">
-                      <Icon size={20} aria-hidden="true" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold">{SCENE_TITLE[a.scene][lang]}</p>
-                        <StatusPill decision={a.decision} lang={lang} size="sm" />
-                      </div>
-                      <p className="text-sm text-muted dark:text-slate-400">
-                        {CHOICE_LABEL[a.choice][lang]} · {formatTime(a.at, lang)}
-                      </p>
-                    </div>
-                    {a.protectedAmount > 0 && (
-                      <p className="shrink-0 text-right text-sm font-bold text-teal-800 tabular-nums dark:text-teal-200">
-                        +{fmtMoney({ amount: a.protectedAmount, currency: a.currency })}
-                      </p>
-                    )}
-                  </Glass>
+                  {(() => {
+                    const receiptId = a.receipt?.receiptId;
+                    const body = (
+                      <>
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/80 text-azure dark:bg-white/10 dark:text-sky">
+                          <Icon size={20} aria-hidden="true" />
+                        </span>
+                        <span className="block min-w-0 flex-1">
+                          <span className="flex flex-wrap items-center gap-2">
+                            <span className="font-semibold">{SCENE_TITLE[a.scene][lang]}</span>
+                            <StatusPill decision={a.decision} lang={lang} size="sm" />
+                          </span>
+                          <span className="block text-sm text-muted dark:text-slate-400">
+                            {CHOICE_LABEL[a.choice][lang]} · {formatTime(a.at, lang)}
+                          </span>
+                        </span>
+                        {a.protectedAmount > 0 && (
+                          <span className="shrink-0 text-right text-sm font-bold text-teal-800 tabular-nums dark:text-teal-200">
+                            +{fmtMoney({ amount: a.protectedAmount, currency: a.currency })}
+                          </span>
+                        )}
+                        {receiptId && <ChevronRight size={18} className="shrink-0 text-muted dark:text-slate-400" aria-hidden="true" />}
+                      </>
+                    );
+                    return receiptId ? (
+                      <button
+                        type="button"
+                        title={t(lang, 'viewReceipt')}
+                        onClick={() => dispatch({ type: 'openReceipt', receiptId })}
+                        className="glass flex min-h-11 w-full items-center gap-3 rounded-3xl p-3.5 text-left transition duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-azure"
+                      >
+                        {body}
+                      </button>
+                    ) : (
+                      <Glass className="flex items-center gap-3 p-3.5">{body}</Glass>
+                    );
+                  })()}
                 </li>
               );
             })}

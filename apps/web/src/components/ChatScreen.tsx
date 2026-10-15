@@ -1,5 +1,5 @@
 import { SCENE_ORDER, SCENES } from '@topiapause/shared';
-import { Bot, Mic, Send, ShieldCheck } from 'lucide-react';
+import { Bot, ChevronRight, Mic, Send, ShieldCheck } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { t } from '../copy';
 import { useChatFlow } from '../lib/flow';
@@ -21,7 +21,7 @@ function UbotBubble({ children }: { children: React.ReactNode }) {
 }
 
 function Item({ item }: { item: ChatItem }) {
-  const { state } = useApp();
+  const { state, dispatch } = useApp();
   const { choose, why } = useChatFlow();
   const { lang } = state;
   switch (item.type) {
@@ -60,7 +60,20 @@ function Item({ item }: { item: ChatItem }) {
         </div>
       );
     case 'receipt':
-      return <ReceiptCard receipt={item.receipt} lang={lang} />;
+      return (
+        <div className="space-y-1.5">
+          <ReceiptCard receipt={item.receipt} lang={lang} />
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => dispatch({ type: 'openReceipt', receiptId: item.receipt.receiptId })}
+              className="inline-flex min-h-11 items-center gap-1 rounded-2xl px-3 text-sm font-semibold text-azure transition hover:bg-white/50 dark:text-sky dark:hover:bg-white/5"
+            >
+              {t(lang, 'viewReceipt')} <ChevronRight size={16} aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      );
   }
 }
 

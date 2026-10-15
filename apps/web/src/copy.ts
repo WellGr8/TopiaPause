@@ -82,6 +82,9 @@ const dict = {
 
   // receipt
   receipt: { th: 'ใบเสร็จ', en: 'Receipt' },
+  back: { th: 'กลับ', en: 'Back' },
+  viewReceipt: { th: 'ดูใบเสร็จ', en: 'View receipt' },
+  receiptMissing: { th: 'ไม่พบใบเสร็จนี้', en: 'Receipt not found' },
   asked: { th: 'คุณขอ', en: 'You asked' },
   proposed: { th: 'Agent เสนอ', en: 'Agent proposed' },
   approved: { th: 'คุณอนุมัติ', en: 'You approved' },

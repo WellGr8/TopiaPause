@@ -4,6 +4,7 @@ import { ChatScreen } from './components/ChatScreen';
 import { Header } from './components/Header';
 import { BottomNav, Sidebar } from './components/Nav';
 import { Onboarding } from './components/Onboarding';
+import { ReceiptScreen } from './components/ReceiptScreen';
 import { RulesScreen } from './components/RulesScreen';
 import { t } from './copy';
 import { FlowProvider } from './lib/flow';
@@ -31,12 +32,13 @@ export function App() {
           {state.screen === 'chat' ? (
             <Header variant="chat" />
           ) : (
-            <Header variant="brand" title={state.screen === 'activity' ? t(state.lang, 'activity') : t(state.lang, 'rulesTitle')} />
+            <Header variant="brand" title={t(state.lang, state.screen === 'activity' ? 'activity' : state.screen === 'receipt' ? 'receipt' : 'rulesTitle')} />
           )}
           <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
             {state.screen === 'chat' && <ChatScreen />}
             {state.screen === 'activity' && <ActivityScreen />}
             {state.screen === 'rules' && <RulesScreen />}
+            {state.screen === 'receipt' && <ReceiptScreen />}
           </main>
           <BottomNav />
         </div>

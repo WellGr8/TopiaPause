@@ -107,6 +107,7 @@ function useChatFlowImpl() {
           protectedAmount,
           currency: protectedCurrency(run),
           receiptId: receipt.receiptId,
+          receipt,
         },
       });
     },

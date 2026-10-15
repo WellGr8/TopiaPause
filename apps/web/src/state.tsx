@@ -12,7 +12,7 @@ import {
 import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react';
 import { verdictFor } from './lib/guard';
 
-export type Screen = 'chat' | 'activity' | 'rules';
+export type Screen = 'chat' | 'activity' | 'rules' | 'receipt';
 export type Theme = 'light' | 'dark';
 export type Mood = 'idle' | 'checking' | 'allow' | 'pause' | 'block';
 
@@ -47,6 +47,7 @@ export interface ActivityEntry {
   protectedAmount: number;
   currency: 'THB' | 'USD';
   receiptId: string;
+  receipt?: Receipt;
 }
 
 export interface AppState {
@@ -57,6 +58,7 @@ export interface AppState {
   policy: UserPolicy;
   chat: ChatItem[];
   activity: ActivityEntry[];
+  openReceiptId?: string;
 }
 
 type Action =
@@ -70,6 +72,7 @@ type Action =
   | { type: 'replace'; id: string; item: ChatItem }
   | { type: 'updateRun'; runId: string; patch: Partial<GuardRun> }
   | { type: 'activity'; entry: ActivityEntry }
+  | { type: 'openReceipt'; receiptId: string }
   | { type: 'clearChat' }
   | { type: 'reset' };
 
@@ -118,6 +121,8 @@ function reducer(s: AppState, a: Action): AppState {
         ...s,
         chat: s.chat.map((c) => (c.type === 'guard' && c.run.runId === a.runId ? { ...c, run: { ...c.run, ...a.patch } } : c)),
       };
+    case 'openReceipt':
+      return { ...s, screen: 'receipt', openReceiptId: a.receiptId };
     case 'activity':
       return { ...s, activity: [a.entry, ...s.activity] };
     case 'clearChat':
