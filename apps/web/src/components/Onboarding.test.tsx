@@ -111,11 +111,11 @@ describe('first screen', () => {
     expect(coin.getAttribute('href')).toBe('/app?scene=crypto');
     expect(app.getAttribute('aria-selected')).toBe('true');
     expect(app.className).toContain('border-ink');
-    expect(app.className).toContain('w-[85%]');
+    expect(app.className).toContain('rounded-full');
     expect(stay.getAttribute('aria-selected')).toBe('false');
     expect(stay.getAttribute('tabindex')).toBe('-1');
-    expect(screen.getByRole('tablist').className).toContain('md:grid-cols-3');
-    expect(screen.getByRole('button', { name: 'สมัครแอป' }).className).toContain('h-12');
+    expect(screen.getByRole('tablist').className).toContain('flex');
+    expect(screen.getByRole('tablist').className).not.toContain('grid-cols-3');
 
     fireEvent.click(stay);
     const hero = screen.getByRole('tabpanel');

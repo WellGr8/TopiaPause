@@ -1,4 +1,4 @@
-import { Bed, Bot, Coins, Moon, Shield, Smartphone, Store, Sun, UserRound, Volume2 } from 'lucide-react';
+import { Bot, Moon, Shield, Store, Sun, UserRound, Volume2 } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { t } from '../copy';
 import { LANDING_SCENES, landingPreview, type LandingPreview } from '../lib/landing';
@@ -9,12 +9,6 @@ import { Ambient } from './Ambient';
 import { HomeLink, LangButton } from './Header';
 import { Logo, cx } from './ui';
 import type { SceneId } from '@topiapause/shared';
-
-const SCENE_ICON = {
-  subscription: Smartphone,
-  stay: Bed,
-  crypto: Coins,
-} as const;
 
 function reducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
@@ -32,21 +26,6 @@ function useReducedMotion(): boolean {
   return reduced;
 }
 
-/** Reveals the chat one beat at a time. Reduced motion shows the finished chat immediately. */
-function useReveal(scene: SceneId, lang: string, reduced: boolean): number {
-  const [step, setStep] = useState(reduced ? 3 : 0);
-  useEffect(() => {
-    if (reduced) {
-      setStep(3);
-      return;
-    }
-    setStep(0);
-    const ids = [650, 1300, 1950].map((ms, i) => window.setTimeout(() => setStep(i + 1), ms));
-    return () => ids.forEach(clearTimeout);
-  }, [scene, lang, reduced]);
-  return step;
-}
-
 function FlowLine({ lang }: { lang: 'th' | 'en' }) {
   const steps = [
     { icon: UserRound, label: t(lang, 'landYou') },
@@ -55,72 +34,58 @@ function FlowLine({ lang }: { lang: 'th' | 'en' }) {
     { icon: Store, label: t(lang, 'landShop') },
   ];
   return (
-    <ol className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[17px] leading-snug text-ink">
+    <ol className="mt-2 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 text-[12px] leading-none text-muted">
       {steps.map((step, i) => (
-        <li key={step.label} className="inline-flex items-center gap-1.5">
+        <li key={step.label} className="inline-flex items-center gap-1">
           {i > 0 && (
             <span aria-hidden="true" className="mr-0.5">
               →
             </span>
           )}
-          <step.icon size={18} aria-hidden="true" />
-          <span className={step.label === 'TopiaPause' ? 'font-semibold' : undefined}>{step.label}</span>
+          <step.icon size={12} aria-hidden="true" />
+          <span className={step.label === 'TopiaPause' ? 'font-semibold text-ink' : undefined}>{step.label}</span>
         </li>
       ))}
     </ol>
   );
 }
 
-function Bubble({ side, name, initial, children }: { side: 'user' | 'agent'; name: string; initial: string; children: string }) {
-  const mine = side === 'user';
-  return (
-    <div className={cx('flex items-end gap-2', mine && 'justify-end')}>
-      {!mine && (
-        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-line text-[15px] font-semibold" aria-hidden="true">
-          {initial}
-        </span>
-      )}
-      <div className={cx('max-w-[85%]', mine && 'text-right')}>
-        <p className="mb-1 text-[17px] font-semibold">{name}</p>
-        <p className={cx('rounded-2xl px-4 py-3 text-left text-[17px] leading-relaxed', mine ? 'rounded-br-md bg-ink text-canvas' : 'rounded-bl-md border border-line bg-surface')}>{children}</p>
-      </div>
-      {mine && (
-        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink text-[15px] font-semibold text-canvas" aria-hidden="true">
-          {initial}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function Pause({ preview, lang }: { preview: LandingPreview; lang: 'th' | 'en' }) {
+function CompareCard({ preview, lang }: { preview: LandingPreview; lang: 'th' | 'en' }) {
   const play = () => {
     void speak({ text: preview.voiceText, lang, clipId: preview.clipId }, { onStart: () => {}, onEnd: () => {}, onBlocked: () => {} });
   };
   const offer = preview.offer;
+  const you = t(lang, 'landYou');
   return (
-    <div role="region" aria-label="TopiaPause">
-      <p className="text-[17px] font-semibold">TopiaPause</p>
-      <div data-testid="pause-plain" className="mt-1">
-        <p className="text-[17px] leading-relaxed">{preview.lead}</p>
-        <p className="mt-2 text-[40px] font-semibold leading-none tracking-tight tabular-nums">{offer.amount}</p>
-        {offer.note && <p className="mt-1 text-[17px] leading-relaxed">{offer.note}</p>}
-        {offer.was && <p className="mt-1 text-[17px] leading-relaxed line-through">{offer.was}</p>}
-        {offer.saved && <p className="mt-2 inline-flex items-center rounded-full border border-line px-3 py-1 text-[17px] font-medium">{offer.saved}</p>}
+    <div role="region" aria-label="TopiaPause" className="rounded-card border border-line bg-surface px-3.5 py-3 shadow-card">
+      <p className="truncate text-[13px] leading-snug text-muted">
+        <span className="font-medium text-ink">{you}</span> <span>{preview.user}</span>
+        <span aria-hidden="true"> → </span>
+        <span>{preview.agentLabel}</span>
+      </p>
+      <div data-testid="pause-plain" className="mt-2">
+        <p className="text-[15px] leading-snug line-through decoration-muted">{preview.agent}</p>
+        <p className="mt-2 text-[13px] font-semibold">TopiaPause</p>
+        <p className="text-[14px] leading-snug">{preview.lead}</p>
+        <p className="mt-1 text-[34px] font-semibold leading-none tracking-tight tabular-nums">{offer.amount}</p>
+        {offer.note && <p className="mt-1 text-[14px] leading-snug text-muted">{offer.note}</p>}
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {offer.saved && <p className="inline-flex items-center rounded-full border border-line bg-canvas px-3 py-1 text-[14px] font-medium">{offer.saved}</p>}
+          <button
+            type="button"
+            onClick={play}
+            aria-label={t(lang, 'landListen')}
+            className="inline-flex min-h-12 items-center gap-1.5 rounded-full border border-line bg-canvas px-3 text-[15px] font-medium text-ink"
+          >
+            <Volume2 size={16} aria-hidden="true" />
+            {t(lang, 'listen')}
+          </button>
+        </div>
       </div>
-      <button
-        type="button"
-        onClick={play}
-        aria-label={t(lang, 'landListen')}
-        className="mt-3 inline-flex min-h-12 items-center gap-2 rounded-full border border-line bg-surface px-4 text-[17px] font-medium text-ink"
-      >
-        <Volume2 size={20} aria-hidden="true" />
-        {t(lang, 'listen')}
-      </button>
-      <details data-testid="pause-details" className="mt-2">
-        <summary className="flex min-h-12 cursor-pointer items-center text-[17px] font-medium">{t(lang, 'landDetails')}</summary>
-        {preview.ruleLine && <p className="pb-2 text-[17px] leading-relaxed">{preview.ruleLine}</p>}
-        <ul className="space-y-2 pb-2 text-[17px] leading-relaxed">
+      <details data-testid="pause-details" className="hidden">
+        <summary>{t(lang, 'landDetails')}</summary>
+        {preview.ruleLine && <p>{preview.ruleLine}</p>}
+        <ul>
           {preview.details.map((d) => (
             <li key={d.ruleId}>
               <span className="font-semibold">{d.ruleId}</span> {d.text}
@@ -137,7 +102,6 @@ export function Onboarding() {
   const { lang, theme } = state;
   const [scene, setScene] = useState<SceneId>('subscription');
   const reduced = useReducedMotion();
-  const step = useReveal(scene, lang, reduced);
   const preview = landingPreview(scene, lang);
   const sceneRef = useRef(scene);
   sceneRef.current = scene;
@@ -190,16 +154,14 @@ export function Onboarding() {
     if (id) focusScene(id, true);
   };
 
-  const you = t(lang, 'landYou');
-
   return (
     <>
       <Ambient variant="landing" />
-      <div className="relative z-10 mx-auto min-h-dvh w-full max-w-xl px-5 pb-[max(env(safe-area-inset-bottom),2rem)] pt-[max(env(safe-area-inset-top),1.25rem)] text-[17px] leading-relaxed text-ink sm:px-8 sm:pt-10">
-        <div className="flex items-center justify-between gap-3">
+      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-xl flex-col px-5 pt-[max(env(safe-area-inset-top),0.75rem)] text-[15px] leading-snug text-ink sm:px-8 sm:pt-6">
+        <div className="flex items-center justify-between gap-2">
           <HomeLink className="inline-flex">
-            <Logo size={28} />
-            <span className="text-[17px] font-semibold">TopiaPause</span>
+            <Logo size={26} />
+            <span className="text-[16px] font-semibold">TopiaPause</span>
           </HomeLink>
           <div className="flex items-center">
             <button
@@ -207,111 +169,78 @@ export function Onboarding() {
               aria-label={t(lang, 'darkMode')}
               aria-pressed={theme === 'dark'}
               onClick={() => dispatch({ type: 'theme', theme: theme === 'dark' ? 'light' : 'dark' })}
-              className="inline-flex h-12 w-12 items-center justify-center rounded-control text-ink"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-control text-ink"
             >
-              {theme === 'dark' ? <Sun size={22} aria-hidden="true" /> : <Moon size={22} aria-hidden="true" />}
+              {theme === 'dark' ? <Sun size={20} aria-hidden="true" /> : <Moon size={20} aria-hidden="true" />}
             </button>
-            <LangButton />
+            <LangButton className="h-11! min-w-11 px-1.5 text-[15px]!" />
           </div>
         </div>
 
-        <h1 className="mt-6 whitespace-pre-line text-[32px] font-semibold leading-[1.15] tracking-tight sm:mt-10 sm:text-[40px]">{t(lang, 'onbTitle')}</h1>
-        <p className="mt-2 text-[17px] leading-relaxed">{t(lang, 'onbBody')}</p>
+        <h1 className="mt-3 whitespace-pre-line text-[28px] font-semibold leading-[1.12] tracking-tight sm:mt-5 sm:text-[34px]">{t(lang, 'onbTitle')}</h1>
+        <p className="mt-1 text-[15px] leading-snug">{t(lang, 'onbBody')}</p>
 
-        <div
-          id="landing-hero"
-          role="tabpanel"
-          aria-labelledby={`landing-scene-${scene}`}
-          className="mt-5 space-y-4"
-          aria-live="polite"
-          data-reduced={reduced ? 'true' : 'false'}
-          data-step={step}
-        >
-          {step >= 1 && (
-            <Bubble side="user" name={you} initial={you.slice(0, 1)}>
-              {preview.user}
-            </Bubble>
-          )}
-          {step >= 2 && (
-            <Bubble side="agent" name={preview.agentLabel} initial="AI">
-              {preview.agent}
-            </Bubble>
-          )}
-          {step >= 3 && <Pause preview={preview} lang={lang} />}
+        <div id="landing-hero" role="tabpanel" aria-labelledby={`landing-scene-${scene}`} className="mt-3" aria-live="polite" data-reduced={reduced ? 'true' : 'false'} data-step="3">
+          <CompareCard preview={preview} lang={lang} />
         </div>
 
-        <div
-          ref={scrollerRef}
-          role="tablist"
-          aria-label={t(lang, 'landExamples')}
-          onKeyDown={onKey}
-          onScroll={onScroll}
-          className="mt-5 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-px-0 [-ms-overflow-style:none] [scrollbar-width:none] md:grid md:grid-cols-3 md:overflow-visible md:snap-none [&::-webkit-scrollbar]:hidden"
-        >
-          {LANDING_SCENES.map((id) => {
-            const card = landingPreview(id, lang);
-            const Icon = SCENE_ICON[id];
-            const selected = scene === id;
-            return (
-              <a
-                key={id}
-                ref={(node) => {
-                  tabRefs.current[id] = node;
-                }}
-                href={hrefFor('chat', id)}
-                role="tab"
-                id={`landing-scene-${id}`}
-                data-scene={id}
-                aria-selected={selected}
-                aria-controls="landing-hero"
-                tabIndex={selected ? 0 : -1}
-                onClick={(e) => {
-                  if (!isPlainClick(e)) return;
-                  e.preventDefault();
-                  if (selected) dispatch({ type: 'onboard', scene: id });
-                  else focusScene(id, false);
-                }}
-                className={cx(
-                  'flex w-[85%] shrink-0 snap-start flex-col items-start gap-1 rounded-card border bg-surface px-4 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink md:w-auto',
-                  selected ? 'border-ink shadow-card' : 'border-line',
-                  'no-underline',
-                )}
-              >
-                <Icon size={22} aria-hidden="true" />
-                <span className="text-[17px] font-semibold leading-snug">{card.chip}</span>
-                <span className="text-[17px] leading-snug">{card.hint}</span>
-              </a>
-            );
-          })}
-        </div>
+        <div className="sticky bottom-0 z-20 mt-auto bg-canvas/95 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] backdrop-blur-md sm:static">
+          <div
+            ref={scrollerRef}
+            role="tablist"
+            aria-label={t(lang, 'landExamples')}
+            onKeyDown={onKey}
+            onScroll={onScroll}
+            className="flex gap-1.5"
+          >
+            {LANDING_SCENES.map((id) => {
+              const card = landingPreview(id, lang);
+              const selected = scene === id;
+              return (
+                <a
+                  key={id}
+                  ref={(node) => {
+                    tabRefs.current[id] = node;
+                  }}
+                  href={hrefFor('chat', id)}
+                  role="tab"
+                  id={`landing-scene-${id}`}
+                  data-scene={id}
+                  aria-selected={selected}
+                  aria-controls="landing-hero"
+                  tabIndex={selected ? 0 : -1}
+                  onClick={(e) => {
+                    if (!isPlainClick(e)) return;
+                    e.preventDefault();
+                    if (selected) dispatch({ type: 'onboard', scene: id });
+                    else focusScene(id, false);
+                  }}
+                  className={cx(
+                    'inline-flex min-h-11 flex-1 items-center justify-center rounded-full border px-2 text-center text-[14px] font-medium leading-tight no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink',
+                    selected ? 'border-ink bg-ink text-canvas' : 'border-line bg-surface text-ink',
+                  )}
+                >
+                  {card.chip}
+                </a>
+              );
+            })}
+          </div>
 
-        <div className="mt-1 flex justify-center md:hidden">
-          {LANDING_SCENES.map((id) => {
-            const label = landingPreview(id, lang).chip;
-            const on = scene === id;
-            return (
-              <button key={id} type="button" aria-label={label} aria-current={on ? 'true' : undefined} onClick={() => focusScene(id, false)} className="inline-flex h-12 w-12 items-center justify-center">
-                <span aria-hidden="true" className={cx('h-2 w-2 rounded-full', on ? 'bg-ink' : 'border border-line bg-transparent')} />
-              </button>
-            );
-          })}
+          <a
+            href={hrefFor('chat', scene)}
+            onClick={(e) => {
+              if (!isPlainClick(e)) return;
+              e.preventDefault();
+              dispatch({ type: 'onboard', scene });
+            }}
+            className="btn-gradient text-on-brand mt-2.5 inline-flex min-h-12 w-full items-center justify-center rounded-control px-4 text-[17px] font-semibold no-underline"
+          >
+            {t(lang, 'onbCta')}
+          </a>
+          <FlowLine lang={lang} />
+          <p className="mt-1.5 text-center text-[12px] leading-snug text-muted">{t(lang, 'sandbox')}</p>
+          <p className="mt-0.5 text-center text-[13px] leading-snug">{t(lang, 'partner')}</p>
         </div>
-
-        <a
-          href={hrefFor('chat', scene)}
-          onClick={(e) => {
-            if (!isPlainClick(e)) return;
-            e.preventDefault();
-            dispatch({ type: 'onboard', scene });
-          }}
-          className="btn-gradient text-on-brand mt-2 inline-flex min-h-12 w-full items-center justify-center rounded-control px-4 text-[17px] font-semibold no-underline"
-        >
-          {t(lang, 'onbCta')}
-        </a>
-        <FlowLine lang={lang} />
-        <p className="mt-3 text-center text-[17px]">{t(lang, 'sandbox')}</p>
-        <p className="mt-2 text-center text-[17px]">{t(lang, 'partner')}</p>
-        <p className="mt-1 text-center text-[15px] text-muted">{t(lang, 'mockNote')}</p>
       </div>
     </>
   );
