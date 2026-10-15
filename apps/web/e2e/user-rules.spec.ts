@@ -11,6 +11,7 @@ test('a per-payment limit pauses ฿600 and a higher limit follows the hotel rul
   await expect(amount).toHaveValue('500');
   await page.getByRole('switch', { name: 'จ่ายได้ไม่เกินต่อครั้ง' }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: '/tmp/user-rules/rules-390.png' });
+  await page.getByTestId('app-header').screenshot({ path: '/tmp/user-rules/header-light-390.png' });
 
   await page.getByRole('link', { name: 'แชท' }).click();
   await page.getByRole('button', { name: 'โรงแรมถูกๆ ใกล้อโศก' }).click();
@@ -20,12 +21,23 @@ test('a per-payment limit pauses ฿600 and a higher limit follows the hotel rul
   await paused.scrollIntoViewIfNeeded();
   await page.screenshot({ path: '/tmp/user-rules/pause-390.png' });
 
+  await page.getByRole('button', { name: 'ยกเลิก' }).click();
   await page.getByRole('link', { name: 'กฎ' }).click();
   await page.getByRole('spinbutton', { name: 'บาทต่อครั้ง' }).fill('2000');
   await page.getByRole('link', { name: 'แชท' }).click();
-  await page.getByRole('button', { name: 'โรงแรมถูกๆ ใกล้อโศก' }).click();
+  const again = page.getByRole('button', { name: 'โรงแรมถูกๆ ใกล้อโศก' });
+  await again.scrollIntoViewIfNeeded();
+  await again.click();
   const next = page.locator('[data-decision]').last();
   await expect(next).toHaveAttribute('data-decision', 'pause');
   await expect(next).not.toContainText('จ่ายได้ไม่เกิน');
   await expect(next).toContainText('คืนเงินไม่ได้');
+
+  await page.goto('/');
+  await expect(page.getByRole('link', { name: 'กลับหน้าแรก' })).toBeVisible();
+  await page.screenshot({ path: '/tmp/user-rules/landing-logo-390.png' });
+  await page.evaluate(() => localStorage.setItem('topiapause:theme-choice', 'dark'));
+  await page.goto('/app');
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await page.getByTestId('app-header').screenshot({ path: '/tmp/user-rules/header-dark-390.png' });
 });
