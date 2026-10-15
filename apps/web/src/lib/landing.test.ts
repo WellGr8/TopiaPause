@@ -82,4 +82,23 @@ describe('light theme contrast', () => {
     expect(html).toContain("localStorage.getItem('topiapause:theme-choice')");
     expect(html).not.toMatch(/prefers-color-scheme|topiapause:theme'/);
   });
+
+  it('frosts the header and keeps an opaque background when blur is unavailable', () => {
+    const css = readFileSync(resolve(__dirname, '../index.css'), 'utf8');
+    const start = css.indexOf('.glass-bar {');
+    const supports = css.indexOf('@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px)))');
+    expect(start).toBeGreaterThan(0);
+    expect(supports).toBeGreaterThan(start);
+    const fallback = css.slice(start, supports);
+    const glass = css.slice(supports);
+    expect(fallback).toMatch(/position:\s*sticky/);
+    expect(fallback).toMatch(/background-color:\s*rgb\(255 255 255 \/ 0\.94\)/);
+    expect(fallback).toMatch(/border-bottom:\s*1px solid rgb\(255 255 255 \/ 0\.4\)/);
+    expect(fallback).toMatch(/border-bottom-color:\s*rgb\(255 255 255 \/ 0\.1\)/);
+    expect(fallback).toMatch(/background-color:\s*rgb\(15 23 42 \/ 0\.94\)/);
+    expect(glass).toMatch(/background-color:\s*rgb\(255 255 255 \/ 0\.6\)/);
+    expect(glass).toMatch(/background-color:\s*rgb\(15 23 42 \/ 0\.55\)/);
+    expect(glass).toMatch(/backdrop-filter:\s*blur\(24px\) saturate\(1\.5\)/);
+    expect(glass).toMatch(/-webkit-backdrop-filter:\s*blur\(24px\) saturate\(1\.5\)/);
+  });
 });
