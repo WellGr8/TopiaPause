@@ -111,8 +111,14 @@ describe('FX: explicit rate, rounded once', () => {
 describe('cost estimates', () => {
   it('a rules-only check rounds UP to one satang; a Tokenomist miss adds ~$0.005', () => {
     expect(estimateCostThb({ workerRequests: 1 }).minor).toBe(1);
+    // $0.15 / million DO requests = 150 nano-USD → 0.0004875 satang, ceil 1.
+    expect(estimateCostThb({ doRequests: 1 }).minor).toBe(1);
+    // Worker request + the ticket issue still ceilings to one satang.
+    expect(estimateCostThb({ workerRequests: 1, doRequests: 1 }).minor).toBe(1);
     // 0.0050003 USD × 32.50 = 0.16250975 THB -> ceil -> 17 satang
     expect(estimateCostThb({ workerRequests: 1, tokenomistCalls: 1 }).minor).toBe(17);
+    // Worker + ticket issue + Tokenomist: 5,000,450 × 32.50 × 100 / 1e9 = 16.2514625 satang, ceil 17.
+    expect(estimateCostThb({ workerRequests: 1, doRequests: 1, tokenomistCalls: 1 }).minor).toBe(17);
     // gpt-4o-mini 1k in + 200 out = 0.00015 + 0.00012 = 0.00027 USD -> 0.008775 THB -> 1 satang
     expect(estimateCostThb({ llmInputTokens: 1000, llmOutputTokens: 200 }).minor).toBe(1);
     expect(estimateCostThb({}).minor).toBe(0);

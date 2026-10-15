@@ -74,7 +74,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for diagrams, data contracts an
 |---|---|
 | Guard engine (`packages/guard-engine`): all rules, precedence, `a_max`, counter-offer, re-check, number lock, `AGENT_FOLLOWED_UNTRUSTED` | **Real.** Pure TypeScript. The web app and the Worker run the same code. Money is integer minor units (satang, cents, micro-USDT). |
 | Numbers on screen (prices, %, `a_max`, saved ฿3,691.00, protection cost ฿161.00, 300 USDT exposure cut) | **Real engine output.** The UI classifies them; it does not invent them. |
-| Worker API (`workers/api`) | **Real.** `POST /api/guard/check` runs the engine with zod validation, CORS, a 32 KB body cap, and per-IP rate limits. Policy is a signed token (`POST /api/policy`). Verdict tickets are signed and single-use in the isolate (replay → 409, forged → 403, smuggled policy → 400). See [docs/API.md](docs/API.md). |
+| Worker API (`workers/api`) | **Real.** `POST /api/guard/check` runs the engine with zod validation, CORS, a 32 KB body cap, and per-IP rate limits. Policy is a signed token (`POST /api/policy`). Verdict tickets are signed and single-use across isolates (`VerdictLedger` Durable Object; replay → 409, forged → 403, smuggled policy → 400). See [docs/API.md](docs/API.md). |
 | U-Bot / u.bot | **Simulated.** u.bot has no public API, so the agent role is a stand-in. The four demo chips use a deterministic script. Free-text `POST /api/agent/chat` calls an OpenAI-compatible LLM only when `LLM_API_KEY` + `LLM_MODEL` are set, and catalog prices and the portfolio are restored afterwards. Without a key, chat stays scripted. |
 | Tokenomist | **Sample data** in the demo. The unlock note is labelled "sample data, not live" unless `TOKENOMIST_API_KEY` is set. The note never changes the decision. |
 | Explanations | Number-locked TH/EN templates (`lockExplanation`). With an LLM key, a paraphrase is shown only when every number already came from the engine. |
@@ -211,10 +211,11 @@ Use `pnpm run deploy`, not `pnpm deploy`: `pnpm deploy` is a built-in pnpm comma
 
 The `vars` block already points chat at OpenRouter `openai/gpt-4o-mini` and TTS at ElevenLabs voice `nPczCjzI2devNBz1zQrb` with model `eleven_v4`. Do not clear those vars: an empty value overwrites the live Worker on the next deploy. Chat still stays scripted until `LLM_API_KEY` is set as a secret, and live TTS stays off until `ELEVENLABS_API_KEY` is set the same way. `POLICY_SIGNING_KEY` is a secret too.
 
-Two limits of a `*.workers.dev` deploy:
+One limit of a `*.workers.dev` deploy:
 
 - **Cache API is a no-op** on `workers.dev`. Tokenomist and TTS are still cached in memory inside each isolate for their TTL, but nothing is shared across isolates until the Worker is on a custom domain.
-- **Verdict tickets are single-use per isolate.** A second isolate can still accept a ticket until it expires (10 minutes). Making that global needs a Durable Object; it is intentionally not in this build.
+
+Verdict tickets are single-use on every deploy, including `workers.dev`. Each ticket is its own `VerdictLedger` Durable Object (`idFromName` of the ticket id, SQLite-backed). A replay on any isolate is 409 `verdict_used` until the 10-minute expiry. Local `DEV=1` without the binding uses an in-process ledger with the same transitions. A missing binding elsewhere is 503 `ledger_unavailable`.
 
 ### Keys
 

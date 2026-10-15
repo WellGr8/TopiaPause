@@ -1,5 +1,6 @@
 import { DEFAULT_POLICY, policyLoosens, type AgentProposal, type GuardVerdict, type UserPolicy } from '@topiapause/shared';
 import { HttpError, log, type AppEnv } from './http';
+import { devLedgerNamespace, type LedgerResult, type LedgerStub } from './ledger';
 import { AgentProposal as AgentProposalSchema, UserPolicy as UserPolicySchema } from './schemas';
 
 // HMAC-SHA256 tokens for two things an agent must not be able to forge:
@@ -178,13 +179,18 @@ export async function issueTicket(env: AppEnv, verdict: GuardVerdict, original: 
   } else if (verdict.decision === 'pause' && verdict.counterOffer) {
     choices.counter_offer = await proposalHash(verdict.counterOffer.proposal);
   }
-  return sign(env, 'verdict', {
+  const exp = nowSec() + TICKET_TTL_SEC;
+  const jti = crypto.randomUUID();
+  const token = await sign(env, 'verdict', {
     v: 2,
-    jti: crypto.randomUUID(),
-    exp: nowSec() + TICKET_TTL_SEC,
+    jti,
+    exp,
     needsUser: verdict.decision === 'pause',
     choices,
   });
+  const recorded = await ledger(env, jti, (stub) => stub.issue(jti, exp));
+  expectLedger(recorded, ['issued']);
+  return token;
 }
 
 export async function issueConfirmation(env: AppEnv, ticket: string, choice: 'original' | 'counter_offer'): Promise<string> {
@@ -196,11 +202,10 @@ export async function issueConfirmation(env: AppEnv, ticket: string, choice: 'or
   if (payload.exp < now) throw new HttpError(403, 'expired_verdict', 'Verdict expired; run the guard check again');
   const hash = payload.choices.counter_offer;
   if (!hash) throw new HttpError(400, 'invalid_input', 'This verdict has no counter-offer to confirm');
+  const recorded = await ledger(env, payload.jti, (stub) => stub.confirm(payload.jti, payload.exp));
+  expectLedger(recorded, ['confirmed']);
   return sign(env, 'confirm', { v: 1, jti: payload.jti, choice, h: hash, exp: payload.exp });
 }
-
-// Single use per isolate. A multi-isolate deployment would move this to a Durable Object.
-const used = new Map<string, number>();
 
 export async function redeemTicket(env: AppEnv, ticket: string, proposal: AgentProposal, confirmation?: string): Promise<void> {
   const payload = await readTicket(env, ticket);
@@ -217,7 +222,30 @@ export async function redeemTicket(env: AppEnv, ticket: string, proposal: AgentP
       throw new HttpError(403, 'confirmation_required', 'A paused counter-offer needs a confirmation token from the user');
     }
   }
-  for (const [k, exp] of used) if (exp < now) used.delete(k);
-  if (used.has(payload.jti)) throw new HttpError(409, 'verdict_used', 'This verdict was already executed');
-  used.set(payload.jti, payload.exp);
+  const recorded = await ledger(env, payload.jti, (stub) => stub.consume(payload.jti, payload.exp, Boolean(payload.needsUser)));
+  if (recorded.state === 'used' && recorded.firstUse) return;
+  expectLedger(recorded, []);
+}
+
+async function ledger(env: AppEnv, jti: string, run: (stub: LedgerStub) => Promise<LedgerResult>): Promise<LedgerResult> {
+  try {
+    if (env.VERDICT_LEDGER) {
+      const stub = env.VERDICT_LEDGER.get(env.VERDICT_LEDGER.idFromName(jti));
+      return await run(stub);
+    }
+    if (env.DEV === '1') return await run(devLedgerNamespace().get(jti));
+    throw new HttpError(503, 'ledger_unavailable', 'Verdict ledger is not configured');
+  } catch (e) {
+    if (e instanceof HttpError) throw e;
+    log({ message: 'verdict ledger failed', error: e instanceof Error ? e.message : String(e) });
+    throw new HttpError(503, 'ledger_unavailable', 'Verdict ledger is unavailable');
+  }
+}
+
+function expectLedger(result: LedgerResult, ok: LedgerResult['state'][]): void {
+  if (ok.includes(result.state)) return;
+  if (result.state === 'expired') throw new HttpError(403, 'expired_verdict', 'Verdict expired; run the guard check again');
+  if (result.state === 'used') throw new HttpError(409, 'verdict_used', 'This verdict was already executed');
+  if (result.state === 'unconfirmed') throw new HttpError(403, 'confirmation_required', 'A paused counter-offer needs a confirmation token from the user');
+  throw new HttpError(403, 'unknown_verdict', 'verdictId was not issued by TopiaPause');
 }

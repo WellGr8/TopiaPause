@@ -8,6 +8,7 @@ import shopStay from '../../../scripts/demo/stay.json';
 import shopSubscription from '../../../scripts/demo/subscription.json';
 import worker from '../src/index';
 import { resetIsolateRateLimit, type AppEnv } from '../src/http';
+import { resetLedgerForTests, sharedLedgerNamespace } from '../src/ledger';
 import { llmExplain } from '../src/llm';
 import { resetTokenomistCache } from '../src/tokenomist';
 import { voiceLine } from '../src/voiceAllow';
@@ -20,6 +21,7 @@ function makeEnv(overrides: Partial<AppEnv> = {}): AppEnv {
     ASSETS: { fetch: assetFetch } as unknown as Fetcher,
     RATE_LIMITER: { limit: async () => ({ success: true }) },
     RATE_LIMITER_PAID: { limit: async () => ({ success: true }) },
+    VERDICT_LEDGER: sharedLedgerNamespace(),
     LLM_BASE_URL: 'https://llm.example/v1',
     LLM_MODEL: '',
     ELEVENLABS_VOICE_ID: '',
@@ -86,6 +88,7 @@ beforeEach(() => {
   vi.spyOn(console, 'log').mockImplementation(() => {});
   resetTokenomistCache();
   resetIsolateRateLimit();
+  resetLedgerForTests();
 });
 
 afterEach(() => {
@@ -343,6 +346,8 @@ describe('POST /api/agent/execute (verdict tickets)', () => {
     const swapped = await exec(s.proposal, v.verdictId, confirmation);
     expect(swapped.status).toBe(403);
     expect(((await swapped.json()) as V).error.code).toBe('proposal_not_cleared');
+    const still = await exec(v.counterOffer.proposal, v.verdictId, confirmation);
+    expect(still.status).toBe(200);
   });
 
   it('executes the cleared counter-offer once after the user confirms; a reuse is 409', async () => {
@@ -386,6 +391,53 @@ describe('POST /api/agent/execute (verdict tickets)', () => {
     const res = await exec(v.counterOffer.proposal, v.verdictId);
     expect(res.status).toBe(403);
     expect(((await res.json()) as V).error.code).toBe('expired_verdict');
+  });
+
+  it('spends one ticket exactly once when two executes race', async () => {
+    const { v } = await check(scene('crypto'));
+    const confirmation = await confirmed(v.verdictId);
+    const [a, b] = await Promise.all([exec(v.counterOffer.proposal, v.verdictId, confirmation), exec(v.counterOffer.proposal, v.verdictId, confirmation)]);
+    expect([a.status, b.status].sort()).toEqual([200, 409]);
+    const bodies = (await Promise.all([a.json(), b.json()])) as V[];
+    expect(bodies.find((body) => body.error)?.error.code).toBe('verdict_used');
+    const replay = await exec(v.counterOffer.proposal, v.verdictId, confirmation);
+    expect(replay.status).toBe(409);
+    expect(((await replay.json()) as V).error.code).toBe('verdict_used');
+  });
+
+  it('fails closed with 503 when the ledger binding is missing', async () => {
+    const env = makeEnv({ VERDICT_LEDGER: undefined });
+    const { res, v } = await check(scene('stay'), env);
+    expect(res.status).toBe(503);
+    expect(v.error.code).toBe('ledger_unavailable');
+  });
+
+  it('uses the in-process ledger when DEV=1 and the binding is missing', async () => {
+    const env = makeEnv({ VERDICT_LEDGER: undefined, DEV: '1' });
+    const { res, v } = await check(scene('stay'), env);
+    expect(res.status).toBe(200);
+    expect(v.verdictId).toEqual(expect.any(String));
+  });
+
+  it('fails closed with 503 when the ledger throws', async () => {
+    const broken = {
+      idFromName: () => 'id',
+      get: () => ({
+        issue: async () => {
+          throw new Error('storage down');
+        },
+        confirm: async () => {
+          throw new Error('storage down');
+        },
+        consume: async () => {
+          throw new Error('storage down');
+        },
+      }),
+    };
+    const env = makeEnv({ VERDICT_LEDGER: broken as unknown as AppEnv['VERDICT_LEDGER'] });
+    const { res, v } = await check(scene('stay'), env);
+    expect(res.status).toBe(503);
+    expect(v.error.code).toBe('ledger_unavailable');
   });
 });
 
