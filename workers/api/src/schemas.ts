@@ -132,7 +132,7 @@ const common = {
   lang: Lang.default('th'),
 };
 
-/** Full internal proposal (what U-Bot sends). */
+/** Full internal proposal (what an assistant sends). */
 export const ProposalCheck = z.object({ ...common, proposal: AgentProposal });
 
 const Alternative = z.object({

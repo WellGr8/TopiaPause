@@ -15,7 +15,7 @@ export interface GuardCheckInput {
   /** The user's own words, verbatim. TopiaPause derives intent from this. */
   userMessage: string;
   lang?: 'th' | 'en';
-  /** Full proposal (what U-Bot sends). */
+  /** Full proposal (what an assistant sends). */
   proposal?: object;
   /** Generic action (what any other agent sends). */
   agent?: { name: string; version?: string };

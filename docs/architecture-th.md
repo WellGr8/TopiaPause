@@ -3,7 +3,7 @@
 **Think before your AI spends.** · *AI agents do what you say. TopiaPause makes sure they do what you meant.*
 
 ## เป้าหมาย
-TopiaPause เป็น guard layer ชั้นที่สองของ AI agent ที่จ่ายเงินแทนผู้ใช้ หน้าที่คือจับ **intent mismatch** หรือช่องว่างระหว่างสิ่งที่ผู้ใช้พูดกับสิ่งที่ agent กำลังจะทำ ตัวอย่างเช่น:
+TopiaPause เป็น guard layer ชั้นที่สองของผู้ช่วย AI ที่จ่ายเงินแทนผู้ใช้ หน้าที่คือตรวจช่องว่างระหว่างสิ่งที่ผู้ใช้พูดกับสิ่งที่กำลังจะจ่าย ตัวอย่างเช่น:
 
 | ผู้ใช้พูดว่า | agent กำลังจะทำ |
 |---|---|
@@ -20,7 +20,7 @@ TopiaPause เป็น guard layer ชั้นที่สองของ AI a
 ## ส่วนประกอบ
 | ส่วน | หน้าที่ |
 |---|---|
-| **apps/web** | React + TS + Vite + Tailwind ประกอบด้วยแชทที่ติดป้าย "U-Bot (mock)", Guardian card, ปุ่มเสียง, receipt |
+| **apps/web** | React + TS + Vite + Tailwind ประกอบด้วยแชทที่ติดป้าย "ผู้ช่วย AI (จำลอง)", Guardian card, ปุ่มเสียง, receipt |
 | **workers/api** | Cloudflare Worker เก็บ key, มี `UBotAdapter` (mock = LLM + catalog), proxy ไปยัง ElevenLabs และ Tokenomist |
 | **packages/guard-engine** | pure TS (ไม่มี I/O) รวม rules, สูตร a_max, precedence block > pause > allow, counter-offer, re-check และ unit tests |
 | **packages/shared** | types กลาง (UserPolicy, ActionIntent, AgentProposal, GuardVerdict, Receipt), JSON schema, template TH/EN |
@@ -28,7 +28,7 @@ TopiaPause เป็น guard layer ชั้นที่สองของ AI a
 
 ## Flow (ฉาก "ครั้งเดียว")
 1. ผู้ใช้สั่ง
-2. U-Bot (mock) เสนอ swap 500 พร้อม unlimited approval
+2. ผู้ช่วย AI (จำลอง) เสนอ swap 500 และให้สิทธิ์ถอน USDT ได้ไม่จำกัด เพื่อให้ครั้งหน้าเร็วขึ้น
 3. `/api/guard/check`: LLM ดึง intent (`once`) → engine ได้ **PAUSE** (45% > 30% และ unlimited ไม่ตรงกับ once) → counter-offer คือ swap 200 ด้วย exact approval → re-check ได้ **ALLOW** → LLM อธิบายโดยล็อกตัวเลข
 4. Guardian card แสดงขึ้น พร้อมเสียงเตือนภาษาไทย
 5. ผู้ใช้ถามว่า "ทำไมแค่ 200?"
@@ -39,7 +39,7 @@ TopiaPause เป็น guard layer ชั้นที่สองของ AI a
 ## API
 | Endpoint | หน้าที่ |
 |---|---|
-| `POST /api/agent/chat` | คุยกับ U-Bot (mock) |
+| `POST /api/agent/chat` | คุยกับผู้ช่วย AI (จำลอง) |
 | `POST /api/agent/execute` | ทำรายการแบบ mock |
 | `POST /api/guard/check` | ตรวจ proposal แล้วคืน GuardVerdict |
 | `POST /api/voice/tts` | TTS: ไทยใช้ Eleven v3, อังกฤษใช้ Flash v2.5 |
@@ -78,7 +78,7 @@ TopiaPause เป็น guard layer ชั้นที่สองของ AI a
   3. หน้าตั้งค่ากฎ
   4. Tokenomist
   5. Base Sepolia proof
-  6. U-Bot จริง (ถ้ามี API)
+  6. เชื่อม u.bot จริง (เมื่อมี API สาธารณะ)
 
 ## Milestones (deadline ศ. 14:00 ยังไม่ยืนยัน, เป้าคือส่งให้ได้ภายใน 13:15)
 | เวลา | งาน |

@@ -2,10 +2,11 @@ import { Bed, Bot, Coins, Moon, Shield, Smartphone, Store, Sun, UserRound, Volum
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { t } from '../copy';
 import { LANDING_SCENES, landingPreview, type LandingPreview } from '../lib/landing';
+import { hrefFor, isPlainClick } from '../lib/route';
 import { speak, stopVoice } from '../lib/voice';
 import { useApp } from '../state';
 import { Ambient } from './Ambient';
-import { LangButton } from './Header';
+import { HomeLink, LangButton } from './Header';
 import { Logo, cx } from './ui';
 import type { SceneId } from '@topiapause/shared';
 
@@ -141,7 +142,7 @@ export function Onboarding() {
   const sceneRef = useRef(scene);
   sceneRef.current = scene;
   const scrollerRef = useRef<HTMLDivElement>(null);
-  const tabRefs = useRef<Partial<Record<SceneId, HTMLButtonElement | null>>>({});
+  const tabRefs = useRef<Partial<Record<SceneId, HTMLAnchorElement | null>>>({});
   const scrollLock = useRef(0);
 
   useEffect(() => () => stopVoice(), [scene]);
@@ -194,12 +195,12 @@ export function Onboarding() {
   return (
     <>
       <Ambient variant="landing" />
-      <div className="relative z-10 mx-auto min-h-full w-full max-w-xl overflow-y-auto px-5 pb-[max(env(safe-area-inset-bottom),2rem)] pt-[max(env(safe-area-inset-top),1.25rem)] text-[17px] leading-relaxed text-ink sm:px-8 sm:pt-10">
+      <div className="relative z-10 mx-auto min-h-dvh w-full max-w-xl px-5 pb-[max(env(safe-area-inset-bottom),2rem)] pt-[max(env(safe-area-inset-top),1.25rem)] text-[17px] leading-relaxed text-ink sm:px-8 sm:pt-10">
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
+          <HomeLink className="inline-flex">
             <Logo size={28} />
             <span className="text-[17px] font-semibold">TopiaPause</span>
-          </div>
+          </HomeLink>
           <div className="flex items-center">
             <button
               type="button"
@@ -232,7 +233,7 @@ export function Onboarding() {
             </Bubble>
           )}
           {step >= 2 && (
-            <Bubble side="agent" name={preview.agentLabel} initial="U">
+            <Bubble side="agent" name={preview.agentLabel} initial="AI">
               {preview.agent}
             </Bubble>
           )}
@@ -252,28 +253,34 @@ export function Onboarding() {
             const Icon = SCENE_ICON[id];
             const selected = scene === id;
             return (
-              <button
+              <a
                 key={id}
                 ref={(node) => {
                   tabRefs.current[id] = node;
                 }}
-                type="button"
+                href={hrefFor('chat', id)}
                 role="tab"
                 id={`landing-scene-${id}`}
                 data-scene={id}
                 aria-selected={selected}
                 aria-controls="landing-hero"
                 tabIndex={selected ? 0 : -1}
-                onClick={() => focusScene(id, false)}
+                onClick={(e) => {
+                  if (!isPlainClick(e)) return;
+                  e.preventDefault();
+                  if (selected) dispatch({ type: 'onboard', scene: id });
+                  else focusScene(id, false);
+                }}
                 className={cx(
                   'flex w-[85%] shrink-0 snap-start flex-col items-start gap-1 rounded-card border bg-surface px-4 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink md:w-auto',
                   selected ? 'border-ink shadow-card' : 'border-line',
+                  'no-underline',
                 )}
               >
                 <Icon size={22} aria-hidden="true" />
                 <span className="text-[17px] font-semibold leading-snug">{card.chip}</span>
                 <span className="text-[17px] leading-snug">{card.hint}</span>
-              </button>
+              </a>
             );
           })}
         </div>
@@ -290,15 +297,21 @@ export function Onboarding() {
           })}
         </div>
 
-        <button
-          type="button"
-          onClick={() => dispatch({ type: 'onboard', scene })}
-          className="btn-gradient text-on-brand mt-2 inline-flex min-h-12 w-full items-center justify-center rounded-control px-4 text-[17px] font-semibold"
+        <a
+          href={hrefFor('chat', scene)}
+          onClick={(e) => {
+            if (!isPlainClick(e)) return;
+            e.preventDefault();
+            dispatch({ type: 'onboard', scene });
+          }}
+          className="btn-gradient text-on-brand mt-2 inline-flex min-h-12 w-full items-center justify-center rounded-control px-4 text-[17px] font-semibold no-underline"
         >
           {t(lang, 'onbCta')}
-        </button>
+        </a>
         <FlowLine lang={lang} />
         <p className="mt-3 text-center text-[17px]">{t(lang, 'sandbox')}</p>
+        <p className="mt-2 text-center text-[17px]">{t(lang, 'partner')}</p>
+        <p className="mt-1 text-center text-[15px] text-muted">{t(lang, 'mockNote')}</p>
       </div>
     </>
   );

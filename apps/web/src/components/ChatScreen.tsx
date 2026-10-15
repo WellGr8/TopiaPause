@@ -84,7 +84,7 @@ function Item({ item }: { item: ChatItem }) {
 }
 
 export function ChatScreen() {
-  const { state } = useApp();
+  const { state, dispatch } = useApp();
   const { send, sendInjection } = useChatFlow();
   const savings = useSavings();
   const { lang } = state;
@@ -132,7 +132,8 @@ export function ChatScreen() {
     if (!ticket || !scene || openedTickets.has(ticket)) return;
     openedTickets.add(ticket);
     void send(SCENES[scene].userText[lang], scene);
-  }, [state.openTicket, state.openScene, lang, send]);
+    dispatch({ type: 'consumeOpen' });
+  }, [state.openTicket, state.openScene, lang, send, dispatch]);
 
   const sceneChip = (id: (typeof SCENE_ORDER)[number]) => ({ id, label: SCENES[id].chip[lang], run: () => send(SCENES[id].userText[lang], id) });
   const [first, ...rest] = SCENE_ORDER.map(sceneChip);

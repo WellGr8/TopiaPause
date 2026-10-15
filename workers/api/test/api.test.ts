@@ -101,7 +101,7 @@ describe('GET /api/health', () => {
   it('reports fallback modes without keys', async () => {
     const res = await call('/api/health');
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ok: true, llm: 'scripted', tts: 'unavailable', stt: 'unavailable', agent: 'U-Bot (mock)', marketData: 'sample' });
+    expect(await res.json()).toMatchObject({ ok: true, llm: 'scripted', tts: 'unavailable', stt: 'unavailable', agent: 'AI assistant (demo)', marketData: 'sample' });
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
     expect(res.headers.get('Referrer-Policy')).toBe('no-referrer');
   });

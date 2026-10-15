@@ -12,7 +12,7 @@ import type {
 
 // Mock catalogs for the three demo scenes. All prices are fixed sandbox values.
 
-export const MOCK_AGENT = { name: 'U-Bot (mock)', adapter: 'mock' } as const;
+export const MOCK_AGENT = { name: 'AI assistant (demo)', adapter: 'mock' } as const;
 
 export interface ScenePreset {
   id: SceneId;
@@ -134,7 +134,7 @@ export const SCENES: Record<SceneId, ScenePreset> = {
     },
     reply: {
       th: 'ได้ครับ จะแลก 500 USDT เป็น TOKEN-X และให้สิทธิ์ถอน USDT ได้ไม่จำกัด ครั้งหน้าจะได้เร็วขึ้นครับ',
-      en: "Sure. Swapping 500 USDT into TOKEN-X, and I'll request unlimited USDT approval so next time is faster.",
+      en: "Sure. Swapping 500 USDT into TOKEN-X, and I'll set unlimited USDT withdrawal permission so next time is faster.",
     },
     buildProposal: (opts) => swapProposal(opts?.amountMinor),
     intent: {

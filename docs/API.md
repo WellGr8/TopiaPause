@@ -13,7 +13,7 @@ One Cloudflare Worker serves the web app and these JSON endpoints under `/api/*`
 | `POST /api/session` | Mints a 10-minute session bound to the User-Agent | same origin | 120 / min |
 | `POST /api/policy` | The user's own app mints a signed policy token | same origin + session | 120 / min |
 | `POST /api/confirm` | The user app confirms the counter-offer of a paused verdict | same origin + session | 120 / min |
-| `POST /api/agent/chat` | U-Bot (mock): turns a message into an `AgentProposal` (LLM or scripted) | same origin + session | 20 / min (own budget) |
+| `POST /api/agent/chat` | AI assistant (demo): turns a message into an `AgentProposal` (LLM or scripted) | same origin + session | 20 / min (own budget) |
 | `POST /api/agent/execute` | Mock execution of a proposal a verdict ticket cleared | any origin | 120 / min |
 | `POST /api/voice/tts` | ElevenLabs speech for an engine voice line, streamed as `audio/mpeg` | same origin + session | 20 / min (own budget) |
 | `POST /api/voice/stt` | ElevenLabs Scribe transcript of a short reply | same origin + session | 10 / min (own budget) |
@@ -111,7 +111,7 @@ Output from a local `wrangler dev` run (money in minor units; `check.estCostTHB_
 ## `GET /api/health`
 
 ```json
-{ "ok": true, "engineVersion": "0.2.0", "agent": "U-Bot (mock)", "llm": "scripted", "tts": "unavailable", "stt": "unavailable", "marketData": "sample" }
+{ "ok": true, "engineVersion": "0.2.0", "agent": "AI assistant (demo)", "llm": "scripted", "tts": "unavailable", "stt": "unavailable", "marketData": "sample" }
 ```
 
 - `llm` is `"llm"` when `LLM_API_KEY` and `LLM_MODEL` are set, otherwise `"scripted"`.
@@ -172,7 +172,7 @@ Any agent can call this **before** it spends. Two body shapes; both require `use
 
 The web app's injection chip sends the same `sources` shape: `{ kind: "web_page", url, text }`.
 
-### Full proposal (what U-Bot sends)
+### Full proposal (what an assistant sends)
 
 `{ userMessage, proposal, lang?, policyToken?, sources? }` where `proposal` is `subscription` | `stay` | `token_swap` with money already in minor units (`feePpm` and `gas: Money` on a swap, not `feeRate` / `gasUsd`).
 
@@ -212,7 +212,7 @@ const verdict = await fetch('https://topiapause.<you>.workers.dev/api/guard/chec
 
 ## `POST /api/agent/chat`
 
-U-Bot (mock). With `LLM_API_KEY` + `LLM_MODEL` it calls any OpenAI-compatible `POST {LLM_BASE_URL}/chat/completions` (`temperature` 0.2, `max_tokens` 160, 12 s). The model returns a kind and slots, not a price. The Worker builds the proposal from the sandbox catalog. A why-question (`ทำไม`, `why`, or `แพง` with no scene words such as a hotel, an app, or USDT) is answered from the signed `verdictId` before any model call; the browser's wording is ignored. A restaurant or a table (`ร้านอาหาร`, `โต๊ะ`, `กินข้าว`) is not a hotel: the reply names all three chips and attaches none. Only a message that names USDT becomes a catalog swap. ETH, BTC, and a transfer of another coin get a plain reply that this demo swaps USDT → TOKEN-X, plus the chip `แลก 500 USDT ครั้งเดียว`. An all-in USDT swap is capped at the spendable balance so the guard can pause it. Other chat uses the model's reply when it has no digits, at most two sentences, and no banned words; otherwise the reply names the closest chip (hotel, USDT swap, or app). The request may include the last 4 turns and `verdictId`. No key, a timeout, the daily cap, or invalid JSON falls back to the scripted mock (`source: "scripted"`).
+AI assistant (demo). With `LLM_API_KEY` + `LLM_MODEL` it calls any OpenAI-compatible `POST {LLM_BASE_URL}/chat/completions` (`temperature` 0.2, `max_tokens` 160, 12 s). The model returns a kind and slots, not a price. The Worker builds the proposal from the sandbox catalog. A why-question (`ทำไม`, `why`, or `แพง` with no scene words such as a hotel, an app, or USDT) is answered from the signed `verdictId` before any model call; the browser's wording is ignored. A restaurant or a table (`ร้านอาหาร`, `โต๊ะ`, `กินข้าว`) is not a hotel: the reply names all three chips and attaches none. Only a message that names USDT becomes a catalog swap. ETH, BTC, and a transfer of another coin get a plain reply that this demo swaps USDT → TOKEN-X, plus the chip `แลก 500 USDT ครั้งเดียว`. An all-in USDT swap is capped at the spendable balance so the guard can pause it. Other chat uses the model's reply when it has no digits, at most two sentences, and no banned words; otherwise the reply names the closest chip (hotel, USDT swap, or app). The request may include the last 4 turns and `verdictId`. No key, a timeout, the daily cap, or invalid JSON falls back to the scripted mock (`source: "scripted"`).
 
 Needs `Origin` and a session (`tp_session` cookie or `X-TopiaPause-Session`). Over the daily cap the route stays on the scripted mock.
 

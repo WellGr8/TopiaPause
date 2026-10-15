@@ -144,7 +144,7 @@ Visa Intelligent Commerce, Mastercard Agent Pay, OpenAI Instant Checkout (ACP), 
 2. ตรวจ schema ของ JSON ทุกจุด ถ้าไม่ผ่านให้ fallback ไปใช้ preset
 3. LLM สั่ง execute เองไม่ได้ ต้องมีการยืนยันจากผู้ใช้เสมอ
 4. แสดง assumptions และระบุว่า "ไม่ใช่คำแนะนำการลงทุน"
-5. ป้าย **"Mock U-Bot · Sandbox · No real money"** มองเห็นได้ตลอด
+5. ป้ายผู้ช่วยจำลองและข้อความว่าไม่มีเงินจริง มองเห็นได้ตลอด u.bot เป็นพาร์ตเนอร์ผ่าน SDK
 
 ---
 
@@ -178,7 +178,7 @@ Visa Intelligent Commerce, Mastercard Agent Pay, OpenAI Instant Checkout (ACP), 
 
 ### 5.3 Mock Honesty
 
-- UI แชทเลียนแบบรูปแบบ U-Bot แต่ใช้ชื่อ **"U-Bot (mock)"** และไม่ใช้โลโก้ทางการถ้ายังไม่ได้รับอนุญาต
+- UI แชทใช้ชื่อ **"ผู้ช่วย AI (จำลอง)" / "AI assistant (demo)"** ไม่ใช้ u.bot เป็นตัวละครที่กำลังจะจ่าย และไม่ใช้โลโก้ทางการถ้ายังไม่ได้รับอนุญาต
 - ประโยคบนเวที: "U-Bot here is a mock powered by an LLM. TopiaPause talks to it through a guard API contract, so plugging in the real U-Bot only needs an adapter."
 - ถ้า mentor ให้ API จริง ให้เขียน adapter ตาม contract ในหัวข้อ 9.4 แต่ **ห้ามทำรายการด้วยเงินจริง**
 
@@ -303,7 +303,7 @@ Visa Intelligent Commerce, Mastercard Agent Pay, OpenAI Instant Checkout (ACP), 
 **AgentProposal**
 | Field | ความหมาย |
 |---|---|
-| proposalId, agent | ระบุตัว เช่น "U-Bot (mock)" |
+| proposalId, agent | ระบุตัว เช่น "AI assistant (demo)" |
 | actionType | `subscription` / `booking` / `token_swap` |
 | merchant / item | ชื่อแอป, โรงแรม หรือคู่โทเคน |
 | amount, currency, totalPrice | ราคารวม fees |
@@ -364,7 +364,7 @@ Visa Intelligent Commerce, Mastercard Agent Pay, OpenAI Instant Checkout (ACP), 
 ### ฉาก 1: "ลองแอปนี้ดู" → annual plan (Subscription)
 
 - **ผู้ใช้ (เสียง):** "ช่วยสมัครแอปแต่งรูป PixelPro ให้หน่อย อยากลองดู"
-- **U-Bot (mock):** "สมัคร PixelPro Annual ฿3,990/ปี ต่ออายุอัตโนมัติ ให้เลยนะครับ"
+- **ผู้ช่วย AI (จำลอง):** "สมัคร PixelPro Annual ฿3,990/ปี ต่ออายุอัตโนมัติ ให้เลยนะครับ"
 - **TopiaPause → PAUSE** (S1, S2: cap ฿300/เดือน แต่ annual ≈ ฿332.50/เดือน และต้องจ่ายล่วงหน้า ฿3,990)
 - **เสียง (TH):** "เดี๋ยวก่อนครับ คุณบอกว่าอยากลอง แต่นี่คือแพ็กเกจรายปี ฿3,990 ที่ต่ออายุอัตโนมัติ ทางที่ตรงกว่าคือทดลองฟรี 7 วัน แล้วรายเดือน ฿299 ซึ่งผมจะเตือนก่อนตัดเงิน"
 - **Alternative:** free trial 7 วัน + monthly ฿299 (≤ cap ฿300) + reminder ก่อนตัดเงิน → re-check ได้ ALLOW (ไม่ผูกมัดเกินเจตนาและไม่เกิน cap)
@@ -397,7 +397,7 @@ Visa Intelligent Commerce, Mastercard Agent Pay, OpenAI Instant Checkout (ACP), 
 ### 11.1 Scope
 **MUST** (เกณฑ์ execution + practicality 80%)
 
-1. UI แชทแบบ U-Bot (mock) + Guardian cards inline
+1. UI แชทแบบผู้ช่วย AI (จำลอง) + Guardian cards inline
 2. Rules engine (S1, S2, H1, H2, C1, C2, C3, G1) + alternative + re-check + unit tests ≥ 12 เคส
 3. LLM: intent extraction + mock proposal + explanation (พร้อม number check) ผ่าน Worker
 4. 3 ฉากที่มีทั้ง preset buttons (fallback) และการพิมพ์อิสระ

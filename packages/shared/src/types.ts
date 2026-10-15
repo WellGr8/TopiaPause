@@ -356,7 +356,7 @@ export interface ApiError {
 
 // ---- U-Bot adapter (§7) ----
 export interface UBotAdapter {
-  readonly label: 'U-Bot (mock)' | 'U-Bot';
+  readonly label: 'AI assistant (demo)' | 'U-Bot';
   chat(input: { sessionId: string; message: string; scene?: SceneId; lang: Lang }): Promise<{
     reply: string;
     proposal?: AgentProposal;
