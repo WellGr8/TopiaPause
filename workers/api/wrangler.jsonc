@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "topiapause",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-15",
+  "compatibility_flags": ["nodejs_compat"],
+  // Option A (ARCHITECTURE §9): one Worker serves the SPA build and /api/* on a single URL, so no CORS is needed.
+  "assets": {
+    "directory": "../../apps/web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "head_sampling_rate": 1 },
+    "traces": { "enabled": true, "head_sampling_rate": 0.1 }
+  },
+  // Non-secret config only. Secrets (LLM_API_KEY, ELEVENLABS_API_KEY, TOKENOMIST_API_KEY)
+  // go in .dev.vars locally and `wrangler secret put <NAME>` in production.
+  "vars": {
+    "LLM_MODEL": "",
+    "ELEVENLABS_VOICE_TH": "",
+    "ELEVENLABS_VOICE_EN": "",
+    "ELEVENLABS_MODEL_TH": "eleven_v3",
+    "ELEVENLABS_MODEL_EN": "eleven_flash_v2_5",
+    "ALLOWED_ORIGIN": ""
+  }
+}

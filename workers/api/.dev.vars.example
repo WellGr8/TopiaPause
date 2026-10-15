@@ -1,0 +1,5 @@
+# Copy to .dev.vars (git-ignored) for `pnpm dev:worker`. Never commit real values.
+# All keys are optional: without them the API answers with deterministic scripted mocks.
+LLM_API_KEY=
+ELEVENLABS_API_KEY=
+TOKENOMIST_API_KEY=
