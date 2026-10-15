@@ -10,7 +10,7 @@ One Cloudflare Worker serves the web app and these JSON endpoints under `/api/*`
 |---|---|---|---|
 | `GET /api/health` | Feature detection: engine version and which integrations are live | any origin | – |
 | `POST /api/guard/check` | **Public guard API.** Any agent sends a proposal; TopiaPause decides | any origin | 120 / min |
-| `POST /api/session` | Mints a 10-minute session bound to this client | same origin | 120 / min |
+| `POST /api/session` | Mints a 10-minute session bound to the User-Agent | same origin | 120 / min |
 | `POST /api/policy` | The user's own app mints a signed policy token | same origin + session | 120 / min |
 | `POST /api/confirm` | The user app confirms the counter-offer of a paused verdict | same origin + session | 120 / min |
 | `POST /api/agent/chat` | U-Bot (mock): turns a message into an `AgentProposal` (LLM or scripted) | same origin + session | 20 / min (own budget) |
@@ -22,7 +22,7 @@ One Cloudflare Worker serves the web app and these JSON endpoints under `/api/*`
 - Bodies must be `Content-Type: application/json` and at most **32 KB**.
 - Money is integer **minor units**: satang (THB), cents (USD), micro-USDT (6 decimals). The generic agent schema also accepts an exact decimal string (`"3990.00"`); extra decimals are rejected (`THB has 2 decimals`).
 - An agent must not send `policy` or `intent`. Both are rejected before the engine runs.
-- Chat, TTS, policy, and confirm need a browser session. `POST /api/session` with `Origin` equal to this Worker (or `ALLOWED_ORIGIN`) and `Sec-Fetch-Site` of `same-origin` or `none` returns a token. Send it as `X-TopiaPause-Session`. The token is bound to `CF-Connecting-IP` and a hash of `User-Agent`, and lasts 10 minutes.
+- Chat, TTS, policy, and confirm need a browser session. `POST /api/session` with `Origin` equal to this Worker (or `ALLOWED_ORIGIN`) and `Sec-Fetch-Site` of `same-origin` or `none` returns a token and sets `Set-Cookie: tp_session=...; HttpOnly; Secure; SameSite=Strict; Path=/api; Max-Age=600`. Later requests send that cookie, or the same token as `X-TopiaPause-Session` (the cookie is read first). The token is an HMAC bound to a SHA-256 hash of `User-Agent` only, not to `CF-Connecting-IP`, and lasts 10 minutes. An IP change (iCloud Private Relay, WARP, a mobile network, rotating egress) keeps the session. A different User-Agent, or a token issued before this binding (`v: 1`), is `403 invalid_session`. No cookie and no header is `403 session_required`. Rate limits stay per IP.
 - A missing `Origin`, a different `Origin`, or `Sec-Fetch-Site: cross-site` is `403 forbidden_origin` on those routes. `DEV=1` in local `.dev.vars` is the only way a missing Origin is accepted. Do not set `DEV` in production.
 - Chat and TTS each have their own 20/minute budget per IP (isolate counter keyed by path, and the paid rate-limit binding keyed `chat:<ip>` vs `tts:<ip>`). A shared daily cap (`PAID_DAILY_MAX`, default 300, per isolate) stops further LLM and ElevenLabs calls.
 - `guard/check` and `health` stay open to any origin. `guard/check` never calls an LLM (`llmCalls` is 0). Execute stays open so the agent can run an allow, or a counter-offer the user app confirmed. The paused original is never confirmed and never executed through the API.
@@ -43,7 +43,7 @@ One Cloudflare Worker serves the web app and these JSON endpoints under `/api/*`
 | 400 | `original_not_confirmable` | `POST /api/confirm` was asked to confirm the paused original. Only `counter_offer` is confirmable |
 | 400 | `tts_text_rejected` | TTS text is not an engine voice line (or the clip id is unknown). Text is capped at 300 characters |
 | 403 | `forbidden_origin` | Chat, TTS, policy, confirm, or session with no Origin, a disallowed Origin, or `Sec-Fetch-Site: cross-site` |
-| 403 | `session_required`, `invalid_session` | Those routes (except session itself) without a valid `X-TopiaPause-Session` |
+| 403 | `session_required`, `invalid_session` | Those routes (except session itself) with no `tp_session` cookie and no `X-TopiaPause-Session`, or a token that is expired, the wrong version, or bound to a different User-Agent |
 | 403 | `unknown_verdict`, `expired_verdict`, `proposal_not_cleared` | Execute: forged, expired (> 10 min), a proposal the check did not clear, or the paused original |
 | 403 | `confirmation_required` | The paused counter-offer executed without a confirmation token |
 | 404 / 405 | `not_found`, `method_not_allowed` | Unknown route or wrong method |
@@ -209,7 +209,7 @@ const verdict = await fetch('https://topiapause.<you>.workers.dev/api/guard/chec
 
 U-Bot (mock). With `LLM_API_KEY` + `LLM_MODEL` it calls any OpenAI-compatible `POST {LLM_BASE_URL}/chat/completions`. Portfolio, catalog, `feePpm` and `gas` are restored from the sandbox catalog after parsing, so the model cannot invent them. No key, a timeout (12 s) or invalid output falls back to the scripted mock (`source: "scripted"`).
 
-Needs `Origin` and `X-TopiaPause-Session`. Over the daily cap the route stays on the scripted mock.
+Needs `Origin` and a session (`tp_session` cookie or `X-TopiaPause-Session`). Over the daily cap the route stays on the scripted mock.
 
 ```bash
 curl -X POST http://127.0.0.1:8787/api/agent/chat -H 'Content-Type: application/json' \

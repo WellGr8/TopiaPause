@@ -75,15 +75,26 @@ printf '\n\033[1m▶ verdict ticket\033[0m  userConfirmed alone is 403; the app 
 python3 - "$BASE" "$DIR/crypto.json" <<'PY'
 import json, sys, urllib.error, urllib.request
 base, path = sys.argv[1], sys.argv[2]
+# Cloudflare rejects urllib's default User-Agent (error 1010). Carry the session cookie once minted.
+session_cookie = None
+def remember(res):
+    global session_cookie
+    raw = res.headers.get("Set-Cookie")
+    if raw and raw.startswith("tp_session="):
+        session_cookie = raw.split(";", 1)[0]
 def post(route, body, headers=None):
-    h = {"Content-Type": "application/json"}
+    h = {"Content-Type": "application/json", "User-Agent": "curl/8.5.0"}
+    if session_cookie:
+        h["Cookie"] = session_cookie
     if headers:
         h.update(headers)
     req = urllib.request.Request(base + route, data=json.dumps(body).encode(), headers=h)
     try:
         with urllib.request.urlopen(req) as res:
+            remember(res)
             return res.status, json.load(res)
     except urllib.error.HTTPError as e:
+        remember(e)
         return e.code, json.load(e)
 bare, bare_body = post("/api/agent/chat", {"message": "hi", "lang": "en"})
 print(f"chat without origin HTTP {bare} {bare_body.get('error', {}).get('code')}")

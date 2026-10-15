@@ -18,7 +18,7 @@ import { genericToProposal } from './generic';
 import { HttpError, assertSameOrigin, corsHeaders, isolateRateLimit, json, log, parseJson, rateLimit, readBody, readJson, type AppEnv } from './http';
 import { llmChat, llmConfigured } from './llm';
 import { AgentChatRequest, ConfirmRequest, ExecuteRequest, GenericCheck, PolicyRequest, ProposalCheck, TtsRequest } from './schemas';
-import { issueConfirmation, issueTicket, mintPolicyToken, mintSession, policyFrom, redeemTicket, verifySession } from './signing';
+import { issueConfirmation, issueTicket, mintPolicyToken, mintSession, policyFrom, redeemTicket, sessionCookie, verifySession } from './signing';
 import { upcomingUnlocks, type MarketFetch } from './tokenomist';
 import { tts, ttsConfigured } from './tts';
 import { resolveTts } from './voiceAllow';
@@ -112,7 +112,8 @@ async function issueSession(req: Request, env: AppEnv): Promise<Response> {
     throw new HttpError(403, 'forbidden_origin', 'Sessions are issued to the TopiaPause app only');
   }
   assertSameOrigin(req, env);
-  return json(await mintSession(env, req));
+  const minted = await mintSession(env, req);
+  return json(minted, 200, { 'Set-Cookie': sessionCookie(minted.session) });
 }
 
 async function policyToken(req: Request, env: AppEnv): Promise<Response> {
@@ -184,7 +185,7 @@ export async function handleApi(req: Request, env: AppEnv, ctx?: ExecutionContex
       throw known ? new HttpError(405, 'method_not_allowed', 'Method not allowed') : new HttpError(404, 'not_found', 'Unknown API route');
     }
     if (route.session || route.app) assertSameOrigin(req, env);
-    if (route.session) await verifySession(env, req, req.headers.get('X-TopiaPause-Session'));
+    if (route.session) await verifySession(env, req);
     if (route.bucket === 'paid') isolateRateLimit(req, url.pathname);
     if (route.paidKey) await rateLimit(env.RATE_LIMITER_PAID, req, route.paidKey);
     else if (route.bucket) await rateLimit(env.RATE_LIMITER, req, route.bucket);
