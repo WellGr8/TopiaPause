@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { t } from '../copy';
 import { protectedCurrency, verdictFor } from '../lib/guard';
 import { approvedLine, offerOf, reasonLine, sortedFindings } from '../lib/summary';
-import { speak, stopVoice } from '../lib/voice';
+import { speak, speakClip, stopVoice } from '../lib/voice';
 import type { GuardRun } from '../state';
 import { Button, Card, Status, TextButton, WaveStrip, Waveform, cx } from './ui';
 
@@ -32,6 +32,23 @@ function useVoice(run: GuardRun, text: string, lang: Lang, clipId?: string) {
   return { state, toggle };
 }
 
+/** After the counter-offer's receipt, plays the pre-generated confirmation clip once (silent without one). */
+function useConfirmClip(run: GuardRun, voiceText: string, lang: Lang, clipId?: string) {
+  const [speaking, setSpeaking] = useState(false);
+  const due = run.stage === 'done' && run.choice === 'counter_offer' && Boolean(run.receiptId) && Boolean(clipId);
+  useEffect(() => {
+    const key = `${run.runId}:confirm`;
+    if (!due || autoplayed.has(key)) return;
+    autoplayed.add(key);
+    void speakClip(
+      { clipId: clipId!, lang, voiceText, line: 'confirm' },
+      { onStart: () => setSpeaking(true), onEnd: () => setSpeaking(false), onBlocked: () => setSpeaking(false) },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [due, run.runId]);
+  return speaking;
+}
+
 function Check() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" className="shrink-0 text-allow" aria-hidden="true">
@@ -55,7 +72,12 @@ export function GuardianCard({
   const verdict = useMemo(() => verdictFor(run, lang), [run, lang]);
   const offer = offerOf(verdict, lang);
   const voice = useVoice(run, verdict.voiceText[lang], lang, verdict.voiceText.clipId);
+  const confirming = useConfirmClip(run, verdict.voiceText[lang], lang, verdict.voiceText.clipId);
   const [open, setOpen] = useState(false);
+  const choose = (choice: 'counter_offer' | 'original' | 'cancel') => {
+    stopVoice();
+    onChoose(choice);
+  };
   const { decision } = verdict;
   const thinking = run.stage === 'checking' || run.stage === 'rechecking' || voice.state === 'speaking';
 
@@ -80,7 +102,7 @@ export function GuardianCard({
             : t(lang, 'doneCancel');
     return (
       <Card as="article" className="animate-enter overflow-hidden" aria-label={t(lang, 'guard')} role="status">
-        {run.stage === 'rechecking' ? <WaveStrip className="rounded-none" /> : <div className="h-0.5" />}
+        {run.stage === 'rechecking' || confirming ? <WaveStrip className="rounded-none" /> : <div className="h-0.5" />}
         <div className="px-5 pb-2 pt-4">
           <p className={cx('flex items-center gap-2 text-sm font-semibold', run.stage === 'done' && run.choice === 'counter_offer' ? 'text-allow' : 'text-muted')}>
             {run.stage === 'done' && run.choice === 'counter_offer' && <Check />}
@@ -151,23 +173,23 @@ export function GuardianCard({
         <div className="mt-5 flex gap-2">
           {offer ? (
             <>
-              <Button variant="primary" className="flex-[1.3] whitespace-nowrap" onClick={() => onChoose('counter_offer')}>
+              <Button variant="primary" className="flex-[1.3] whitespace-nowrap" onClick={() => choose('counter_offer')}>
                 {t(lang, 'useThis')}
               </Button>
-              <Button className="flex-1 whitespace-nowrap" onClick={() => onChoose('original')}>
+              <Button className="flex-1 whitespace-nowrap" onClick={() => choose('original')}>
                 {t(lang, 'proceed')}
               </Button>
             </>
           ) : decision === 'allow' ? (
-            <Button variant="primary" full onClick={() => onChoose('original')}>
+            <Button variant="primary" full onClick={() => choose('original')}>
               {t(lang, 'confirm')}
             </Button>
           ) : blocked ? (
-            <Button variant="primary" full onClick={() => onChoose('cancel')}>
+            <Button variant="primary" full onClick={() => choose('cancel')}>
               {t(lang, 'cancel')}
             </Button>
           ) : (
-            <Button full onClick={() => onChoose('original')}>
+            <Button full onClick={() => choose('original')}>
               {t(lang, 'proceed')}
             </Button>
           )}
@@ -180,7 +202,7 @@ export function GuardianCard({
               ⌄
             </span>
           </TextButton>
-          {!blocked && <TextButton onClick={() => onChoose('cancel')}>{t(lang, 'cancel')}</TextButton>}
+          {!blocked && <TextButton onClick={() => choose('cancel')}>{t(lang, 'cancel')}</TextButton>}
         </div>
 
         {open && (
