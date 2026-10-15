@@ -6,6 +6,10 @@
 
 The first screen is written for older adults and for people new to crypto transactions: plain words, a spoken warning, and large tap targets. The product never labels its visitors that way.
 
+## Integrate in 5 minutes
+
+U-Bot calls `guard.check()` before it pays, then `guard.confirm()` only for the safer option. The client is `@topiapause/guard-client` (no dependencies). A rules-only check costs about **฿0.01** and makes **0 AI calls**. u.bot has no public API, so this is the proposed integration and the demo runs it with a mock labelled **U-Bot (จำลอง)**. The request, the response, and the ten-line snippet are in [docs/UBOT-INTEGRATION.md](docs/UBOT-INTEGRATION.md).
+
 TopiaPause is a guard layer for AI agents that spend money for you. Before an agent pays, subscribes, books or approves, TopiaPause compares **what you said** with **what the agent is about to do**. If they don't match, it pauses, warns you out loud in Thai or English, and offers an alternative that fits what you meant. It re-checks that alternative, and nothing happens until you confirm.
 
 **AI proposes, rules decide, you sign.** The LLM handles language. Every number comes from a deterministic, unit-tested rules engine.
@@ -74,7 +78,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for diagrams, data contracts an
 | U-Bot / u.bot | **Simulated.** u.bot has no public API, so the agent role is a stand-in. The four demo chips use a deterministic script. Free-text `POST /api/agent/chat` calls an OpenAI-compatible LLM only when `LLM_API_KEY` + `LLM_MODEL` are set, and catalog prices and the portfolio are restored afterwards. Without a key, chat stays scripted. |
 | Tokenomist | **Sample data** in the demo. The unlock note is labelled "sample data, not live" unless `TOKENOMIST_API_KEY` is set. The note never changes the decision. |
 | Explanations | Number-locked TH/EN templates (`lockExplanation`). With an LLM key, a paraphrase is shown only when every number already came from the engine. |
-| Voice | Pregenerated ElevenLabs clips in `apps/web/public/audio/` (web-64k) play when their manifest text matches the engine line. Subscription and stay match. Crypto clips still say "$200" and the English injection clip still says "U-Bot", while the engine says "200 USDT" and "A web page told your AI to pick the yearly plan, but you only asked to try it". The player compares the text and, on a mismatch, falls back to live `POST /api/voice/tts` (an engine line only; needs `ELEVENLABS_API_KEY`) and then browser `speechSynthesis`. The Thai persona is male (ผม / ครับ) to match the Brian voice. |
+| Voice | Pregenerated ElevenLabs clips in `apps/web/public/audio/` (web-64k) play when their manifest text matches the engine line. Subscription and stay match. Crypto clips still say "$200" and the English injection clip still says "U-Bot", while the engine says "200 USDT" and "A web page told your AI to pick the yearly plan, but you only asked to try it". The player compares the text and, on a mismatch, falls back to live `POST /api/voice/tts` (an engine line only; needs `ELEVENLABS_API_KEY`) and then browser `speechSynthesis`. The Thai persona is male (ผม / ครับ) to match the Brian voice. On a pause, a mic button records up to 6 seconds and `POST /api/voice/stt` (Scribe v2, same key) maps the words to the recommended option or cancel. One more tap confirms. Speech never pays by itself. |
 | Execution and receipts | **Mock** (`POST /api/agent/execute`, `mode: 'mock'`, sandbox ref). No wallet, no payment. The cost meter and the receipt arithmetic are real. |
 | Web ↔ API | The web app feature-detects `/api/health`. With the Worker it calls the API; on plain Vite or offline it runs the same engine in the browser. |
 | Persistence | `localStorage` only (rules, activity, language, theme). |
@@ -93,6 +97,7 @@ workers/api/           Cloudflare Worker: serves apps/web/dist + /api/* (guard c
 scripts/               demo-curl.sh + guard/check payloads for the 3 stage scenes
 packages/guard-engine/ deterministic rules + a_max + number lock (+ tests)
 packages/shared/       types (ARCHITECTURE §5), TH/EN templates, scene catalogs, scripted U-Bot
+packages/guard-client/ zero-dependency client: createGuard().check() and .confirm()
 demo/voice/            voice lines (display / spoken / tagged) for the 3 scenes
 apps/web/public/audio/ pre-generated web-64k ElevenLabs clips + manifest.json
 docs/                  architecture, Thai summary, research, diagrams
@@ -216,7 +221,7 @@ Two limits of a `*.workers.dev` deploy:
 - Secrets (`POLICY_SIGNING_KEY`, `LLM_API_KEY`, `ELEVENLABS_API_KEY`, `TOKENOMIST_API_KEY`) live only in Worker secrets (production) or `workers/api/.dev.vars` (local, gitignored; start from `.dev.vars.example`). They are never in `wrangler.jsonc` `vars`, never bundled into the web app, never put in `VITE_*`, and never returned by any endpoint. `/api/health` only reports `llm: "llm" | "scripted"` and `tts: "elevenlabs" | "unavailable"`.
 - Without any key, every route still works: scripted U-Bot, browser speech, real guard engine.
 - If the web app is served from another origin, set `ALLOWED_ORIGIN`. Chat, TTS, policy, confirm, and session return 403 `forbidden_origin` when `Origin` is missing or is some other site, or when `Sec-Fetch-Site` is `cross-site`. Those routes (except session) need a session: `POST /api/session` sets `tp_session` (`HttpOnly; Secure; SameSite=Strict; Path=/api; Max-Age=600`) and returns the same token for `X-TopiaPause-Session`. The cookie is accepted first; the header still works. The token lasts 10 minutes and is bound to a hash of the User-Agent, not the IP, so Private Relay, WARP, and mobile networks can change the address without `invalid_session`. A different User-Agent is 403 `invalid_session`. No session is 403 `session_required`. Rate limits stay per IP. `guard/check` and `health` are open to any origin. `guard/check` does not call the LLM.
-- Chat and TTS have separate 20/minute budgets per IP. A per-isolate daily cap (`PAID_DAILY_MAX`, default 300) stops further upstream LLM and TTS calls. After deploy, the 21st paid call in a minute from one IP should be 429. Set spend limits on the OpenRouter and ElevenLabs accounts as well. Do not deploy this branch until `POLICY_SIGNING_KEY` is set with `openssl rand -base64 32 | wrangler secret put POLICY_SIGNING_KEY`.
+- Chat and TTS have separate 20/minute budgets per IP. Speech-to-text has its own 10/minute budget. A per-isolate daily cap (`PAID_DAILY_MAX`, default 300) stops further upstream LLM, TTS, and speech-to-text calls. After deploy, the 21st chat or TTS call in a minute from one IP should be 429, and the 11th speech-to-text call should be 429. Set spend limits on the OpenRouter and ElevenLabs accounts as well. Do not deploy this branch until `POLICY_SIGNING_KEY` is set with `openssl rand -base64 32 | wrangler secret put POLICY_SIGNING_KEY`.
 - `prefers-reduced-motion` keeps the top glow static.
 - After editing bindings, run `pnpm --filter @topiapause/api types`.
 

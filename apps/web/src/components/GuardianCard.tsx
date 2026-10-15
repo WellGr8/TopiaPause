@@ -9,6 +9,7 @@ import { speak, speakClip, stopVoice } from '../lib/voice';
 import type { GuardRun } from '../state';
 import { CostMeter, ReceiptSections, RiskNotes } from './GuardReceipt';
 import { Button, Card, Status, TextButton, WaveStrip, Waveform, cx } from './ui';
+import { VoiceReply } from './VoiceReply';
 
 type Voice = 'idle' | 'speaking' | 'blocked';
 
@@ -190,6 +191,8 @@ export function GuardianCard({
         )}
         {!offer && decision === 'pause' && <p className="mt-3 text-sm text-muted">{t(lang, 'noCounter')}</p>}
         {blocked && <p className="mt-3 text-sm text-block">{t(lang, 'blockedNote')}</p>}
+
+        {decision === 'pause' && <VoiceReply lang={lang} canCounter={Boolean(offer)} onConfirm={choose} />}
 
         <div className="mt-5 flex gap-2">
           {offer ? (

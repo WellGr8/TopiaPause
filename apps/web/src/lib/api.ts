@@ -8,7 +8,9 @@ import {
   type SceneId,
   type UntrustedSource,
   type UserPolicy,
+  type VoiceAction,
 } from '@topiapause/shared';
+import { ubotGuard } from './ubot';
 
 // Talks to the Worker API when it is reachable (feature-detected via /api/health).
 // Under plain `vite dev` there is no API, so callers fall back to the in-browser
@@ -36,7 +38,13 @@ export function apiHealth(): Promise<Health | null> {
 
 let sessionPromise: Promise<string | null> | undefined;
 
-/** One short-lived token for this tab. Chat, TTS, policy, and confirm send it back. */
+/** Tests reset the cached health and session probes. */
+export function resetApiCaches(): void {
+  healthPromise = undefined;
+  sessionPromise = undefined;
+}
+
+/** One short-lived token for this tab. Chat, TTS, policy, confirm, and speech-to-text send it back. */
 function appSession(): Promise<string | null> {
   sessionPromise ??= post<{ session: string }>('/api/session', {}, 8000, false)
     .then((r) => r?.session ?? null)
@@ -99,8 +107,16 @@ export async function apiGuardCheck(input: {
   if (!(await apiHealth())) return null;
   const token = await policyToken(input.policy);
   if (!token) return null;
-  const { policy: _policy, ...rest } = input;
-  return post<GuardVerdict>('/api/guard/check', { ...rest, policyToken: token });
+  try {
+    return await ubotGuard({ policyToken: token }).check<GuardVerdict>({
+      userMessage: input.userMessage,
+      proposal: input.proposal,
+      lang: input.lang,
+      sources: input.sources,
+    });
+  } catch {
+    return null;
+  }
 }
 
 export async function apiExecute(proposal: AgentProposal, verdictId: string, choice: 'original' | 'counter_offer'): Promise<Execution | null> {
@@ -109,9 +125,13 @@ export async function apiExecute(proposal: AgentProposal, verdictId: string, cho
   // Choosing the paused original returns null here, and the app finishes it as a local mock.
   let confirmation: string | undefined;
   if (choice === 'counter_offer') {
-    const conf = await post<{ confirmation: string }>('/api/confirm', { verdictId, choice: 'counter_offer' }, 8000, true);
-    if (!conf?.confirmation) return null;
-    confirmation = conf.confirmation;
+    const sessionToken = await appSession();
+    if (!sessionToken) return null;
+    try {
+      confirmation = (await ubotGuard({ sessionToken }).confirm({ verdictId, choice: 'counter_offer' })).confirmation;
+    } catch {
+      return null;
+    }
   }
   const r = await post<{ execution: Execution }>('/api/agent/execute', {
     proposal,
@@ -136,6 +156,28 @@ export async function apiTts(text: string, lang: Lang, clipId?: string): Promise
       signal: AbortSignal.timeout(15_000),
     });
     return r.ok && (r.headers.get('Content-Type') ?? '').startsWith('audio/') ? await r.blob() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** ElevenLabs transcript for a short reply, or null when the mic should step aside. */
+export async function apiStt(blob: Blob): Promise<{ transcript: string; action: VoiceAction } | null> {
+  const token = await appSession();
+  if (!token) return null;
+  try {
+    const type = (blob.type || 'audio/webm').split(';')[0] || 'audio/webm';
+    const r = await fetch('/api/voice/stt', {
+      method: 'POST',
+      headers: { 'Content-Type': type, 'X-TopiaPause-Session': token },
+      body: blob,
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!r.ok) return null;
+    const data = (await r.json()) as { transcript?: unknown; action?: unknown };
+    if (typeof data.transcript !== 'string') return null;
+    if (data.action !== 'counter_offer' && data.action !== 'cancel' && data.action !== 'unclear') return null;
+    return { transcript: data.transcript, action: data.action };
   } catch {
     return null;
   }

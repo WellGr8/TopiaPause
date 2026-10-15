@@ -26,6 +26,9 @@ importers:
       '@fontsource/ibm-plex-sans-thai':
         specifier: ^5.3.0
         version: 5.3.0
+      '@topiapause/guard-client':
+        specifier: workspace:*
+        version: link:../../packages/guard-client
       '@topiapause/guard-engine':
         specifier: workspace:*
         version: link:../../packages/guard-engine
@@ -72,6 +75,8 @@ importers:
       vite:
         specifier: ^8.3.4
         version: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)
+
+  packages/guard-client: {}
 
   packages/guard-engine:
     dependencies:

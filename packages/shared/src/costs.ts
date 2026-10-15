@@ -17,6 +17,12 @@ export const COSTS = {
   workerPerRequest: 300n,
   /** ElevenLabs voice is pre-generated once (scripts/pregen-voice.ts), so a check spends nothing on TTS. */
   ttsPerCheck: 0n,
+  /**
+   * Scribe v2 speech-to-text is $0.22 per audio hour.
+   * One reply is capped at 6 seconds: ceil(0.22e9 × 6 / 3600) = 366667 nano-USD.
+   * https://elevenlabs.io/pricing/api?price.section=speech_to_text
+   */
+  sttPerSixSec: 366_667n,
 } as const;
 
 export interface CostInput {
@@ -24,6 +30,8 @@ export interface CostInput {
   llmOutputTokens?: number;
   tokenomistCalls?: number;
   workerRequests?: number;
+  /** Speech-to-text replies. Not part of a guard check. */
+  sttCalls?: number;
 }
 
 export function estimateNanoUsd(i: CostInput): bigint {
@@ -32,6 +40,7 @@ export function estimateNanoUsd(i: CostInput): bigint {
     BigInt(i.llmOutputTokens ?? 0) * COSTS.llmOutputPerToken +
     BigInt(i.tokenomistCalls ?? 0) * COSTS.tokenomistPerCall +
     BigInt(i.workerRequests ?? 0) * COSTS.workerPerRequest +
+    BigInt(i.sttCalls ?? 0) * COSTS.sttPerSixSec +
     COSTS.ttsPerCheck
   );
 }

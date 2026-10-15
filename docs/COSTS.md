@@ -13,6 +13,7 @@ FX for the estimate is the fixed demo rate **USD/THB = 32.50** (`DEMO_FX_USD_THB
 | Tokenomist Standard | $249.95 / month for 50,000 calls ≈ **$0.005 / call** | [Tokenomist pricing](https://tokenomist.ai/pricing), [upcoming unlocks v5](https://docs.tokenomist.ai/api-documents/upcoming-unlock-events/v5). Failed calls are not charged. |
 | Cloudflare Workers | $0.30 / million requests = **$0.0000003 / request** (Paid plan, after the included 10M) | [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/) |
 | ElevenLabs voice | **$0 per check** | Clips are generated once by `scripts/pregen-voice.ts` ([ElevenLabs pricing](https://elevenlabs.io/pricing)). The check itself does not call TTS. |
+| ElevenLabs Scribe v2 (speech-to-text) | **$0.22 per audio hour** | [ElevenLabs API pricing, Speech to Text](https://elevenlabs.io/pricing/api?price.section=speech_to_text). A spoken reply is capped at 6 seconds, so one call is `0.22 × 6 / 3600 × 32.50 × 100 = 1.1916…` satang, which ceilings to **2 satang (฿0.02)**. No keyterm prompting and no entity detection, so those extras ($0.05 and $0.07 per hour) are not added. |
 
 Prices are stored as integer nano-USD (`1 USD = 1e9`).
 
@@ -26,6 +27,9 @@ The decision is rules, not a model. `/api/guard/check` makes **0 LLM calls**.
 | Crypto, Tokenomist cache hit or no key | 1 Worker request | 300 | **1** | same, plus `cached data` when a hit served it |
 | Crypto, one live Tokenomist fetch | 1 Worker request + 1 API call | 5,000,300 | **17** (฿0.17) | `1 data call · ≈฿0.17` |
 | Same check in the browser (API down) | nothing leaves the device | 0 | **0** | `Rule check on device · ≈฿0.00` |
+| Spoken reply (`POST /api/voice/stt`, ≤ 6 s) | 1 Scribe v2 call | 366,667 | **2** (฿0.02) | Not on the guard meter |
+
+Speech-to-text is a separate paid call. It is not added to `estimateCostThb` for a guard check, and `/api/guard/check` still makes **0 AI calls**. The 366,667 nano-USD figure is `ceil(0.22 × 1e9 × 6 / 3600)`, so the integer price does not understate the $0.22/hour rate.
 
 Worked example for the live fetch: `5,000,300 × 32.50 × 100 / 1e9 = 16.250975` satang, which ceilings to 17.
 

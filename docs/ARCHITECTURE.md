@@ -273,7 +273,7 @@ a_max = min( B , max(0, (c·(V − g) − H) / (c + (1 − c)·(1 − f))) )   /
 | `POST /api/agent/execute` | `{ proposal }` | `{ execution }` | Mock only; requires a prior verdict id + user confirm flag |
 | `POST /api/guard/check` | `{ userText, proposal, policy, lang, followUp? }` | `GuardVerdict` | LLM intent extraction → engine → re-check → LLM explain (number-locked) |
 | `POST /api/voice/tts` | `{ text, lang, clipId? }` | `audio/mpeg` | ElevenLabs proxy. TH → Eleven v3, EN → Flash v2.5. Cache by hash. Max 400 chars. Rate-limited. |
-| `POST /api/voice/stt` | audio blob, `lang` | `{ text }` | Optional, ElevenLabs Scribe (`language_code: tha`) |
+| `POST /api/voice/stt` | audio bytes (≤ 300 KB) | `{ transcript, action }` | ElevenLabs Scribe v2. Same-origin + session, 10/min, no stored audio. See [API.md](API.md). |
 | `GET /api/market/unlocks?symbol=` | — | `{ nextUnlock?, pctOfCirculating? }` | Optional Tokenomist proxy, cached 1 h |
 
 All endpoints:
@@ -303,6 +303,7 @@ Rules:
 - The pitch says "mock" until a real API exists.
 - The guard is called **before** `execute()`.
 - The guard never holds credentials.
+- The in-app mock calls `@topiapause/guard-client` (`guard.check` / `guard.confirm`). A real U-Bot would do the same. u.bot has no public API; the proposal is [docs/UBOT-INTEGRATION.md](UBOT-INTEGRATION.md).
 
 ---
 
@@ -313,7 +314,7 @@ Rules:
 | `LLM_API_KEY` | Worker secret | optional | OpenAI-compatible LLM (JSON output); scripted U-Bot without it |
 | `LLM_MODEL` | Worker var | `openai/gpt-4o-mini` | OpenRouter model id |
 | `LLM_BASE_URL` | Worker var | `https://openrouter.ai/api/v1` | OpenRouter chat completions |
-| `ELEVENLABS_API_KEY` | Worker secret | optional | TTS; browser speech without it |
+| `ELEVENLABS_API_KEY` | Worker secret | optional | TTS and speech-to-text; buttons and browser speech without it |
 | `ELEVENLABS_VOICE_ID` | Worker var | `nPczCjzI2devNBz1zQrb` | ElevenLabs voice id |
 | `ELEVENLABS_MODEL_ID` | Worker var | `eleven_v4` | ElevenLabs model id |
 | `ALLOWED_ORIGIN` | Worker var | optional | Extra origin for chat/TTS/execute; `guard/check` is open to all |

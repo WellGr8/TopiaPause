@@ -20,6 +20,7 @@ import { llmChat, llmConfigured } from './llm';
 import { AgentChatRequest, ConfirmRequest, ExecuteRequest, GenericCheck, PolicyRequest, ProposalCheck, TtsRequest } from './schemas';
 import { issueConfirmation, issueTicket, mintPolicyToken, mintSession, policyFrom, redeemTicket, sessionCookie, verifySession } from './signing';
 import { upcomingUnlocks, type MarketFetch } from './tokenomist';
+import { readAudio, sttConfigured, transcribe } from './stt';
 import { tts, ttsConfigured } from './tts';
 import { resolveTts } from './voiceAllow';
 
@@ -38,6 +39,7 @@ function health(env: AppEnv): Response {
     agent: ubot.label,
     llm: llmConfigured(env) ? 'llm' : 'scripted',
     tts: ttsConfigured(env) ? 'elevenlabs' : 'unavailable',
+    stt: sttConfigured(env) ? 'elevenlabs' : 'unavailable',
     marketData: env.TOKENOMIST_API_KEY ? 'tokenomist' : 'sample',
   });
 }
@@ -158,9 +160,14 @@ async function voiceTts(req: Request, env: AppEnv, ctx?: ExecutionContext): Prom
   return tts(env, resolveTts(body), ctx);
 }
 
+async function voiceStt(req: Request, env: AppEnv): Promise<Response> {
+  const audio = await readAudio(req);
+  return json(await transcribe(env, audio));
+}
+
 type Handler = (req: Request, env: AppEnv, ctx?: ExecutionContext) => Promise<Response> | Response;
 
-const ROUTES: Record<string, { handler: Handler; bucket?: 'api' | 'paid'; app?: boolean; session?: boolean; paidKey?: 'chat' | 'tts' }> = {
+const ROUTES: Record<string, { handler: Handler; bucket?: 'api' | 'paid'; app?: boolean; session?: boolean; paidKey?: 'chat' | 'tts' | 'stt'; isolateLimit?: number }> = {
   'GET /api/health': { handler: (_r, env) => health(env) },
   'POST /api/guard/check': { handler: guardCheck, bucket: 'api' },
   'POST /api/session': { handler: issueSession, bucket: 'api', app: true },
@@ -169,6 +176,7 @@ const ROUTES: Record<string, { handler: Handler; bucket?: 'api' | 'paid'; app?: 
   'POST /api/agent/chat': { handler: agentChat, bucket: 'paid', session: true, paidKey: 'chat' },
   'POST /api/agent/execute': { handler: execute, bucket: 'api' },
   'POST /api/voice/tts': { handler: voiceTts, bucket: 'paid', session: true, paidKey: 'tts' },
+  'POST /api/voice/stt': { handler: voiceStt, bucket: 'paid', session: true, paidKey: 'stt', isolateLimit: 10 },
 };
 
 export async function handleApi(req: Request, env: AppEnv, ctx?: ExecutionContext): Promise<Response> {
@@ -186,8 +194,9 @@ export async function handleApi(req: Request, env: AppEnv, ctx?: ExecutionContex
     }
     if (route.session || route.app) assertSameOrigin(req, env);
     if (route.session) await verifySession(env, req);
-    if (route.bucket === 'paid') isolateRateLimit(req, url.pathname);
-    if (route.paidKey) await rateLimit(env.RATE_LIMITER_PAID, req, route.paidKey);
+    if (route.bucket === 'paid') isolateRateLimit(req, url.pathname, route.isolateLimit);
+    if (route.paidKey === 'stt') await rateLimit(env.RATE_LIMITER_STT, req, 'stt');
+    else if (route.paidKey) await rateLimit(env.RATE_LIMITER_PAID, req, route.paidKey);
     else if (route.bucket) await rateLimit(env.RATE_LIMITER, req, route.bucket);
     res = await route.handler(req, env, ctx);
   } catch (e) {

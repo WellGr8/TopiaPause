@@ -98,7 +98,7 @@ describe('GET /api/health', () => {
   it('reports fallback modes without keys', async () => {
     const res = await call('/api/health');
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ok: true, llm: 'scripted', tts: 'unavailable', agent: 'U-Bot (mock)', marketData: 'sample' });
+    expect(await res.json()).toMatchObject({ ok: true, llm: 'scripted', tts: 'unavailable', stt: 'unavailable', agent: 'U-Bot (mock)', marketData: 'sample' });
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
     expect(res.headers.get('Referrer-Policy')).toBe('no-referrer');
   });
@@ -106,7 +106,7 @@ describe('GET /api/health', () => {
     const env = makeEnv({ LLM_API_KEY: 'sk-secret', LLM_MODEL: 'm', ELEVENLABS_API_KEY: 'xi-secret', ELEVENLABS_VOICE_ID: 'v', TOKENOMIST_API_KEY: 'tk-secret', POLICY_SIGNING_KEY: 'hmac-secret' });
     const text = await (await call('/api/health', {}, env)).text();
     expect(text).not.toContain('secret');
-    expect(JSON.parse(text)).toMatchObject({ llm: 'llm', tts: 'elevenlabs', marketData: 'tokenomist' });
+    expect(JSON.parse(text)).toMatchObject({ llm: 'llm', tts: 'elevenlabs', stt: 'elevenlabs', marketData: 'tokenomist' });
   });
 });
 
@@ -653,6 +653,104 @@ describe('POST /api/voice/tts', () => {
     const env = makeEnv({ ELEVENLABS_API_KEY: 'xi-test', ELEVENLABS_VOICE_ID: 'voice123', PAID_DAILY_MAX: '0' });
     const headers = await appHeaders(env);
     const res = await call('/api/voice/tts', { json: { clipId: 'crypto-pause', lang: 'en' }, headers }, env);
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as V).error.code).toBe('spend_cap');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/voice/stt', () => {
+  const clip = new Uint8Array([1, 2, 3, 4]);
+
+  function stt(headers: Record<string, string>, env?: AppEnv, body: BodyInit = clip) {
+    return call('/api/voice/stt', { method: 'POST', body, headers: { 'Content-Type': 'audio/webm', ...headers } }, env);
+  }
+
+  it('rejects a missing origin', async () => {
+    const res = await stt({});
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as V).error.code).toBe('forbidden_origin');
+  });
+
+  it('rejects a missing session', async () => {
+    const res = await stt({ Origin: ORIGIN, 'Sec-Fetch-Site': 'same-origin' });
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as V).error.code).toBe('session_required');
+  });
+
+  it('rejects a body over 300 KB', async () => {
+    const headers = await appHeaders();
+    const res = await stt(headers, undefined, new Uint8Array(300 * 1024 + 1));
+    expect(res.status).toBe(413);
+    expect(((await res.json()) as V).error.code).toBe('payload_too_large');
+  });
+
+  it('rejects a non-audio content type', async () => {
+    const headers = await appHeaders();
+    const res = await call('/api/voice/stt', { method: 'POST', body: clip, headers: { ...headers, 'Content-Type': 'text/plain' } });
+    expect(res.status).toBe(415);
+    expect(((await res.json()) as V).error.code).toBe('unsupported_media_type');
+  });
+
+  it('uses its own 10/minute rate limit', async () => {
+    const env = makeEnv({
+      RATE_LIMITER_STT: { limit: async () => ({ success: false }) },
+    });
+    const headers = await appHeaders(env);
+    const res = await stt(headers, env);
+    expect(res.status).toBe(429);
+    expect(((await res.json()) as V).error.code).toBe('rate_limited');
+    expect(res.headers.get('Retry-After')).toBe('60');
+  });
+
+  it('keeps a separate in-isolate budget from chat', async () => {
+    const headers = await appHeaders(makeEnv(), { 'CF-Connecting-IP': '203.0.113.40' });
+    for (let i = 0; i < 10; i++) expect((await stt(headers)).status).toBe(503);
+    const blocked = await stt(headers);
+    expect(blocked.status).toBe(429);
+    expect((await call('/api/agent/chat', { json: { message: 'hi', lang: 'en' }, headers })).status).toBe(200);
+  });
+
+  it('forwards audio to Scribe and returns the mapped action without logging the transcript', async () => {
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      const form = await new Request('https://stt.test', { method: 'POST', body: init.body }).formData();
+      expect(form.get('model_id')).toBe('scribe_v2');
+      expect(form.get('tag_audio_events')).toBe('false');
+      expect(form.get('file')).toBeInstanceOf(Blob);
+      return Response.json({ text: 'เอาอันที่แนะนำ', words: [{ text: 'secret-word' }] });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const env = makeEnv({ ELEVENLABS_API_KEY: 'xi-test' });
+    const headers = await appHeaders(env);
+    const res = await stt(headers, env);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ transcript: 'เอาอันที่แนะนำ', action: 'counter_offer' });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('https://api.elevenlabs.io/v1/speech-to-text');
+    expect((init.headers as Record<string, string>)['xi-api-key']).toBe('xi-test');
+    const logged = vi.mocked(console.log).mock.calls.map((c) => String(c[0])).join('\n');
+    expect(logged).not.toContain('เอาอันที่แนะนำ');
+    expect(logged).not.toContain('secret-word');
+    expect(logged).not.toContain('xi-test');
+  });
+
+  it('counts a successful call in the shared daily cap', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ text: 'ยกเลิก' })));
+    const env = makeEnv({ ELEVENLABS_API_KEY: 'xi-test', ELEVENLABS_VOICE_ID: 'voice123', PAID_DAILY_MAX: '1' });
+    const headers = await appHeaders(env);
+    const sttRes = await stt(headers, env);
+    expect(await sttRes.json()).toEqual({ transcript: 'ยกเลิก', action: 'cancel' });
+    const tts = await call('/api/voice/tts', { json: { clipId: 'subscription-pause', lang: 'th' }, headers }, env);
+    expect(tts.status).toBe(503);
+    expect(((await tts.json()) as V).error.code).toBe('spend_cap');
+  });
+
+  it('does not call ElevenLabs once the daily cap is spent', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const env = makeEnv({ ELEVENLABS_API_KEY: 'xi-test', PAID_DAILY_MAX: '0' });
+    const headers = await appHeaders(env);
+    const res = await stt(headers, env);
     expect(res.status).toBe(503);
     expect(((await res.json()) as V).error.code).toBe('spend_cap');
     expect(fetchMock).not.toHaveBeenCalled();

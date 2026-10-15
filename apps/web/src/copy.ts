@@ -122,6 +122,17 @@ const dict = {
   viewReceipt: { th: 'ดูใบเสร็จ', en: 'Receipt' },
   listen: { th: 'ฟัง', en: 'Listen' },
   stop: { th: 'หยุดเสียง', en: 'Stop' },
+  mic: { th: 'พูดตอบ', en: 'Speak your answer' },
+  micStop: { th: 'หยุดฟัง', en: 'Stop listening' },
+  voiceHeard: { th: 'ได้ยินว่า', en: 'Heard' },
+  voiceWillCounter: { th: 'จะใช้ทางเลือกที่แนะนำ', en: 'Will use the recommended option' },
+  voiceWillCancel: { th: 'จะยกเลิก ไม่มีการจ่าย', en: 'Will cancel. Nothing will be paid.' },
+  voiceTap: { th: 'แตะเพื่อยืนยัน', en: 'Tap to confirm' },
+  voiceUnclear: {
+    th: 'ยังไม่แน่ใจ ลองพูดอีกครั้งได้ครับ เช่น “เอาอันที่แนะนำ” หรือ “ยกเลิก”',
+    en: 'I didn’t catch that. Try again, for example “the recommended one” or “cancel”.',
+  },
+  voiceFallback: { th: 'ใช้ปุ่มด้านล่างได้เลย', en: 'Use the buttons below.' },
 
   // activity + receipt
   activity: { th: 'กิจกรรม', en: 'Activity' },

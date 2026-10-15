@@ -9,6 +9,8 @@ describe('apps/web/public/_headers', () => {
     expect(text).toContain('X-Frame-Options: DENY');
     expect(text).toContain('X-Content-Type-Options: nosniff');
     expect(text).toContain('Referrer-Policy: strict-origin-when-cross-origin');
-    expect(text).toContain('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+    expect(text).toContain('Permissions-Policy: camera=(), microphone=(self), geolocation=()');
+    expect(text).toContain("media-src 'self' blob:");
+    expect(text).not.toContain('script-src \'self\' https:');
   });
 });

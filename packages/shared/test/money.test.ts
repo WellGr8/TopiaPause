@@ -116,6 +116,10 @@ describe('cost estimates', () => {
     // gpt-4o-mini 1k in + 200 out = 0.00015 + 0.00012 = 0.00027 USD -> 0.008775 THB -> 1 satang
     expect(estimateCostThb({ llmInputTokens: 1000, llmOutputTokens: 200 }).minor).toBe(1);
     expect(estimateCostThb({}).minor).toBe(0);
+    // A guard check does not include speech-to-text.
+    expect(estimateCostThb({ workerRequests: 1, sttCalls: 0 }).minor).toBe(1);
+    // $0.22/hour × 6s × 32.50 × 100 satang = 4290/3600 = 1.1916… satang, ceil 2.
+    expect(estimateCostThb({ sttCalls: 1 }).minor).toBe(2);
   });
 
   it('percentages round half-even to 0.1', () => {
