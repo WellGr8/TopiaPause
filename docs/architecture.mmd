@@ -1,0 +1,32 @@
+flowchart LR
+  subgraph B["Browser (apps/web, static SPA)"]
+    UI["Chat UI<br/>'U-Bot (mock)' label"]
+    GC["Guardian card<br/>(inline in chat)"]
+    VO["Voice I/O<br/>mic + audio player"]
+    GE1["guard-engine<br/>(same pure TS, for instant re-check)"]
+  end
+  subgraph W["Cloudflare Worker (workers/api), secrets hidden"]
+    CHAT["POST /api/agent/chat"]
+    GUARD["POST /api/guard/check"]
+    TTS["POST /api/voice/tts"]
+    STT["POST /api/voice/stt (optional)"]
+    ADP["UBotAdapter<br/>MockUBot (LLM) | RealUBot (future)"]
+  end
+  LLM["Hosted LLM<br/>JSON / structured output<br/>planner + intent extractor + explainer"]
+  ENG["Deterministic Guard engine<br/>(packages/guard-engine)<br/>SUB annual-vs-trial · STAY nonrefundable-vs-flexible<br/>APPROVAL unlimited-vs-once · CONC cap + a_max<br/>UNLOCK (optional, Tokenomist)"]
+  EL["ElevenLabs TTS<br/>Eleven v3 (Thai) / Flash v2.5 (EN)"]
+  SC["ElevenLabs Scribe STT<br/>(optional)"]
+  TK["Tokenomist API<br/>(optional, cached)"]
+  CLIPS["demo/audio<br/>pre-generated clips"]
+
+  UI --> CHAT --> ADP --> LLM
+  UI --> GUARD
+  GUARD --> LLM
+  GUARD --> ENG
+  ENG -. "unlock signal" .- TK
+  GUARD --> GC
+  GC --> VO
+  VO --> TTS --> EL
+  VO --> STT --> SC
+  VO -. "play first" .-> CLIPS
+  GC --> GE1
