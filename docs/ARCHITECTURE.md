@@ -310,15 +310,15 @@ Rules:
 
 | Name | Where | Required | Purpose |
 |---|---|---|---|
-| `LLM_API_KEY` | Worker secret | yes | Hosted LLM (structured output) |
-| `LLM_MODEL` | Worker var | yes | Model id |
-| `ELEVENLABS_API_KEY` | Worker secret | yes | TTS (and STT) |
-| `ELEVENLABS_VOICE_TH` / `ELEVENLABS_VOICE_EN` | Worker var | yes | Voice ids |
-| `ELEVENLABS_MODEL_TH` | Worker var | yes | Eleven v3 model id (verify) |
-| `ELEVENLABS_MODEL_EN` | Worker var | yes | `eleven_flash_v2_5` |
-| `TOKENOMIST_API_KEY` | Worker secret | optional | Unlock events |
-| `ALLOWED_ORIGIN` | Worker var | yes | CORS |
-| `VITE_API_BASE` | web build env | yes | Worker URL (no secrets in `VITE_*`) |
+| `LLM_API_KEY` | Worker secret | optional | OpenAI-compatible LLM (JSON output); scripted U-Bot without it |
+| `LLM_MODEL` | Worker var | with key | Model id |
+| `LLM_BASE_URL` | Worker var | optional | Defaults to `https://api.openai.com/v1` |
+| `ELEVENLABS_API_KEY` | Worker secret | optional | TTS; browser speech without it |
+| `ELEVENLABS_VOICE_ID` | Worker var | with key | Voice id |
+| `ELEVENLABS_MODEL_ID` | Worker var | optional | Defaults to `eleven_v3` (verify) |
+| `ALLOWED_ORIGIN` | Worker var | optional | Extra origin for chat/TTS/execute; `guard/check` is open to all |
+
+The web app is served by the same Worker, so it needs no API URL and no build-time env. See [API.md](API.md) for the endpoints.
 
 Set secrets with `wrangler secret put <NAME>`. Never commit `.dev.vars`.
 
