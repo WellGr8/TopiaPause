@@ -548,12 +548,23 @@ describe('POST /api/agent/chat', () => {
     expect(body.intent.commitment).toBe('trial');
   });
 
-  it('uses an OpenAI-compatible LLM and restores catalog facts', async () => {
+  it('uses an OpenAI-compatible LLM and builds the catalog proposal itself', async () => {
     const fake = SCENES.crypto.buildProposal({ amountMinor: 300_000_000 }) as Extract<AgentProposal, { kind: 'token_swap' }>;
-    const big = { minor: 1e12, currency: 'USDT' };
-    const tampered = { ...fake, feePpm: 0, portfolio: { total: big, holdings: {}, balances: { USDT: big } } };
     const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
-      Response.json({ choices: [{ message: { content: JSON.stringify({ reply: 'Swapping 300 USDT now.', scene: 'crypto', proposal: tampered }) } }] }),
+      Response.json({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                kind: 'crypto',
+                slots: { amount_usdt: '300', one_time: true },
+                reply_th: 'ราคา 9999 ครับ',
+                reply_en: 'That is 9999.',
+              }),
+            },
+          },
+        ],
+      }),
     );
     vi.stubGlobal('fetch', fetchMock);
     const env = makeEnv({ LLM_API_KEY: 'sk-test', LLM_MODEL: 'test-model' });
@@ -564,11 +575,12 @@ describe('POST /api/agent/chat', () => {
     expect(body.proposal.amountIn).toEqual({ minor: 300_000_000, currency: 'USDT' });
     expect(body.proposal.portfolio).toEqual(fake.portfolio);
     expect(body.intent.goal).toBe('swap_token');
+    expect(body.reply).not.toContain('9999');
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe('https://llm.example/v1/chat/completions');
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer sk-test');
     const sent = JSON.parse(String(init.body));
-    expect(sent).toMatchObject({ model: 'test-model', response_format: { type: 'json_object' } });
+    expect(sent).toMatchObject({ model: 'test-model', temperature: 0.2, max_tokens: 160, response_format: { type: 'json_object' } });
     const system = sent.messages[0].content as string;
     expect(system).toContain('use ผม');
     expect(system).toContain('ครับ');
@@ -618,7 +630,11 @@ describe('POST /api/agent/chat', () => {
   });
 
   it('stops upstream LLM calls after PAID_DAILY_MAX and keeps the scripted reply', async () => {
-    const fetchMock = vi.fn(async () => Response.json({ choices: [{ message: { content: JSON.stringify({ reply: 'Swapping now.', scene: null }) } }] }));
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        choices: [{ message: { content: JSON.stringify({ kind: 'crypto', slots: { amount_usdt: '300' }, reply_th: 'จัดให้ครับ', reply_en: 'On it.' }) } }],
+      }),
+    );
     vi.stubGlobal('fetch', fetchMock);
     const env = makeEnv({ LLM_API_KEY: 'sk-test', LLM_MODEL: 'test-model', PAID_DAILY_MAX: '1' });
     const headers = await appHeaders(env);
@@ -655,6 +671,69 @@ describe('POST /api/agent/chat', () => {
     expect(body.reply).toContain('Try PixelPro app');
     expect(body.reply).toContain('Cheap hotel near Asok');
     expect(body.reply).toContain('Swap 500 USDT once');
+  });
+
+  it('sends only the last four turns and answers why from the verdict summary', async () => {
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
+      Response.json({
+        choices: [{ message: { content: JSON.stringify({ kind: 'question', slots: {}, reply_th: 'ราคา 3990 ครับ', reply_en: '3990.' }) } }],
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const env = makeEnv({ LLM_API_KEY: 'sk-test', LLM_MODEL: 'test-model' });
+    const headers = await appHeaders(env);
+    const history = [1, 2, 3, 4, 5, 6].map((n) => ({ role: n % 2 ? 'user' : 'assistant', text: `turn ${n}` }));
+    const summary = 'คุณบอกแค่ลอง แต่นี่คือรายปี ฿3,990.00';
+    const res = await call('/api/agent/chat', { json: { message: 'ทำไมอะ', lang: 'th', history, verdictSummary: summary }, headers }, env);
+    const body = (await res.json()) as V;
+    expect(body.reply).toContain(summary);
+    expect(body.reply).not.toContain('3990 ครับ');
+    expect(body.proposal).toBeUndefined();
+    const sent = JSON.parse(String(fetchMock.mock.calls[0]![1].body));
+    const echoed = (sent.messages as { content: string }[]).map((m) => m.content).filter((text) => text.startsWith('turn '));
+    expect(echoed).toEqual(['turn 3', 'turn 4', 'turn 5', 'turn 6']);
+    expect(sent.messages.some((m: { content: string }) => m.content.includes(summary))).toBe(true);
+  });
+
+  it('routes an all-in swap and a transfer into a pausable catalog swap', async () => {
+    const env = makeEnv({ LLM_API_KEY: 'sk-test', LLM_MODEL: 'test-model' });
+    const headers = await appHeaders(env);
+    const refuse = () =>
+      Response.json({
+        choices: [{ message: { content: JSON.stringify({ kind: 'out_of_scope', slots: {}, reply_th: 'ผมไม่สามารถทำได้ครับ', reply_en: 'I cannot.' }) } }],
+      });
+    vi.stubGlobal('fetch', vi.fn(async () => refuse()));
+    const allIn = await call('/api/agent/chat', { json: { message: 'แลก eth to btc all', lang: 'th' }, headers }, env);
+    const allBody = (await allIn.json()) as V;
+    expect(allBody.scene).toBe('crypto');
+    expect(allBody.proposal.amountIn).toEqual({ minor: 500_000_000, currency: 'USDT' });
+    expect(allBody.reply).not.toContain('ไม่สามารถ');
+
+    vi.stubGlobal('fetch', vi.fn(async () => refuse()));
+    const transfer = await call('/api/agent/chat', { json: { message: 'โอนบิตคอยให้เพื่อน 5000 ดอล', lang: 'th' }, headers }, env);
+    const moved = (await transfer.json()) as V;
+    expect(moved.proposal.kind).toBe('token_swap');
+    expect(moved.proposal.amountIn).toEqual({ minor: 500_000_000, currency: 'USDT' });
+  });
+
+  it('names a next-step chip when the request is outside the demo', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({
+          choices: [{ message: { content: JSON.stringify({ kind: 'out_of_scope', slots: {}, reply_th: 'ผมไม่สามารถทำได้ครับ', reply_en: 'No.' }) } }],
+        }),
+      ),
+    );
+    const env = makeEnv({ LLM_API_KEY: 'sk-test', LLM_MODEL: 'test-model' });
+    const headers = await appHeaders(env);
+    const res = await call('/api/agent/chat', { json: { message: 'ช่วยไรได้', lang: 'th' }, headers }, env);
+    const body = (await res.json()) as V;
+    expect(body.source).toBe('llm');
+    expect(body.proposal).toBeUndefined();
+    expect(body.reply).toContain('แลก 500 USDT ครั้งเดียว');
+    expect(body.reply).not.toContain('ไม่สามารถ');
+    expect(body.chip).toBe('crypto');
   });
 });
 
