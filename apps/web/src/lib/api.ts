@@ -147,9 +147,20 @@ async function post<T>(path: string, body: unknown, timeoutMs = 8000, session = 
 
 export type ChatTurn = AgentChatResponse & { scene?: SceneId };
 
-export async function apiChat(input: { message: string; scene?: SceneId; lang: Lang }): Promise<ChatTurn | null> {
+export async function apiChat(input: {
+  message: string;
+  scene?: SceneId;
+  lang: Lang;
+  history?: { role: 'user' | 'assistant'; text: string }[];
+  verdictSummary?: string;
+}): Promise<ChatTurn | null> {
   if (!(await apiHealth())) return null;
-  return post<ChatTurn>('/api/agent/chat', { sessionId: 'web', ...input }, 15_000, true);
+  return post<ChatTurn>(
+    '/api/agent/chat',
+    { sessionId: 'web', message: input.message, scene: input.scene, lang: input.lang, history: input.history?.slice(-4), verdictSummary: input.verdictSummary },
+    15_000,
+    true,
+  );
 }
 
 // The user's rules travel as a token the Worker signed for this app, never as raw policy:

@@ -15,9 +15,10 @@ import {
 } from '@topiapause/shared';
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { t } from '../copy';
-import { useApp, type GuardRun } from '../state';
+import { useApp, type ChatItem, type GuardRun } from '../state';
 import { apiChat, apiExecute, apiGuardCheck, type ChatTurn } from './api';
 import { protectedCurrency, verdictFor } from './guard';
+import { reasonLine } from './summary';
 import { totalOf } from './savings';
 
 const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -31,6 +32,20 @@ export const INJECTION_PAGE = {
 } as const;
 
 const SCENE_OF = { subscription: 'subscription', stay: 'stay', token_swap: 'crypto' } as const;
+
+function recentHistory(chat: ChatItem[]): { role: 'user' | 'assistant'; text: string }[] {
+  return chat
+    .filter((item): item is Extract<ChatItem, { type: 'user' | 'ubot' }> => item.type === 'user' || item.type === 'ubot')
+    .slice(-4)
+    .map((item) => ({ role: item.type === 'user' ? 'user' : 'assistant', text: item.text }));
+}
+
+function lastSummary(chat: ChatItem[], lang: 'th' | 'en'): string | undefined {
+  const guards = chat.filter((item): item is Extract<ChatItem, { type: 'guard' }> => item.type === 'guard' && item.run.stage !== 'checking');
+  const last = guards[guards.length - 1];
+  if (!last) return undefined;
+  return reasonLine(verdictFor(last.run, lang), last.run.proposal, lang).slice(0, 400);
+}
 
 /** Minor units (satang / micro-USDT). */
 export function proposalAmount(p: AgentProposal): number {
@@ -105,7 +120,8 @@ function useChatFlowImpl() {
       } else {
         const thinkingId = newId('thinking');
         dispatch({ type: 'push', item: { id: thinkingId, type: 'thinking' } });
-        turn = (await apiChat({ message: text, lang })) ?? scripted();
+        const prior = ref.current.chat;
+        turn = (await apiChat({ message: text, lang, history: recentHistory(prior), verdictSummary: lastSummary(prior, lang) })) ?? scripted();
         dispatch({ type: 'replace', id: thinkingId, item: { id: thinkingId, type: 'ubot', text: turn.reply } });
       }
       const runScene = turn.scene ?? (turn.proposal ? SCENE_OF[turn.proposal.kind] : undefined);

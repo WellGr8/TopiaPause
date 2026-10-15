@@ -134,12 +134,20 @@ async function confirmChoice(req: Request, env: AppEnv): Promise<Response> {
 
 async function agentChat(req: Request, env: AppEnv): Promise<Response> {
   const body = await readBody(req, AgentChatRequest);
-  const llm = await llmChat(env, body);
+  const history = (body.history ?? []).slice(-4);
+  const llm = await llmChat(env, { ...body, history });
   if (llm) {
     const scene = llm.scene;
     const scripted = scene ? scriptedChat({ message: body.message, scene: body.scene ?? scene, lang: body.lang }) : undefined;
     const intent = scene ? (scripted?.intent ?? extractIntentMock(body.message, scene, body.lang)) : undefined;
-    const res: AgentChatResponse & { scene?: SceneId } = { reply: llm.reply, proposal: llm.proposal, intent, scene, source: 'llm' };
+    const res: AgentChatResponse & { scene?: SceneId; chip?: SceneId } = {
+      reply: llm.reply,
+      proposal: llm.proposal,
+      intent,
+      scene,
+      chip: llm.chip,
+      source: 'llm',
+    };
     return json(res);
   }
   const turn = scriptedChat(body);

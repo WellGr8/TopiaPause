@@ -212,7 +212,7 @@ const verdict = await fetch('https://topiapause.<you>.workers.dev/api/guard/chec
 
 ## `POST /api/agent/chat`
 
-U-Bot (mock). With `LLM_API_KEY` + `LLM_MODEL` it calls any OpenAI-compatible `POST {LLM_BASE_URL}/chat/completions`. Portfolio, catalog, `feePpm` and `gas` are restored from the sandbox catalog after parsing, so the model cannot invent them. No key, a timeout (12 s) or invalid output falls back to the scripted mock (`source: "scripted"`).
+U-Bot (mock). With `LLM_API_KEY` + `LLM_MODEL` it calls any OpenAI-compatible `POST {LLM_BASE_URL}/chat/completions` (`temperature` 0.2, `max_tokens` 160, 12 s). The model returns a kind and slots, not a price. The Worker builds the proposal from the sandbox catalog. A why-question is answered from `verdictSummary` (engine text). An all-in swap or a transfer to a person becomes a catalog crypto proposal capped at the spendable balance, so the guard can pause it. Anything else out of scope names the closest chip. The request may include the last 4 turns and `verdictSummary`. No key, a timeout, the daily cap, or invalid JSON falls back to the scripted mock (`source: "scripted"`).
 
 Needs `Origin` and a session (`tp_session` cookie or `X-TopiaPause-Session`). Over the daily cap the route stays on the scripted mock.
 

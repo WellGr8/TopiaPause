@@ -197,6 +197,11 @@ export const AgentChatRequest = z.object({
   message: z.string().trim().min(1).max(1000),
   scene: Scene.optional(),
   lang: Lang.default('th'),
+  history: z
+    .array(z.object({ role: z.enum(['user', 'assistant']), text: z.string().max(500) }))
+    .max(8)
+    .optional(),
+  verdictSummary: z.string().max(400).optional(),
 });
 
 export const ExecuteRequest = z.object({
@@ -221,11 +226,22 @@ export const ExplainDraft = z.object({
   en: z.string().trim().min(1).max(800),
 });
 
-/** What the LLM-backed U-Bot must return. */
-export const LlmTurn = z.object({
-  reply: z.string().min(1).max(600),
-  scene: Scene.nullable(),
-  proposal: AgentProposal.nullable().optional(),
+/** Kind and slots only. The Worker builds every price. */
+export const IntentDraft = z.object({
+  kind: z.enum(['subscription', 'stay', 'crypto', 'question', 'smalltalk', 'out_of_scope']),
+  slots: z
+    .object({
+      trial_only: z.boolean().optional(),
+      interval: z.enum(['month', 'year']).optional(),
+      budget_thb: z.string().max(40).optional(),
+      area: z.string().max(80).optional(),
+      flexible: z.boolean().optional(),
+      amount_usdt: z.string().max(40).optional(),
+      one_time: z.boolean().optional(),
+    })
+    .default({}),
+  reply_th: z.string().max(400).optional().default(''),
+  reply_en: z.string().max(400).optional().default(''),
 });
 
 export function issues(e: z.ZodError): string {
