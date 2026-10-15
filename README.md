@@ -97,7 +97,7 @@ docs/                  architecture, Thai summary, research, diagrams
 
 ## Run locally
 
-Requirements: Node ≥ 20 and pnpm 10 (`corepack enable`).
+Requirements: Node ≥ 22 (`.nvmrc`; wrangler 4 needs it) and pnpm 10 (`corepack enable`).
 
 ```bash
 pnpm install

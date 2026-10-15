@@ -2,10 +2,10 @@
   "name": "topiapause",
   "private": true,
   "version": "0.1.0",
-  "description": "TopiaPause — a guard layer for AI agents that spend money for you. AI proposes, rules decide, you sign.",
+  "description": "TopiaPause \u2014 a guard layer for AI agents that spend money for you. AI proposes, rules decide, you sign.",
   "packageManager": "pnpm@10.15.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "pnpm --filter @topiapause/web dev",
@@ -15,7 +15,8 @@
     "typecheck": "pnpm -r typecheck && tsc -p scripts",
     "test": "pnpm -r test",
     "deploy": "pnpm build && pnpm --filter @topiapause/api run deploy",
-    "voice:pregen": "node --experimental-strip-types --no-warnings=ExperimentalWarning scripts/pregen-voice.ts"
+    "voice:pregen": "node --experimental-strip-types --no-warnings=ExperimentalWarning scripts/pregen-voice.ts",
+    "agent:demo": "node --experimental-strip-types --no-warnings=ExperimentalWarning scripts/agent-demo.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
