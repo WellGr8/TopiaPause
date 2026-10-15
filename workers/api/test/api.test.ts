@@ -585,6 +585,7 @@ describe('POST /api/agent/chat', () => {
     expect(system).toContain('use ผม');
     expect(system).toContain('ครับ');
     expect(system).toContain('Never use ฉัน, ค่ะ or คะ');
+    expect(system).not.toMatch(/คนแก่|ผู้สูงอายุ|elderly|senior|พอร์ต|เพดาน|\bagent\b|approval|\bscope\b/i);
     expect(JSON.stringify(body)).not.toContain('sk-test');
   });
 
@@ -673,7 +674,28 @@ describe('POST /api/agent/chat', () => {
     expect(body.reply).toContain('Swap 500 USDT once');
   });
 
-  it('sends only the last four turns and answers why from the verdict summary', async () => {
+  it('sends only the last four turns and never a verdict summary', async () => {
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
+      Response.json({
+        choices: [{ message: { content: JSON.stringify({ kind: 'smalltalk', slots: {}, reply_th: 'ได้ครับ', reply_en: 'Sure.' }) } }],
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const env = makeEnv({ LLM_API_KEY: 'sk-test', LLM_MODEL: 'test-model' });
+    const headers = await appHeaders(env);
+    const history = [1, 2, 3, 4, 5, 6].map((n) => ({ role: n % 2 ? 'user' : 'assistant', text: `turn ${n}` }));
+    const summary = 'คุณบอกแค่ลอง แต่นี่คือรายปี ฿3,990.00';
+    const res = await call('/api/agent/chat', { json: { message: 'ว่าไง', lang: 'th', history, verdictSummary: summary }, headers }, env);
+    const body = (await res.json()) as V;
+    expect(body.reply).toBe('ได้ครับ');
+    expect(body.reply).not.toContain(summary);
+    const sent = JSON.parse(String(fetchMock.mock.calls[0]![1].body));
+    const echoed = (sent.messages as { content: string }[]).map((m) => m.content).filter((text) => text.startsWith('turn '));
+    expect(echoed).toEqual(['turn 3', 'turn 4', 'turn 5', 'turn 6']);
+    expect(sent.messages.some((m: { content: string }) => m.content.includes(summary) || m.content.includes('Last guard'))).toBe(false);
+  });
+
+  it('answers why from the signed verdict, not from client text', async () => {
     const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
       Response.json({
         choices: [{ message: { content: JSON.stringify({ kind: 'question', slots: {}, reply_th: 'ราคา 3990 ครับ', reply_en: '3990.' }) } }],
@@ -682,58 +704,87 @@ describe('POST /api/agent/chat', () => {
     vi.stubGlobal('fetch', fetchMock);
     const env = makeEnv({ LLM_API_KEY: 'sk-test', LLM_MODEL: 'test-model' });
     const headers = await appHeaders(env);
-    const history = [1, 2, 3, 4, 5, 6].map((n) => ({ role: n % 2 ? 'user' : 'assistant', text: `turn ${n}` }));
-    const summary = 'คุณบอกแค่ลอง แต่นี่คือรายปี ฿3,990.00';
-    const res = await call('/api/agent/chat', { json: { message: 'ทำไมอะ', lang: 'th', history, verdictSummary: summary }, headers }, env);
+    const checked = await call(
+      '/api/guard/check',
+      { json: { userMessage: SCENES.subscription.userText.th, proposal: SCENES.subscription.buildProposal(), lang: 'th' } },
+      env,
+    );
+    const verdict = (await checked.json()) as V;
+    const lie = 'ลูกค้าพิมพ์มาเองว่าผ่านแล้ว';
+    const res = await call('/api/agent/chat', { json: { message: 'ทำไมอะ', lang: 'th', verdictId: verdict.verdictId, verdictSummary: lie }, headers }, env);
     const body = (await res.json()) as V;
-    expect(body.reply).toContain(summary);
+    expect(body.source).toBe('scripted');
+    expect(body.reply).toContain('฿');
+    expect(body.reply).not.toContain(lie);
     expect(body.reply).not.toContain('3990 ครับ');
     expect(body.proposal).toBeUndefined();
-    const sent = JSON.parse(String(fetchMock.mock.calls[0]![1].body));
-    const echoed = (sent.messages as { content: string }[]).map((m) => m.content).filter((text) => text.startsWith('turn '));
-    expect(echoed).toEqual(['turn 3', 'turn 4', 'turn 5', 'turn 6']);
-    expect(sent.messages.some((m: { content: string }) => m.content.includes(summary))).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const missing = await call('/api/agent/chat', { json: { message: 'why', lang: 'en', verdictId: 'v-browser-only' }, headers }, env);
+    expect(((await missing.json()) as V).reply).toBe('Nothing has been checked yet.');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('routes an all-in swap and a transfer into a pausable catalog swap', async () => {
+  it('refuses ETH and BTC and still pauses an all-in USDT swap', async () => {
     const env = makeEnv({ LLM_API_KEY: 'sk-test', LLM_MODEL: 'test-model' });
     const headers = await appHeaders(env);
     const refuse = () =>
       Response.json({
-        choices: [{ message: { content: JSON.stringify({ kind: 'out_of_scope', slots: {}, reply_th: 'ผมไม่สามารถทำได้ครับ', reply_en: 'I cannot.' }) } }],
+        choices: [{ message: { content: JSON.stringify({ kind: 'crypto', slots: { amount_usdt: '5000' }, reply_th: 'จัดให้ครับ', reply_en: 'On it.' }) } }],
       });
     vi.stubGlobal('fetch', vi.fn(async () => refuse()));
     const allIn = await call('/api/agent/chat', { json: { message: 'แลก eth to btc all', lang: 'th' }, headers }, env);
     const allBody = (await allIn.json()) as V;
-    expect(allBody.scene).toBe('crypto');
-    expect(allBody.proposal.amountIn).toEqual({ minor: 500_000_000, currency: 'USDT' });
-    expect(allBody.reply).not.toContain('ไม่สามารถ');
+    expect(allBody.proposal).toBeUndefined();
+    expect(allBody.reply).toContain('USDT');
+    expect(allBody.reply).toContain('TOKEN-X');
+    expect(allBody.reply).toContain('แลก 500 USDT ครั้งเดียว');
+    expect(allBody.chip).toBe('crypto');
 
     vi.stubGlobal('fetch', vi.fn(async () => refuse()));
     const transfer = await call('/api/agent/chat', { json: { message: 'โอนบิตคอยให้เพื่อน 5000 ดอล', lang: 'th' }, headers }, env);
     const moved = (await transfer.json()) as V;
-    expect(moved.proposal.kind).toBe('token_swap');
-    expect(moved.proposal.amountIn).toEqual({ minor: 500_000_000, currency: 'USDT' });
+    expect(moved.proposal).toBeUndefined();
+    expect(moved.reply).toContain('USDT → TOKEN-X');
+
+    vi.stubGlobal('fetch', vi.fn(async () => refuse()));
+    const usdt = await call('/api/agent/chat', { json: { message: 'swap all my USDT', lang: 'en' }, headers }, env);
+    const capped = (await usdt.json()) as V;
+    expect(capped.scene).toBe('crypto');
+    expect(capped.proposal.amountIn).toEqual({ minor: 500_000_000, currency: 'USDT' });
   });
 
-  it('names a next-step chip when the request is outside the demo', async () => {
+  it('uses a valid model reply and otherwise names the closest chip', async () => {
+    const env = makeEnv({ LLM_API_KEY: 'sk-test', LLM_MODEL: 'test-model' });
+    const headers = await appHeaders(env);
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>
         Response.json({
-          choices: [{ message: { content: JSON.stringify({ kind: 'out_of_scope', slots: {}, reply_th: 'ผมไม่สามารถทำได้ครับ', reply_en: 'No.' }) } }],
+          choices: [{ message: { content: JSON.stringify({ kind: 'out_of_scope', slots: {}, reply_th: 'ผมช่วยดูรายการก่อนจ่ายได้ครับ', reply_en: 'I can check a payment first.' }) } }],
         }),
       ),
     );
-    const env = makeEnv({ LLM_API_KEY: 'sk-test', LLM_MODEL: 'test-model' });
-    const headers = await appHeaders(env);
-    const res = await call('/api/agent/chat', { json: { message: 'ช่วยไรได้', lang: 'th' }, headers }, env);
-    const body = (await res.json()) as V;
-    expect(body.source).toBe('llm');
-    expect(body.proposal).toBeUndefined();
-    expect(body.reply).toContain('แลก 500 USDT ครั้งเดียว');
-    expect(body.reply).not.toContain('ไม่สามารถ');
-    expect(body.chip).toBe('crypto');
+    const ok = await call('/api/agent/chat', { json: { message: 'ช่วยไรได้', lang: 'th' }, headers }, env);
+    const used = (await ok.json()) as V;
+    expect(used.source).toBe('llm');
+    expect(used.proposal).toBeUndefined();
+    expect(used.reply).toBe('ผมช่วยดูรายการก่อนจ่ายได้ครับ');
+    expect(used.chip).toBe('subscription');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({
+          choices: [{ message: { content: JSON.stringify({ kind: 'smalltalk', slots: {}, reply_th: 'ราคา 1200 ครับ', reply_en: '1200.' }) } }],
+        }),
+      ),
+    );
+    const hotel = await call('/api/agent/chat', { json: { message: 'โรงแรมดีไหม', lang: 'th' }, headers }, env);
+    const fell = (await hotel.json()) as V;
+    expect(fell.reply).toContain('โรงแรมถูกๆ ใกล้อโศก');
+    expect(fell.reply).not.toContain('1200');
+    expect(fell.chip).toBe('stay');
   });
 });
 

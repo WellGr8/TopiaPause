@@ -14,6 +14,21 @@ function has(t: string, ...words: string[]): boolean {
   });
 }
 
+const FOREIGN_COIN = /eth|btc|bitcoin|บิตคอย|บิทคอย|อีเธ/i;
+const HAS_USDT = /usdt|ยูเอสดีที/i;
+
+/** ETH, BTC, and the like are not in this demo. Only a message that names USDT can become a swap. */
+export function unsupportedCoin(message: string): boolean {
+  return FOREIGN_COIN.test(message) && !HAS_USDT.test(message);
+}
+
+export function usdtOnlyReply(lang: Lang): string {
+  const chip = SCENES.crypto.chip[lang];
+  return lang === 'th'
+    ? `เดโมนี้แลกได้แค่ USDT → TOKEN-X ครับ ลอง ${chip}`
+    : `This demo only swaps USDT → TOKEN-X. Try ${chip}.`;
+}
+
 export function detectScene(text: string): SceneId | undefined {
   const t = text.toLowerCase();
   if (has(t, 'swap', 'usdt', 'token', 'token-x', 'แลก', 'โทเคน', 'คริปโต')) return 'crypto';
@@ -96,6 +111,7 @@ export interface ScriptedTurn {
 }
 
 export function scriptedChat(input: { message: string; scene?: SceneId; lang: Lang }): ScriptedTurn {
+  if (!input.scene && unsupportedCoin(input.message)) return { reply: usdtOnlyReply(input.lang) };
   const scene = input.scene ?? detectScene(input.message);
   if (!scene) return { reply: unmatchedReply(input.lang) };
   const preset = SCENES[scene];

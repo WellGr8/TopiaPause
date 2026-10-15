@@ -112,7 +112,7 @@ export const PolicyRequest = z.object({
 });
 
 export const ConfirmRequest = z.object({
-  verdictId: z.string().min(1).max(2000),
+  verdictId: z.string().min(1).max(12000),
   /** Only the counter-offer. The paused original is not confirmable through the API. */
   choice: z.enum(['original', 'counter_offer']),
 });
@@ -201,12 +201,13 @@ export const AgentChatRequest = z.object({
     .array(z.object({ role: z.enum(['user', 'assistant']), text: z.string().max(500) }))
     .max(8)
     .optional(),
-  verdictSummary: z.string().max(400).optional(),
+  /** Signed verdict ticket from the last guard check. The server rebuilds "why" from it. */
+  verdictId: z.string().min(1).max(12000).optional(),
 });
 
 export const ExecuteRequest = z.object({
   proposal: AgentProposal,
-  verdictId: z.string().min(1).max(2000),
+  verdictId: z.string().min(1).max(12000),
   userConfirmed: z.literal(true),
   /** Issued by POST /api/confirm. Required when the verdict paused. */
   confirmation: z.string().min(1).max(2000).optional(),

@@ -18,7 +18,6 @@ import { t } from '../copy';
 import { useApp, type ChatItem, type GuardRun } from '../state';
 import { apiChat, apiExecute, apiGuardCheck, type ChatTurn } from './api';
 import { protectedCurrency, verdictFor } from './guard';
-import { reasonLine } from './summary';
 import { totalOf } from './savings';
 
 const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -40,11 +39,11 @@ function recentHistory(chat: ChatItem[]): { role: 'user' | 'assistant'; text: st
     .map((item) => ({ role: item.type === 'user' ? 'user' : 'assistant', text: item.text }));
 }
 
-function lastSummary(chat: ChatItem[], lang: 'th' | 'en'): string | undefined {
+function lastVerdictId(chat: ChatItem[]): string | undefined {
   const guards = chat.filter((item): item is Extract<ChatItem, { type: 'guard' }> => item.type === 'guard' && item.run.stage !== 'checking');
-  const last = guards[guards.length - 1];
-  if (!last) return undefined;
-  return reasonLine(verdictFor(last.run, lang), last.run.proposal, lang).slice(0, 400);
+  const id = guards[guards.length - 1]?.run.verdict?.verdictId;
+  // Browser-only ids look like v-<proposalId>. Only a signed ticket (payload.mac) is sent.
+  return id?.includes('.') ? id : undefined;
 }
 
 /** Minor units (satang / micro-USDT). */
@@ -121,7 +120,7 @@ function useChatFlowImpl() {
         const thinkingId = newId('thinking');
         dispatch({ type: 'push', item: { id: thinkingId, type: 'thinking' } });
         const prior = ref.current.chat;
-        turn = (await apiChat({ message: text, lang, history: recentHistory(prior), verdictSummary: lastSummary(prior, lang) })) ?? scripted();
+        turn = (await apiChat({ message: text, lang, history: recentHistory(prior), verdictId: lastVerdictId(prior) })) ?? scripted();
         dispatch({ type: 'replace', id: thinkingId, item: { id: thinkingId, type: 'ubot', text: turn.reply } });
       }
       const runScene = turn.scene ?? (turn.proposal ? SCENE_OF[turn.proposal.kind] : undefined);

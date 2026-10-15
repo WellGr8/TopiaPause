@@ -1,4 +1,4 @@
-import { DEFAULT_POLICY, policyLoosens, type AgentProposal, type GuardVerdict, type UserPolicy } from '@topiapause/shared';
+import { DEFAULT_POLICY, buildWhyAnswer, policyLoosens, type AgentProposal, type GuardVerdict, type Lang, type UserPolicy } from '@topiapause/shared';
 import { HttpError, log, type AppEnv } from './http';
 import { devLedgerNamespace, type LedgerResult, type LedgerStub } from './ledger';
 import { AgentProposal as AgentProposalSchema, UserPolicy as UserPolicySchema } from './schemas';
@@ -155,12 +155,19 @@ export async function proposalHash(p: AgentProposal): Promise<string> {
   return b64url(new Uint8Array(digest)).slice(0, 32);
 }
 
+type TicketFacts = {
+  decision: GuardVerdict['decision'];
+  findings: GuardVerdict['findings'];
+  explanation: { th: string; en: string };
+};
+
 type Ticket = {
   v?: number;
   jti?: string;
   exp?: number;
   needsUser?: boolean;
   choices?: { original?: string; counter_offer?: string };
+  facts?: TicketFacts;
 };
 
 async function readTicket(env: AppEnv, ticket: string): Promise<Ticket & { jti: string; exp: number; choices: NonNullable<Ticket['choices']> }> {
@@ -187,10 +194,33 @@ export async function issueTicket(env: AppEnv, verdict: GuardVerdict, original: 
     exp,
     needsUser: verdict.decision === 'pause',
     choices,
+    facts: {
+      decision: verdict.decision,
+      findings: verdict.findings,
+      explanation: { th: verdict.explanation.th, en: verdict.explanation.en },
+    },
   });
   const recorded = await ledger(env, jti, (stub) => stub.issue(jti, exp));
   expectLedger(recorded, ['issued']);
   return token;
+}
+
+const WHY_EMPTY: Record<Lang, string> = {
+  th: 'ยังไม่มีรายการที่ตรวจไว้ครับ',
+  en: 'Nothing has been checked yet.',
+};
+
+/** Rebuilds the "why" line from the signed ticket. A missing or forged ticket fails closed. */
+export async function whyFromTicket(env: AppEnv, ticket: string | undefined, lang: Lang): Promise<string> {
+  if (!ticket) return WHY_EMPTY[lang];
+  try {
+    const payload = await readTicket(env, ticket);
+    const facts = payload.facts;
+    if (!facts?.explanation || !facts.findings) return WHY_EMPTY[lang];
+    return buildWhyAnswer({ findings: facts.findings, explanation: { ...facts.explanation, source: 'template' } } as GuardVerdict, lang);
+  } catch {
+    return WHY_EMPTY[lang];
+  }
 }
 
 export async function issueConfirmation(env: AppEnv, ticket: string, choice: 'original' | 'counter_offer'): Promise<string> {

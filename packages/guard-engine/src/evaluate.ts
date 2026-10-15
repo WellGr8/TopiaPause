@@ -128,9 +128,12 @@ export function evaluate(input: EvaluateInput): GuardVerdict {
   const r = runRules(input);
   const decision = decide(r.findings);
 
+  // The counter is an engine option the user taps, so a low-confidence reading of the
+  // original words must not hide it. The pause itself still records LOW_CONFIDENCE.
+  const counterIntent = { ...input.intent, confidence: Math.max(input.intent.confidence, 0.95) };
   let counterOffer: CounterOffer | undefined;
   if (decision === 'pause' && r.counter) {
-    const re = recheck({ ...input, proposal: r.counter.proposal });
+    const re = recheck({ ...input, intent: counterIntent, proposal: r.counter.proposal });
     if (re === 'allow') counterOffer = { proposal: r.counter.proposal, recheck: re, diff: r.counter.diff };
   }
 
