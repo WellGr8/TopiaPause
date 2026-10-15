@@ -1,4 +1,5 @@
 import {
+  extractIntentMock,
   mockExecute,
   newId,
   scriptedChat,
@@ -10,10 +11,13 @@ import {
 } from '@topiapause/shared';
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useApp, type GuardRun } from '../state';
+import { apiChat, apiExecute, apiGuardCheck, type ChatTurn } from './api';
 import { protectedCurrency, verdictFor } from './guard';
 
 const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 const delay = (ms: number) => (reduced() ? Math.min(ms, 150) : ms);
+const wait = (ms: number) => new Promise<void>((r) => window.setTimeout(r, delay(ms)));
+const SCENE_OF = { subscription: 'subscription', stay: 'stay', token_swap: 'crypto' } as const;
 
 export function proposalAmount(p: AgentProposal): number {
   return p.kind === 'subscription' ? p.price.amount : p.kind === 'stay' ? p.totalPrice.amount : p.amountIn.amount;
@@ -45,37 +49,51 @@ function useChatFlowImpl() {
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   const send = useCallback(
-    (text: string, scene?: SceneId) => {
+    async (text: string, scene?: SceneId) => {
       const { lang, policy } = ref.current;
       dispatch({ type: 'push', item: { id: newId('u'), type: 'user', text } });
       const typingId = newId('typing');
       dispatch({ type: 'push', item: { id: typingId, type: 'typing' } });
 
-      later(() => {
-        const turn = scriptedChat({ message: text, scene, lang });
-        dispatch({ type: 'replace', id: typingId, item: { id: typingId, type: 'ubot', text: turn.reply } });
-        if (!turn.proposal || !turn.intent || !turn.scene) return;
-        const run: GuardRun = {
-          runId: newId('run'),
-          scene: turn.scene,
-          userText: text,
-          intent: turn.intent,
-          proposal: turn.proposal,
-          policy,
-          stage: 'checking',
-        };
-        later(() => dispatch({ type: 'push', item: { id: run.runId, type: 'guard', run } }), 350);
-        later(() => dispatch({ type: 'updateRun', runId: run.runId, patch: { stage: 'verdict' } }), 1500);
-      }, 850);
+      const typing = wait(850);
+      const turn: ChatTurn = (await apiChat({ message: text, scene, lang })) ?? { ...scriptedChat({ message: text, scene, lang }), source: 'scripted' };
+      await typing;
+      dispatch({ type: 'replace', id: typingId, item: { id: typingId, type: 'ubot', text: turn.reply } });
+      const runScene = turn.scene ?? (turn.proposal ? SCENE_OF[turn.proposal.kind] : undefined);
+      if (!turn.proposal || !runScene) return;
+      const intent = turn.intent ?? extractIntentMock(text, runScene, lang);
+      const run: GuardRun = {
+        runId: newId('run'),
+        scene: runScene,
+        userText: text,
+        intent,
+        proposal: turn.proposal,
+        policy,
+        stage: 'checking',
+        agentSource: turn.source,
+      };
+      await wait(350);
+      dispatch({ type: 'push', item: { id: run.runId, type: 'guard', run } });
+      const checking = wait(1150);
+      const remote = await apiGuardCheck({ userText: text, proposal: run.proposal, policy, lang, intent });
+      await checking;
+      dispatch({
+        type: 'updateRun',
+        runId: run.runId,
+        patch: remote ? { stage: 'verdict', verdict: remote, verdictLang: lang, guardSource: 'api' } : { stage: 'verdict', guardSource: 'browser' },
+      });
     },
     [dispatch],
   );
 
   const finalize = useCallback(
-    (run: GuardRun, choice: UserChoice) => {
+    async (run: GuardRun, choice: UserChoice) => {
       const { lang } = ref.current;
       const verdict = verdictFor(run, lang);
-      const execution: Execution = choice === 'cancel' ? { mode: 'mock', status: 'skipped' } : mockExecute();
+      const chosen = choice === 'counter_offer' ? verdict.counterOffer?.proposal : choice === 'original' ? run.proposal : undefined;
+      const execution: Execution = chosen
+        ? ((await apiExecute(chosen, verdict.verdictId)) ?? mockExecute())
+        : { mode: 'mock', status: 'skipped' };
       const receipt: Receipt = {
         receiptId: newId('rcpt'),
         createdAt: new Date().toISOString(),
@@ -115,9 +133,9 @@ function useChatFlowImpl() {
     (run: GuardRun, choice: UserChoice) => {
       if (choice === 'counter_offer') {
         dispatch({ type: 'updateRun', runId: run.runId, patch: { stage: 'rechecking', choice } });
-        later(() => finalize(run, choice), 1900);
+        later(() => void finalize(run, choice), 1900);
       } else {
-        finalize(run, choice);
+        void finalize(run, choice);
       }
     },
     [dispatch, finalize],

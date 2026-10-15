@@ -28,6 +28,13 @@ const dict = {
   darkMode: { th: 'โหมดมืด', en: 'Dark mode' },
   language: { th: 'ภาษา', en: 'Language' },
   resetDemo: { th: 'รีเซ็ตเดโม', en: 'Reset demo' },
+  backend: { th: 'เบื้องหลัง', en: 'Backend' },
+  backendBrowser: { th: 'ในเบราว์เซอร์ · สคริปต์', en: 'In-browser · scripted' },
+  backendApi: { th: 'Worker API', en: 'Worker API' },
+  backendLlm: { th: 'LLM', en: 'LLM' },
+  backendScripted: { th: 'สคริปต์', en: 'scripted' },
+  backendVoice: { th: 'เสียง ElevenLabs', en: 'ElevenLabs voice' },
+  backendSpeech: { th: 'เสียงเบราว์เซอร์', en: 'browser voice' },
 
   // chat
   greet: {

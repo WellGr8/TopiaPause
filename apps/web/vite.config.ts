@@ -34,6 +34,11 @@ function demoAudio(): Plugin {
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), demoAudio()],
-  server: { host: '0.0.0.0', port: 5173 },
+  server: {
+    host: '0.0.0.0',
+    port: 5173,
+    // `TOPIAPAUSE_API=http://127.0.0.1:8787 pnpm dev` forwards /api to a running `wrangler dev`.
+    proxy: process.env.TOPIAPAUSE_API ? { '/api': { target: process.env.TOPIAPAUSE_API, changeOrigin: true } } : undefined,
+  },
   preview: { host: '0.0.0.0', port: 4173 },
 });
