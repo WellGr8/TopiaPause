@@ -2,11 +2,13 @@ import {
   DEFAULT_POLICY,
   type ActionIntent,
   type AgentProposal,
+  type Currency,
   type Decision,
   type GuardVerdict,
   type Lang,
   type Receipt,
   type SceneId,
+  type UntrustedSource,
   type UserChoice,
   type UserPolicy,
 } from '@topiapause/shared';
@@ -36,6 +38,8 @@ export interface GuardRun {
   agentSource?: 'llm' | 'scripted';
   /** Set when the proposal followed an instruction found on a web page (prompt-injection scene). */
   injectedFrom?: string;
+  /** Untrusted content the agent read, sent to the guard as `sources`. */
+  sources?: UntrustedSource[];
 }
 
 export type ChatItem =
@@ -52,7 +56,7 @@ export interface ActivityEntry {
   decision: Decision;
   choice: UserChoice;
   protectedAmount: number;
-  currency: 'THB' | 'USD';
+  currency: Currency;
   receipt: Receipt;
 }
 
@@ -82,7 +86,8 @@ type Action =
   | { type: 'clearChat' }
   | { type: 'reset' };
 
-const STORAGE_KEY = 'topiapause:v2';
+// v3: money is integer minor units (satang, micro-USDT); older saved activity is dropped.
+const STORAGE_KEY = 'topiapause:v3';
 /** Light by default; dark only once the user flips the toggle (system preference is ignored). */
 const THEME_KEY = 'topiapause:theme';
 

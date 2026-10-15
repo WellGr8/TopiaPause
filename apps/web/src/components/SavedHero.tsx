@@ -12,9 +12,11 @@ export function useSavings() {
 export function SavedHero({ size = 'md', className }: { size?: 'sm' | 'md' | 'lg'; className?: string }) {
   const { state } = useApp();
   const { lang } = state;
-  const { lines, thb, usd } = useSavings();
-  const currency = thb === 0 && usd !== 0 ? 'USD' : 'THB';
-  const amount = fmtExact(currency === 'USD' ? usd : thb, currency);
+  const { lines, thb, usd, usdt } = useSavings();
+  const other = ([['USDT', usdt], ['USD', usd]] as const).filter(([, v]) => v !== 0);
+  const [currency, value] = thb === 0 && other.length > 0 ? other[0] : (['THB', thb] as const);
+  const amount = fmtExact(value, currency);
+  const extra = other.filter(([c]) => c !== currency);
   const n = lines.length;
 
   return (
@@ -31,11 +33,12 @@ export function SavedHero({ size = 'md', className }: { size?: 'sm' | 'md' | 'lg
         </span>
         <span className="text-sm text-muted">{t(lang, 'savedTail')}</span>
       </p>
-      {currency === 'THB' && usd !== 0 && (
-        <p className="mt-1 text-sm text-muted">
-          + <span className="font-medium text-ink tabular-nums">{fmtExact(usd, 'USD')}</span> {t(lang, 'inCrypto')}
+      {extra.map(([c, v]) => (
+        <p key={c} className="mt-1 text-sm text-muted">
+          + <span className="font-medium text-ink tabular-nums">{fmtExact(v, c)}</span>
+          {c === 'USDT' && <> {t(lang, 'inCrypto')}</>}
         </p>
-      )}
+      ))}
       <p className="mt-1.5 text-xs text-muted">{n === 0 ? t(lang, 'savedEmpty') : n === 1 ? t(lang, 'savedFromOne') : t(lang, 'savedFromMany', { n })}</p>
     </section>
   );

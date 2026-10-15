@@ -1,4 +1,4 @@
-import { fmtMoney, fmtNumber, type Lang, type UserPolicy } from '@topiapause/shared';
+import { fmtMoney, fmtNumber, money, type Lang, type UserPolicy } from '@topiapause/shared';
 import { Check } from 'lucide-react';
 import { useId, useState, type FormEvent } from 'react';
 import { t, type CopyKey } from '../copy';
@@ -8,7 +8,7 @@ import { Button, TextButton } from './ui';
 export function describeRule(rule: ParsedRule, lang: Lang): string {
   switch (rule.kind) {
     case 'subscriptionCap': {
-      const s = t(lang, 'ruleSubCap', { amount: fmtMoney({ amount: rule.amount, currency: 'THB' }) });
+      const s = t(lang, 'ruleSubCap', { amount: fmtMoney(money(Math.round(rule.amount * 100), 'THB')) });
       return rule.fromYearly ? `${s} ${t(lang, 'ruleFromYearly')}` : s;
     }
     case 'refundablePremium':

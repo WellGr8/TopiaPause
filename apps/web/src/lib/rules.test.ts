@@ -75,7 +75,7 @@ describe('applyRule', () => {
     const p = applyRule(DEFAULT_POLICY, { kind: 'tokenCap', asset: 'TOKEN-X', pct: 25 });
     expect(p.tokenConcentrationCaps['TOKEN-X']).toBe(0.25);
     expect(p.monthlySubscriptionCap).toEqual(DEFAULT_POLICY.monthlySubscriptionCap);
-    expect(applyRule(DEFAULT_POLICY, { kind: 'subscriptionCap', amount: 450 }).monthlySubscriptionCap).toEqual({ amount: 450, currency: 'THB' });
+    expect(applyRule(DEFAULT_POLICY, { kind: 'subscriptionCap', amount: 450 }).monthlySubscriptionCap).toEqual({ minor: 45000, currency: 'THB' });
     expect(applyRule(DEFAULT_POLICY, { kind: 'refundablePremium', pct: 20 }).maxRefundablePremiumPct).toBe(20);
   });
 });

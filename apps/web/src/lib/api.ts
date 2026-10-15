@@ -1,11 +1,11 @@
 import type {
-  ActionIntent,
   AgentChatResponse,
   AgentProposal,
   Execution,
   GuardVerdict,
   Lang,
   SceneId,
+  UntrustedSource,
   UserPolicy,
 } from '@topiapause/shared';
 
@@ -54,15 +54,33 @@ export async function apiChat(input: { message: string; scene?: SceneId; lang: L
   return post<ChatTurn>('/api/agent/chat', { sessionId: 'web', ...input }, 15_000);
 }
 
+// The user's rules travel as a token the Worker signed for this app, never as raw policy:
+// the guard API ignores policies an agent might send.
+const policyTokens = new Map<string, Promise<string | null>>();
+
+function policyToken(policy: UserPolicy): Promise<string | null> {
+  const key = JSON.stringify(policy);
+  let t = policyTokens.get(key);
+  if (!t) {
+    t = post<{ policyToken: string }>('/api/policy', { policy }).then((r) => r?.policyToken ?? null);
+    policyTokens.set(key, t);
+  }
+  return t;
+}
+
 export async function apiGuardCheck(input: {
-  userText: string;
+  /** The user's message verbatim; the Worker derives intent from it. */
+  userMessage: string;
   proposal: AgentProposal;
   policy: UserPolicy;
   lang: Lang;
-  intent: ActionIntent;
+  sources?: UntrustedSource[];
 }): Promise<GuardVerdict | null> {
   if (!(await apiHealth())) return null;
-  return post<GuardVerdict>('/api/guard/check', input);
+  const token = await policyToken(input.policy);
+  if (!token) return null;
+  const { policy: _policy, ...rest } = input;
+  return post<GuardVerdict>('/api/guard/check', { ...rest, policyToken: token });
 }
 
 export async function apiExecute(proposal: AgentProposal, verdictId: string): Promise<Execution | null> {

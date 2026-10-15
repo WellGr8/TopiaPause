@@ -10,6 +10,7 @@ import {
   type Execution,
   type Receipt,
   type SceneId,
+  type UntrustedSource,
   type UserChoice,
 } from '@topiapause/shared';
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
@@ -17,6 +18,7 @@ import { t } from '../copy';
 import { useApp, type GuardRun } from '../state';
 import { apiChat, apiExecute, apiGuardCheck, type ChatTurn } from './api';
 import { protectedCurrency, verdictFor } from './guard';
+import { totalOf } from './savings';
 
 const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 const delay = (ms: number) => (reduced() ? Math.min(ms, 150) : ms);
@@ -30,8 +32,9 @@ export const INJECTION_PAGE = {
 
 const SCENE_OF = { subscription: 'subscription', stay: 'stay', token_swap: 'crypto' } as const;
 
+/** Minor units (satang / micro-USDT). */
 export function proposalAmount(p: AgentProposal): number {
-  return p.kind === 'subscription' ? p.price.amount : p.kind === 'stay' ? p.totalPrice.amount : p.amountIn.amount;
+  return totalOf(p).minor;
 }
 
 type Flow = ReturnType<typeof useChatFlowImpl>;
@@ -60,7 +63,7 @@ function useChatFlowImpl() {
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   const guard = useCallback(
-    async (input: { text: string; scene: SceneId; intent: ActionIntent; proposal: AgentProposal; agentSource?: GuardRun['agentSource']; injectedFrom?: string }) => {
+    async (input: { text: string; scene: SceneId; intent: ActionIntent; proposal: AgentProposal; agentSource?: GuardRun['agentSource']; injectedFrom?: string; sources?: UntrustedSource[] }) => {
       const { lang, policy } = ref.current;
       const run: GuardRun = {
         runId: newId('run'),
@@ -72,11 +75,12 @@ function useChatFlowImpl() {
         stage: 'checking',
         agentSource: input.agentSource,
         injectedFrom: input.injectedFrom,
+        sources: input.sources,
       };
       await wait(350);
       dispatch({ type: 'push', item: { id: run.runId, type: 'guard', run } });
       const checking = wait(1150);
-      const remote = await apiGuardCheck({ userText: input.text, proposal: run.proposal, policy, lang, intent: input.intent });
+      const remote = await apiGuardCheck({ userMessage: input.text, proposal: run.proposal, policy, lang, sources: input.sources });
       await checking;
       dispatch({
         type: 'updateRun',
@@ -130,6 +134,7 @@ function useChatFlowImpl() {
       proposal: subscriptionProposal(),
       agentSource: 'scripted',
       injectedFrom: INJECTION_PAGE.url,
+      sources: [{ kind: 'web_page', url: `https://${INJECTION_PAGE.url}`, text: `${INJECTION_PAGE.visible}\n${INJECTION_PAGE.hidden}` }],
     });
   }, [dispatch, guard]);
 
@@ -139,7 +144,7 @@ function useChatFlowImpl() {
       const verdict = verdictFor(run, lang);
       const chosen = choice === 'counter_offer' ? verdict.counterOffer?.proposal : choice === 'original' ? run.proposal : undefined;
       const execution: Execution = chosen
-        ? ((await apiExecute(chosen, verdict.verdictId)) ?? mockExecute())
+        ? ((run.verdict ? await apiExecute(chosen, run.verdict.verdictId) : null) ?? mockExecute())
         : { mode: 'mock', status: 'skipped' };
       const receipt: Receipt = {
         receiptId: newId('rcpt'),
@@ -154,7 +159,7 @@ function useChatFlowImpl() {
       };
       const protectedAmount =
         choice === 'counter_offer'
-          ? (verdict.metrics.protectedAmount ?? 0)
+          ? (verdict.amounts.protected?.minor ?? 0)
           : choice === 'cancel' && verdict.decision !== 'allow'
             ? proposalAmount(run.proposal)
             : 0;

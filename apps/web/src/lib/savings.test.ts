@@ -11,16 +11,16 @@ function entry(original: AgentProposal, accepted: AgentProposal | undefined, ove
     decision: 'pause',
     choice: 'counter_offer',
     protectedAmount: 99999,
-    currency: original.kind === 'token_swap' ? 'USD' : 'THB',
+    currency: original.kind === 'token_swap' ? 'USDT' : 'THB',
     receipt: { originalProposal: original, verdict: { counterOffer: accepted && { proposal: accepted } } } as unknown as ActivityEntry['receipt'],
     ...over,
   };
 }
 
 const sub = subscriptionProposal();
-const monthly: AgentProposal = { ...sub, planId: 'pixelpro-monthly', planName: 'PixelPro Monthly', price: { amount: 299, currency: 'THB' }, interval: 'month', trialDays: 7 };
+const monthly: AgentProposal = { ...sub, planId: 'pixelpro-monthly', planName: 'PixelPro Monthly', price: { minor: 29900, currency: 'THB' }, interval: 'month', trialDays: 7 };
 const stay = stayProposal();
-const asokInn: AgentProposal = { ...stay, hotel: 'Asok Inn', nightlyPrice: { amount: 1350, currency: 'THB' }, totalPrice: { amount: 1445, currency: 'THB' }, refundable: true };
+const asokInn: AgentProposal = { ...stay, hotel: 'Asok Inn', nightlyPrice: { minor: 135000, currency: 'THB' }, totalPrice: { minor: 144500, currency: 'THB' }, refundable: true };
 
 describe('fmtExact', () => {
   it('always shows satang', () => {
@@ -28,6 +28,8 @@ describe('fmtExact', () => {
     expect(fmtExact(5, 'THB')).toBe('฿0.05');
     expect(fmtExact(-16100, 'THB')).toBe('-฿161.00');
     expect(fmtExact(123456789, 'USD')).toBe('$1,234,567.89');
+    expect(fmtExact(166_500_000, 'USDT')).toBe('166.50 USDT');
+    expect(fmtExact(200_420_883, 'USDT')).toBe('200.420883 USDT');
   });
 });
 
@@ -55,14 +57,14 @@ describe('monthlySavings', () => {
         entry(stay, asokInn, { scene: 'stay' }),
         entry(sub, monthly, { choice: 'cancel' }),
         entry(sub, monthly, { at: '2026-09-30T12:00:00Z' }),
-        entry(swapProposal(500), swapProposal(333.5), { scene: 'crypto' }),
+        entry(swapProposal(500_000_000), swapProposal(333_500_000), { scene: 'crypto' }),
       ],
       now,
     );
     expect(s.lines).toHaveLength(3);
     expect(fmtExact(s.thb, 'THB')).toBe('฿3,530.00');
     expect(s.thb).toBe(s.lines.filter((l) => l.currency === 'THB').reduce((t, l) => t + l.savedMinor, 0));
-    expect(fmtExact(s.usd, 'USD')).toBe('$166.50');
+    expect(fmtExact(s.usdt, 'USDT')).toBe('166.50 USDT');
   });
   it('uses Bangkok time for the month boundary', () => {
     expect(monthlySavings([entry(sub, monthly, { at: '2026-09-30T18:00:00Z' })], now).thb).toBe(369100);

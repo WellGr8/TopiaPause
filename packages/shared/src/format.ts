@@ -37,6 +37,17 @@ export function fmtMoney(m: Money, opts: { precise?: boolean } = {}): string {
   return `${decimalText(shown, opts.precise ? 6 : 2, true)} ${m.currency}`;
 }
 
+/** Receipt style, every minor unit shown: ฿3,691.00 · -฿161.00 · $9.99 · 200.420883 USDT · 300.00 USDT. */
+export function fmtExact(m: Money): string {
+  if (!Number.isSafeInteger(m.minor)) throw new MoneyError(`fmtExact: bad minor ${String(m.minor)}`);
+  const [int = '0', frac = ''] = toDecimal(m).replace('-', '').split('.');
+  const sign = m.minor < 0 ? '-' : '';
+  const sym = SYMBOL[m.currency];
+  if (sym) return `${sign}${sym}${group(int)}.${frac}`;
+  const f = frac.replace(/0+$/, '').padEnd(2, '0');
+  return `${sign}${group(int)}.${f} ${m.currency}`;
+}
+
 export function fmtPct(pct: number): string {
   return `${fmtNumber(pct, 1)}%`;
 }

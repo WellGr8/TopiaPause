@@ -82,7 +82,7 @@ export function parseRule(input: string): ParseResult {
 export function applyRule(policy: UserPolicy, rule: ParsedRule): UserPolicy {
   switch (rule.kind) {
     case 'subscriptionCap':
-      return { ...policy, monthlySubscriptionCap: { amount: rule.amount, currency: 'THB' } };
+      return { ...policy, monthlySubscriptionCap: { minor: Math.round(rule.amount * 100), currency: 'THB' } };
     case 'refundablePremium':
       return { ...policy, requireRefundableWhenFlexible: true, maxRefundablePremiumPct: rule.pct };
     case 'tokenCap':

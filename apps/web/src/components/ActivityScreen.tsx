@@ -1,4 +1,4 @@
-import { describeProposal, fmtMoney, type Lang, type Receipt } from '@topiapause/shared';
+import { describeProposal, fmtMoney, money, type Currency, type Lang, type Receipt } from '@topiapause/shared';
 import { ChevronDown } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { CHOICE_LABEL, SCENE_TITLE, t } from '../copy';
@@ -36,10 +36,11 @@ export function useProtectedTotals() {
     const d = new Date(a.at);
     return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
   });
-  const thb = month.filter((a) => a.currency === 'THB').reduce((s, a) => s + a.protectedAmount, 0);
-  const usd = month.filter((a) => a.currency === 'USD').reduce((s, a) => s + a.protectedAmount, 0);
-  const primary = thb === 0 && usd > 0 ? fmtMoney({ amount: usd, currency: 'USD' }) : fmtMoney({ amount: thb, currency: 'THB' });
-  const secondary = thb > 0 && usd > 0 ? fmtMoney({ amount: usd, currency: 'USD' }) : undefined;
+  const total = (c: Currency) => month.filter((a) => a.currency === c).reduce((s, a) => s + a.protectedAmount, 0);
+  const thb = total('THB');
+  const usdt = total('USDT');
+  const primary = thb === 0 && usdt > 0 ? fmtMoney(money(usdt, 'USDT')) : fmtMoney(money(thb, 'THB'));
+  const secondary = thb > 0 && usdt > 0 ? fmtMoney(money(usdt, 'USDT')) : undefined;
   return { month, primary, secondary };
 }
 
@@ -71,7 +72,7 @@ function ReceiptDetails({ r, lang }: { r: Receipt; lang: Lang }) {
   );
 }
 
-const signed = (minor: number, currency: 'THB' | 'USD') => (minor > 0 ? '+' : '') + fmtExact(minor, currency);
+const signed = (minor: number, currency: Currency) => (minor > 0 ? '+' : '') + fmtExact(minor, currency);
 
 function Row({ a, open, lang, onToggle }: { a: ActivityEntry; open: boolean; lang: Lang; onToggle: () => void }) {
   const line = savedLine(a);

@@ -1,11 +1,12 @@
-import { describeProposal, findingDetail, findingTitle, fmtMoney, type Lang } from '@topiapause/shared';
+import { describeProposal, findingDetail, findingTitle, type Lang } from '@topiapause/shared';
 import { Play } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { t } from '../copy';
-import { protectedCurrency, verdictFor } from '../lib/guard';
+import { verdictFor } from '../lib/guard';
 import { approvedLine, offerOf, reasonLine, sortedFindings } from '../lib/summary';
 import { speak, speakClip, stopVoice } from '../lib/voice';
 import type { GuardRun } from '../state';
+import { CostMeter, ReceiptSections, RiskNotes, outcomeLine } from './GuardReceipt';
 import { Button, Card, Status, TextButton, WaveStrip, Waveform, cx } from './ui';
 
 type Voice = 'idle' | 'speaking' | 'blocked';
@@ -92,6 +93,7 @@ export function GuardianCard({
 
   if (run.stage === 'rechecking' || run.stage === 'done') {
     const chosen = run.choice === 'counter_offer' ? verdict.counterOffer?.proposal : run.choice === 'original' ? run.proposal : undefined;
+    const outcome = run.choice === 'counter_offer' ? outcomeLine(verdict, lang) : undefined;
     const status =
       run.stage === 'rechecking'
         ? t(lang, 'rechecking')
@@ -119,11 +121,12 @@ export function GuardianCard({
           {run.stage === 'done' && (
             <div className="mt-1 flex items-center justify-between">
               <p className="text-sm text-muted">
-                {(run.protectedAmount ?? 0) > 0 && (
-                  <>
-                    {t(lang, 'saved')}{' '}
-                    <span className="font-semibold text-ink tabular-nums">{fmtMoney({ amount: run.protectedAmount ?? 0, currency: protectedCurrency(run) })}</span>
-                  </>
+                {outcome && (
+                  <span data-outcome>
+                    {outcome.lead && <>{outcome.lead} </>}
+                    <span className="font-semibold text-ink tabular-nums">{outcome.amount}</span>
+                    {outcome.tail && <> {outcome.tail}</>}
+                  </span>
                 )}
               </p>
               {run.receiptId && (
@@ -211,6 +214,9 @@ export function GuardianCard({
           </TextButton>
           {!blocked && <TextButton onClick={() => choose('cancel')}>{t(lang, 'cancel')}</TextButton>}
         </div>
+        <div className="pb-2">
+          <CostMeter check={verdict.check} lang={lang} />
+        </div>
 
         {open && (
           <div className="animate-enter space-y-3 border-t border-line pb-3 pt-3 text-sm">
@@ -224,6 +230,8 @@ export function GuardianCard({
                 <dd>{describeProposal(run.proposal, lang)}</dd>
               </div>
             </dl>
+            <ReceiptSections verdict={verdict} lang={lang} />
+            <RiskNotes notes={verdict.notes} lang={lang} />
             {findings.length > 0 && (
               <div>
                 <p className="text-xs text-muted">{t(lang, 'findings')}</p>

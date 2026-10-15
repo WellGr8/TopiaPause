@@ -26,7 +26,7 @@ export function RulesEditor({
   onChange: (p: UserPolicy) => void;
   extended?: boolean;
 }) {
-  const cap = policy.monthlySubscriptionCap?.amount ?? 300;
+  const cap = (policy.monthlySubscriptionCap?.minor ?? 30000) / 100;
   const tokenCap = Math.round((policy.tokenConcentrationCaps['TOKEN-X'] ?? 0.3) * 100);
 
   return (
@@ -38,8 +38,8 @@ export function RulesEditor({
           step={50}
           min={100}
           max={2000}
-          format={(v) => fmtMoney({ amount: v, currency: 'THB' })}
-          onChange={(v) => onChange({ ...policy, monthlySubscriptionCap: { amount: v, currency: 'THB' } })}
+          format={(v) => fmtMoney({ minor: Math.round(v * 100), currency: 'THB' })}
+          onChange={(v) => onChange({ ...policy, monthlySubscriptionCap: { minor: Math.round(v * 100), currency: 'THB' } })}
         />
       </RuleRow>
       <RuleRow title={t(lang, 'rule2')} hint={t(lang, 'rule2Hint')}>
